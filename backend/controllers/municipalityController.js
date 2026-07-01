@@ -96,11 +96,16 @@ export const getMunicipalityDetails = async (req, res) => {
 
 // Add Attraction (Municipal DOT Admin only)
 export const addAttraction = async (req, res) => {
-  const { name, description, category, imageUrl, locationDetails, latitude, longitude } = req.body;
+  const { name, description, category, locationDetails, latitude, longitude } = req.body;
   const { municipality_id } = req.user; // from JWT token
 
   if (!name || !description) {
     return res.status(400).json({ message: 'Name and description are required.' });
+  }
+
+  let imageUrl = req.body.imageUrl || null;
+  if (req.file) {
+    imageUrl = `/uploads/${req.file.filename}`;
   }
 
   try {
@@ -138,11 +143,18 @@ export const updateAttraction = async (req, res) => {
       return res.status(403).json({ message: 'Forbidden. You do not manage this attraction.' });
     }
 
+    let finalImageUrl = checkRes.rows[0].image_url;
+    if (req.file) {
+      finalImageUrl = `/uploads/${req.file.filename}`;
+    } else if (imageUrl !== undefined) {
+      finalImageUrl = imageUrl;
+    }
+
     const result = await pool.query(
       `UPDATE tourist_attractions 
        SET name = $1, description = $2, category = $3, image_url = $4, location_details = $5, latitude = $6, longitude = $7
        WHERE id = $8 RETURNING *`,
-      [name, description, category, imageUrl, locationDetails, latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, id]
+      [name, description, category, finalImageUrl, locationDetails, latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, id]
     );
 
     return res.status(200).json({

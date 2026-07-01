@@ -17,8 +17,8 @@ const router = express.Router();
 router.get('/', getMunicipalities);
 router.get('/:id', getMunicipalityDetails);
 
-router.post('/attractions', verifyToken, requireRoles(['MUNICIPAL_DOT']), addAttraction);
-router.put('/attractions/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), updateAttraction);
+router.post('/attractions', verifyToken, requireRoles(['MUNICIPAL_DOT']), upload.single('image'), addAttraction);
+router.put('/attractions/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), upload.single('image'), updateAttraction);
 router.delete('/attractions/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), deleteAttraction);
 
 // Municipality Profile & Cover Images Customization

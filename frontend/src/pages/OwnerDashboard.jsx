@@ -289,7 +289,7 @@ const OwnerDashboard = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-6 flex px-6 space-x-6">
+      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-6 flex px-6 space-x-6 overflow-x-auto whitespace-nowrap scrollbar-none">
         {[
           { id: 'documents', label: 'Accreditation Docs', icon: FileText },
           { id: 'profile', label: 'Homestay Details & Photos', icon: Home },
@@ -304,7 +304,7 @@ const OwnerDashboard = () => {
                 setActiveTab(tab.id);
                 setSelectedInquiry(null);
               }}
-              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 ${
+              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 flex-shrink-0 ${
                 activeTab === tab.id
                   ? 'border-emerald-900 text-emerald-950'
                   : 'border-transparent text-slate-500 hover:text-slate-700'

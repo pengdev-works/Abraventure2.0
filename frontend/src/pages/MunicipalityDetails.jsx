@@ -153,7 +153,7 @@ const MunicipalityDetails = () => {
       {/* Tabs */}
       <div className="border-b border-slate-200 bg-white sticky top-16 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
+          <div className="flex space-x-8 overflow-x-auto whitespace-nowrap scrollbar-none">
             {[
               { id: 'attractions', label: `Attractions (${attractions.length})` },
               { id: 'homestays', label: `Homestays (${homestays.length})` },
@@ -162,7 +162,7 @@ const MunicipalityDetails = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all ${activeTab === tab.id
+                className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex-shrink-0 ${activeTab === tab.id
                     ? 'border-emerald-900 text-emerald-950'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                   }`}

@@ -1,14 +1,20 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
 @theme {
   --font-sans: "Outfit", sans-serif;
-  
-  --color-emerald-900: #0F3D3E; /* Primary Forest Green */
-  --color-amber-500: #D4AF37;   /* Accent Gold */
-  --color-slate-900: #101820;   /* Slate Dark */
+
+  /* Abra Province Core Palette */
+  --color-emerald-900: #0F3D3E;   /* Cordillera Forest Green */
+  --color-amber-500: #D4AF37;     /* Kaparkan Gold */
+  --color-slate-900: #101820;     /* Deep Highland Night */
+  --color-indigo-900: #1E2A6E;    /* Itneg Indigo (Malatayum) */
+  --color-earth-700: #7C5230;     /* Narra/Mahogany Earth */
 }
 
-/* Custom premium styling classes */
+/* ───────────────────────────────────────────
+   Glassmorphism Utilities
+─────────────────────────────────────────── */
 .glassmorphism {
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);
@@ -23,18 +29,210 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Custom scrollbars for clean UI */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ───────────────────────────────────────────
+   Abra Woven Textile Pattern Background
+   Inspired by Itneg geometric weaving motifs
+─────────────────────────────────────────── */
+.bg-woven {
+  background-color: #f8fafc;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 24px,
+      rgba(15, 61, 62, 0.035) 24px,
+      rgba(15, 61, 62, 0.035) 25px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 24px,
+      rgba(212, 175, 55, 0.025) 24px,
+      rgba(212, 175, 55, 0.025) 25px
+    );
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+.bg-woven-dark {
+  background-color: #0a1f20;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 24px,
+      rgba(212, 175, 55, 0.06) 24px,
+      rgba(212, 175, 55, 0.06) 25px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 24px,
+      rgba(255, 255, 255, 0.03) 24px,
+      rgba(255, 255, 255, 0.03) 25px
+    );
 }
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+
+/* ───────────────────────────────────────────
+   Abra Text Gradient
+─────────────────────────────────────────── */
+.text-gradient-abra {
+  background: linear-gradient(135deg, #D4AF37 0%, #f0d070 50%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+
+.text-gradient-green {
+  background: linear-gradient(135deg, #0F3D3E 0%, #1a6464 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ───────────────────────────────────────────
+   Itneg Gold Divider
+─────────────────────────────────────────── */
+.divider-gold {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #D4AF37 30%, #D4AF37 70%, transparent);
+  border-radius: 999px;
+}
+
+.divider-green {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #0F3D3E 30%, #0F3D3E 70%, transparent);
+  border-radius: 999px;
+}
+
+/* ───────────────────────────────────────────
+   Card Hover Effects
+─────────────────────────────────────────── */
+.card-hover {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px -8px rgba(15, 61, 62, 0.15), 0 4px 12px -4px rgba(0,0,0,0.08);
+}
+
+/* ───────────────────────────────────────────
+   Animations
+─────────────────────────────────────────── */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeSlideUp  { animation: fadeSlideUp  0.6s ease forwards; }
+.animate-fadeSlideDown { animation: fadeSlideDown 0.5s ease forwards; }
+.animate-subtleFloat  { animation: subtleFloat 4s ease-in-out infinite; }
+.animate-fadeIn       { animation: fadeIn 0.4s ease forwards; }
+.animate-slideDown    { animation: slideDown 0.7s ease forwards; }
+
+/* ───────────────────────────────────────────
+   Stagger Animation Delays
+─────────────────────────────────────────── */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* ───────────────────────────────────────────
+   Scrollbar
+─────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ───────────────────────────────────────────
+   Button Styles
+─────────────────────────────────────────── */
+.btn-abra-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #D4AF37 0%, #c9a227 100%);
+  color: #0F3D3E;
+  font-weight: 800;
+  font-size: 0.875rem;
+  border-radius: 9999px;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.35);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+.btn-abra-primary:hover {
+  background: linear-gradient(135deg, #e2c04a 0%, #D4AF37 100%);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.45);
+  transform: translateY(-1px) scale(1.02);
+}
+
+.btn-abra-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 2rem;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+.btn-abra-secondary:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(212,175,55,0.5);
+  transform: translateY(-1px);
 }

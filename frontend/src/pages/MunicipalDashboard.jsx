@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Landmark, Compass, FolderClosed, CheckSquare, Plus, Trash2, Edit, AlertCircle, FileCheck, CheckCircle, User, Upload, Mail, Phone } from 'lucide-react';
+import { Landmark, Compass, FolderClosed, CheckSquare, Plus, Trash2, Edit, AlertCircle, FileCheck, CheckCircle, User, Upload, Mail, Phone, MapPin, X } from 'lucide-react';
 
 const MunicipalDashboard = () => {
   const { token, user, refreshUser } = useAuth();
@@ -30,10 +30,13 @@ const MunicipalDashboard = () => {
   const [munMsg, setMunMsg] = useState({ type: '', text: '' });
 
   // Forms State
+  const [attractions, setAttractions] = useState([]);
+  const [editingAttractionId, setEditingAttractionId] = useState(null);
   const [attractionName, setAttractionName] = useState('');
   const [attractionDesc, setAttractionDesc] = useState('');
   const [attractionCategory, setAttractionCategory] = useState('Nature');
-  const [attractionImage, setAttractionImage] = useState('');
+  const [attractionImageFile, setAttractionImageFile] = useState(null);
+  const [attractionImagePreview, setAttractionImagePreview] = useState('');
   const [attractionLoc, setAttractionLoc] = useState('');
 
   const [reqName, setReqName] = useState('');
@@ -107,6 +110,7 @@ const MunicipalDashboard = () => {
         const munData = await response.json();
         setMunDescription(munData.municipality.description || '');
         setMunImages(munData.municipality.images || []);
+        setAttractions(munData.attractions || []);
       }
     } catch (err) {
       console.error('Error fetching municipality profile data:', err);
@@ -237,36 +241,99 @@ const MunicipalDashboard = () => {
     fetchMunicipalityData();
   }, [token, user]);
 
-  const handleAddAttraction = async (e) => {
+  const handleAttractionImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAttractionImageFile(file);
+      setAttractionImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleStartAttractionEdit = (att) => {
+    setEditingAttractionId(att.id);
+    setAttractionName(att.name);
+    setAttractionDesc(att.description || '');
+    setAttractionCategory(att.category || 'Nature');
+    setAttractionLoc(att.location_details || '');
+    setAttractionImageFile(null);
+    setAttractionImagePreview(att.image_url || '');
+  };
+
+  const handleCancelAttractionEdit = () => {
+    setEditingAttractionId(null);
+    setAttractionName('');
+    setAttractionDesc('');
+    setAttractionCategory('Nature');
+    setAttractionLoc('');
+    setAttractionImageFile(null);
+    setAttractionImagePreview('');
+    const fileInput = document.getElementById('attraction-file-input');
+    if (fileInput) fileInput.value = '';
+  };
+
+  const handleAttractionSubmit = async (e) => {
     e.preventDefault();
     if (!attractionName || !attractionDesc) return;
-    
-    try {
-      const response = await fetch('/api/municipalities/attractions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: attractionName,
-          description: attractionDesc,
-          category: attractionCategory,
-          imageUrl: attractionImage,
-          locationDetails: attractionLoc
-        })
-      });
 
+    const formData = new FormData();
+    formData.append('name', attractionName);
+    formData.append('description', attractionDesc);
+    formData.append('category', attractionCategory);
+    formData.append('locationDetails', attractionLoc);
+
+    if (attractionImageFile) {
+      formData.append('image', attractionImageFile);
+    } else if (attractionImagePreview) {
+      formData.append('imageUrl', attractionImagePreview);
+    }
+
+    try {
+      let response;
+      if (editingAttractionId) {
+        response = await fetch(`/api/municipalities/attractions/${editingAttractionId}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+      } else {
+        response = await fetch('/api/municipalities/attractions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+      }
+
+      const resData = await response.json();
       if (response.ok) {
-        setAttractionName('');
-        setAttractionDesc('');
-        setAttractionImage('');
-        setAttractionLoc('');
-        alert('Attraction added successfully.');
-        await fetchData();
+        alert(editingAttractionId ? 'Attraction updated successfully.' : 'Attraction added successfully.');
+        handleCancelAttractionEdit();
+        await fetchMunicipalityData();
+      } else {
+        alert(resData.message || 'Failed to save attraction.');
       }
     } catch (err) {
       console.error(err);
+      alert('Server error saving attraction.');
+    }
+  };
+
+  const handleDeleteAttraction = async (id) => {
+    if (!window.confirm('Delete this tourist attraction?')) return;
+    try {
+      const response = await fetch(`/api/municipalities/attractions/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        alert('Attraction deleted successfully.');
+        await fetchMunicipalityData();
+      } else {
+        const resData = await response.json();
+        alert(resData.message || 'Failed to delete attraction.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Server error deleting attraction.');
     }
   };
 
@@ -376,7 +443,7 @@ const MunicipalDashboard = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-6 flex px-6 space-x-6">
+      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-6 flex px-6 space-x-6 overflow-x-auto whitespace-nowrap scrollbar-none">
         {[
           { id: 'attractions', label: 'Local Attractions', icon: Compass },
           { id: 'requirements', label: 'Accreditation Requirements', icon: FolderClosed },
@@ -390,7 +457,7 @@ const MunicipalDashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 ${
+              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 flex-shrink-0 ${
                 activeTab === tab.id
                   ? 'border-emerald-900 text-emerald-950'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -410,9 +477,11 @@ const MunicipalDashboard = () => {
         {activeTab === 'attractions' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form */}
-            <div className="lg:col-span-1 border border-slate-150 p-6 rounded-2xl bg-slate-50">
-              <h3 className="font-bold text-slate-800 text-sm mb-4 border-b border-slate-200 pb-2">Add Tourist Attraction</h3>
-              <form onSubmit={handleAddAttraction} className="space-y-4">
+            <div className="lg:col-span-1 border border-slate-150 p-6 rounded-2xl bg-slate-50 h-fit">
+              <h3 className="font-bold text-slate-800 text-sm mb-4 border-b border-slate-200 pb-2">
+                {editingAttractionId ? 'Edit Tourist Attraction' : 'Add Tourist Attraction'}
+              </h3>
+              <form onSubmit={handleAttractionSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-705 mb-1">Attraction Name</label>
                   <input
@@ -450,14 +519,31 @@ const MunicipalDashboard = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Image URL</label>
+                  <label className="block text-xs font-semibold text-slate-705 mb-1">Upload Photo</label>
                   <input
-                    type="text"
-                    value={attractionImage}
-                    onChange={(e) => setAttractionImage(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="https://..."
+                    id="attraction-file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAttractionImageChange}
+                    className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-950 hover:file:bg-emerald-100 cursor-pointer"
                   />
+                  {attractionImagePreview && (
+                    <div className="mt-3 relative rounded-lg overflow-hidden border border-slate-205 aspect-video bg-white">
+                      <img src={attractionImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAttractionImageFile(null);
+                          setAttractionImagePreview('');
+                          const fileInput = document.getElementById('attraction-file-input');
+                          if (fileInput) fileInput.value = '';
+                        }}
+                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 shadow hover:bg-red-750 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-705 mb-1">Location Details</label>
@@ -469,22 +555,81 @@ const MunicipalDashboard = () => {
                     placeholder="Barangay name, landmarks..."
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-900 text-white text-xs font-bold rounded-lg cursor-pointer hover:bg-emerald-800"
-                >
-                  Save Attraction
-                </button>
+                <div className="flex gap-2">
+                  {editingAttractionId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelAttractionEdit}
+                      className="w-1/2 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className={`${editingAttractionId ? 'w-1/2' : 'w-full'} py-2.5 bg-emerald-900 hover:bg-emerald-805 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors`}
+                  >
+                    {editingAttractionId ? 'Update' : 'Save Attraction'}
+                  </button>
+                </div>
               </form>
             </div>
 
             {/* List of Attractions */}
-            <div className="lg:col-span-2">
-              <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Active Attractions in {user.municipalityName}</h3>
-              <p className="text-slate-400 text-xs mb-4">Attractions configured here appear in public municipality profiles for tourists.</p>
-              <div className="p-4 border border-slate-100 rounded-xl bg-slate-50 text-xs text-center text-slate-500">
-                Manage attractions list via your dashboard. (Configured from database seed and additions).
-              </div>
+            <div className="lg:col-span-2 space-y-4">
+              <h3 className="font-bold text-slate-805 text-base mb-2 border-b border-slate-100 pb-2">Active Attractions in {user.municipalityName}</h3>
+              <p className="text-slate-450 text-xs mb-4">Attractions configured here appear in the public municipality details page for travelers.</p>
+              {attractions.length === 0 ? (
+                <div className="p-8 border border-slate-150 rounded-2xl bg-slate-50 text-center text-slate-450 text-xs">
+                  No tourist attractions configured yet. Use the form on the left to add one!
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {attractions.map((att) => (
+                    <div key={att.id} className="border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-sm flex flex-col">
+                      <div className="h-40 w-full bg-slate-100 relative">
+                        {att.image_url ? (
+                          <img src={att.image_url} alt={att.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 bg-slate-100">
+                            <Compass className="w-8 h-8" />
+                          </div>
+                        )}
+                        <span className="absolute top-2.5 left-2.5 bg-emerald-900 text-white font-extrabold text-[9px] tracking-wide uppercase px-2 py-0.5 rounded shadow">
+                          {att.category}
+                        </span>
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col justify-between">
+                        <div>
+                          <h4 className="font-extrabold text-slate-800 text-sm">{att.name}</h4>
+                          {att.location_details && (
+                            <p className="text-slate-450 text-[10px] mt-1 font-semibold flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" /> {att.location_details}
+                            </p>
+                          )}
+                          <p className="text-slate-550 text-xs mt-2.5 line-clamp-3 leading-relaxed">{att.description}</p>
+                        </div>
+                        <div className="flex gap-2 mt-4 pt-3.5 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => handleStartAttractionEdit(att)}
+                            className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1 transition-colors"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-slate-500" /> Edit Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAttraction(att.id)}
+                            className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-650 text-[10px] font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-550" /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
