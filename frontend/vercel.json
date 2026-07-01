@@ -7,6 +7,10 @@
     {
       "source": "/uploads/:path*",
       "destination": "https://abraventure2-0.onrender.com/uploads/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
