@@ -120,6 +120,12 @@ export const login = async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // Log activity
+    pool.query(
+      `INSERT INTO activity_logs (user_id, action, target_type, ip_address) VALUES ($1, $2, $3, $4)`,
+      [user.id, 'USER_LOGIN', 'AUTH', req.ip || 'unknown']
+    ).catch(() => {});
+
     return res.status(200).json({
       message: 'Login successful.',
       token,

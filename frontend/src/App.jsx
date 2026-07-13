@@ -15,6 +15,10 @@ import ProvincialDashboard from './pages/ProvincialDashboard';
 import MunicipalDashboard from './pages/MunicipalDashboard';
 import OwnerDashboard from './pages/OwnerDashboard';
 import GuideDashboard from './pages/GuideDashboard';
+import Events from './pages/Events';
+import TravelTips from './pages/TravelTips';
+import PhotoGallery from './pages/PhotoGallery';
+import TouristDashboard from './pages/TouristDashboard';
 
 function App() {
   return (
@@ -28,6 +32,9 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/municipalities" element={<Municipalities />} />
             <Route path="/municipalities/:id" element={<MunicipalityDetails />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/travel-tips" element={<TravelTips />} />
+            <Route path="/municipalities/:id/gallery" element={<PhotoGallery />} />
 
             {/* Tourist Protected Routes */}
             <Route
@@ -35,6 +42,14 @@ function App() {
               element={
                 <RouteGuard allowedRoles={['TOURIST']}>
                   <ItineraryPlanner />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/tourist-dashboard"
+              element={
+                <RouteGuard allowedRoles={['TOURIST']}>
+                  <TouristDashboard />
                 </RouteGuard>
               }
             />

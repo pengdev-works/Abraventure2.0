@@ -1,9 +1,22 @@
 import pool from '../config/db.js';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
+  filename: (req, file, cb) => cb(null, `payment_${Date.now()}${path.extname(file.originalname)}`),
+});
+export const upload = multer({ storage });
 
 // Send booking inquiry (Tourist only)
 export const createInquiry = async (req, res) => {
   const touristId = req.user.id;
   const { homestayId, guideId, startDate, endDate, numberOfGuests, message } = req.body;
+  const paymentProofUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
   if (!message) {
     return res.status(400).json({ message: 'Message is required.' });
@@ -11,8 +24,8 @@ export const createInquiry = async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO bookings_inquiries (tourist_id, homestay_id, guide_id, start_date, end_date, number_of_guests, message, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING')
+      `INSERT INTO bookings_inquiries (tourist_id, homestay_id, guide_id, start_date, end_date, number_of_guests, message, status, payment_proof_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8)
        RETURNING *`,
       [
         touristId,
@@ -21,9 +34,30 @@ export const createInquiry = async (req, res) => {
         startDate || null,
         endDate || null,
         numberOfGuests ? parseInt(numberOfGuests) : null,
-        message
+        message,
+        paymentProofUrl
       ]
     );
+
+    // Notify the stakeholder of new booking inquiry
+    if (homestayId) {
+      const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id=$1', [homestayId]);
+      if (ownerRes.rows.length > 0) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'BOOKING')`,
+          [ownerRes.rows[0].owner_id, 'New Booking Inquiry', `A tourist sent a booking inquiry for your homestay${paymentProofUrl ? ' with payment proof attached' : ''}.`]
+        );
+      }
+    }
+    if (guideId) {
+      const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id=$1', [guideId]);
+      if (guideRes.rows.length > 0) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'BOOKING')`,
+          [guideRes.rows[0].guide_id, 'New Booking Inquiry', 'A tourist sent a booking inquiry for your guide services.']
+        );
+      }
+    }
 
     return res.status(201).json({
       message: 'Inquiry sent successfully.',
@@ -165,3 +199,66 @@ export const replyInquiry = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error replying to inquiry.' });
   }
 };
+
+// Upload payment proof for existing booking (Tourist only)
+export const uploadPaymentProof = async (req, res) => {
+  const { id } = req.params;
+  const touristId = req.user.id;
+  const paymentProofUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
+  if (!paymentProofUrl) {
+    return res.status(400).json({ message: 'Payment proof file is required.' });
+  }
+
+  try {
+    // Verify booking belongs to this tourist
+    const checkRes = await pool.query(
+      'SELECT * FROM bookings_inquiries WHERE id = $1 AND tourist_id = $2',
+      [id, touristId]
+    );
+
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Booking not found or unauthorized.' });
+    }
+
+    const booking = checkRes.rows[0];
+
+    const result = await pool.query(
+      `UPDATE bookings_inquiries 
+       SET payment_proof_url = $1, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $2 RETURNING *`,
+      [paymentProofUrl, id]
+    );
+
+    // Notify homestay owner or tour guide
+    if (booking.homestay_id) {
+      const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id = $1', [booking.homestay_id]);
+      if (ownerRes.rows.length > 0) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, title, message, type)
+           VALUES ($1, $2, $3, 'BOOKING')`,
+          [ownerRes.rows[0].owner_id, 'Payment Proof Uploaded', `A guest has uploaded proof of payment for your homestay.`]
+        );
+      }
+    }
+    if (booking.guide_id) {
+      const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id = $1', [booking.guide_id]);
+      if (guideRes.rows.length > 0) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, title, message, type)
+           VALUES ($1, $2, $3, 'BOOKING')`,
+          [guideRes.rows[0].guide_id, 'Payment Proof Uploaded', `A tourist has uploaded proof of payment for your services.`]
+        );
+      }
+    }
+
+    return res.status(200).json({
+      message: 'Payment proof uploaded successfully.',
+      inquiry: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Error uploading payment proof:', err);
+    return res.status(500).json({ message: 'Server error uploading payment proof.' });
+  }
+};
+

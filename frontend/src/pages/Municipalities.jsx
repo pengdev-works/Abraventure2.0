@@ -9,9 +9,12 @@ const categoryColors = {
   Adventure:  'bg-orange-100 text-orange-800',
 };
 
+const CATEGORIES = ['All', 'Nature', 'Heritage', 'Cultural', 'Adventure', 'Eco-Tourism'];
+
 const Municipalities = () => {
   const [municipalities, setMunicipalities] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,9 +34,13 @@ const Municipalities = () => {
     fetchMunicipalities();
   }, []);
 
-  const filteredMunicipalities = municipalities.filter((m) =>
-    m.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredMunicipalities = municipalities.filter((m) => {
+    const matchSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (m.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCat = selectedCategory === 'All' ||
+      (m.description || '').toLowerCase().includes(selectedCategory.toLowerCase());
+    return matchSearch && matchCat;
+  });
 
   return (
     <div>
@@ -78,6 +85,23 @@ const Municipalities = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-5 py-4 bg-white/95 backdrop-blur-sm border-0 rounded-2xl shadow-xl focus:outline-none focus:ring-4 focus:ring-amber-400/30 text-sm text-slate-800 font-medium placeholder:text-slate-400 transition-all"
             />
+          </div>
+
+          {/* Category Filter Chips */}
+          <div className="flex flex-wrap justify-center gap-2 mt-5 animate-fadeSlideUp delay-400">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                  selectedCategory === cat
+                    ? 'bg-amber-500 text-emerald-950 border-amber-500 shadow-md'
+                    : 'bg-white/10 text-white/70 border-white/20 hover:border-amber-400/60 hover:text-white'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
 
           {/* Stats */}

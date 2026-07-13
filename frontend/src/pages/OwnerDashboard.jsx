@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Home, FileText, Bed, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar, User, Compass } from 'lucide-react';
+import { Home, FileText, Bed, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar, User, Compass, Star, CreditCard, Users, Eye } from 'lucide-react';
+import SafeImage from '../components/SafeImage';
 
 const OwnerDashboard = () => {
   const { token, user, refreshUser } = useAuth();
@@ -29,6 +30,15 @@ const OwnerDashboard = () => {
   // Inquiry reply state
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [replyText, setReplyText] = useState('');
+
+  // Reviews received
+  const [receivedReviews, setReceivedReviews] = useState([]);
+
+  // Calendar: all bookings with dates
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   const fetchProfileAndRequirements = async () => {
     if (!token || !user) return;
@@ -84,7 +94,61 @@ const OwnerDashboard = () => {
 
   useEffect(() => {
     fetchProfileAndRequirements();
+    fetchReceivedReviews();
   }, [token, user]);
+
+  const fetchReceivedReviews = async () => {
+    if (!token) return;
+    try {
+      const r = await fetch('/api/reviews/received', { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setReceivedReviews(await r.json());
+    } catch (err) { console.error(err); }
+  };
+
+  const handleConfirmBooking = async (id) => {
+    try {
+      const r = await fetch(`/api/inquiries/reply/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ replyMessage: 'Your booking has been confirmed! We look forward to hosting you.', status: 'CONFIRMED' }),
+      });
+      if (r.ok) await fetchProfileAndRequirements();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleCancelBooking = async (id) => {
+    if (!window.confirm('Cancel this booking?')) return;
+    try {
+      const r = await fetch(`/api/inquiries/reply/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ replyMessage: 'We are sorry, your booking has been cancelled. Please reach out for reschedule options.', status: 'CANCELLED' }),
+      });
+      if (r.ok) await fetchProfileAndRequirements();
+    } catch (err) { console.error(err); }
+  };
+
+  // Generate calendar grid for selected month
+  const buildCalendarDays = () => {
+    const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const confirmedBookings = inquiries.filter(i => i.status === 'CONFIRMED' && i.start_date);
+    const bookedDates = new Set();
+    confirmedBookings.forEach(b => {
+      const start = new Date(b.start_date);
+      const end = b.end_date ? new Date(b.end_date) : new Date(b.start_date);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getFullYear() === calendarYear && d.getMonth() === calendarMonth) {
+          bookedDates.add(d.getDate());
+        }
+      }
+    });
+    return { firstDay, daysInMonth, bookedDates };
+  };
+
+  const avgRating = receivedReviews.length > 0
+    ? (receivedReviews.reduce((s, r) => s + r.rating, 0) / receivedReviews.length).toFixed(1)
+    : null;
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -295,6 +359,10 @@ const OwnerDashboard = () => {
           { id: 'profile', label: 'Homestay Details & Photos', icon: Home },
           { id: 'rooms', label: 'Rooms Configuration', icon: Bed },
           { id: 'inquiries', label: `Inquiries (${inquiries.length})`, icon: MessageSquare },
+          { id: 'calendar', label: 'Availability Calendar', icon: Calendar },
+          { id: 'guests', label: 'Guest Management', icon: Users },
+          { id: 'payments', label: 'Payment Tracking', icon: CreditCard },
+          { id: 'reviews', label: `Reviews (${receivedReviews.length})`, icon: Star },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -479,7 +547,7 @@ const OwnerDashboard = () => {
                 <div className="grid grid-cols-2 gap-4">
                   {profile?.images?.map((img) => (
                     <div key={img.id} className="relative rounded-xl overflow-hidden group h-36 bg-slate-100">
-                      <img src={img.image_url} alt="Gallery" className="w-full h-full object-cover" />
+                      <SafeImage src={img.image_url} alt="Gallery" className="w-full h-full object-cover" fallback="square" />
                       <button
                         onClick={() => handleDeletePhoto(img.id)}
                         className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow"
@@ -692,7 +760,185 @@ const OwnerDashboard = () => {
           </div>
         )}
 
-      </div>
+        {/* Room Availability Calendar */}
+        {activeTab === 'calendar' && (() => {
+          const { firstDay, daysInMonth, bookedDates } = buildCalendarDays();
+          const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-slate-800 text-base">Room Availability Calendar</h3>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { let m=calendarMonth-1; let y=calendarYear; if(m<0){m=11;y--;} setCalendarMonth(m);setCalendarYear(y);}} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">‹</button>
+                  <span className="text-sm font-bold text-slate-800 min-w-[130px] text-center">{MONTH_NAMES[calendarMonth]} {calendarYear}</span>
+                  <button onClick={() => { let m=calendarMonth+1; let y=calendarYear; if(m>11){m=0;y++;} setCalendarMonth(m);setCalendarYear(y);}} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">›</button>
+                </div>
+              </div>
+              <div className="flex gap-4 text-xs mb-4">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-red-400 rounded-full" /> Booked (Confirmed)</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-white border border-slate-200 rounded-full" /> Available</span>
+              </div>
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="grid grid-cols-7 bg-emerald-900">
+                  {dayNames.map(d => <div key={d} className="text-center text-white text-[10px] font-bold uppercase py-2">{d}</div>)}
+                </div>
+                <div className="grid grid-cols-7">
+                  {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="h-12 bg-slate-50 border border-slate-100" />)}
+                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                    const isBooked = bookedDates.has(day);
+                    const isToday = day === new Date().getDate() && calendarMonth === new Date().getMonth() && calendarYear === new Date().getFullYear();
+                    return (
+                      <div key={day} className={`h-12 border border-slate-100 flex items-center justify-center relative ${
+                        isBooked ? 'bg-red-50' : 'bg-white hover:bg-emerald-50'
+                      }`}>
+                        <span className={`text-xs font-semibold ${
+                          isBooked ? 'text-red-600' : isToday ? 'text-white' : 'text-slate-700'
+                        } ${isToday ? 'bg-emerald-900 rounded-full w-6 h-6 flex items-center justify-center' : ''}`}>{day}</span>
+                        {isBooked && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-400 rounded-full" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mt-3 text-center">Red dates = confirmed bookings. Based on your accepted inquiries.</p>
+            </div>
+          );
+        })()}
+
+        {/* Guest Management */}
+        {activeTab === 'guests' && (
+          <div>
+            <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Guest Booking Management</h3>
+            {inquiries.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-sm"><Users className="w-10 h-10 mx-auto mb-2 opacity-30" /> No guests yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {inquiries.map(inq => (
+                  <div key={inq.id} className={`bg-white border rounded-xl p-4 ${
+                    inq.status === 'CONFIRMED' ? 'border-emerald-200 bg-emerald-50/30' :
+                    inq.status === 'CANCELLED' ? 'border-red-100 opacity-60' :
+                    inq.status === 'PENDING' ? 'border-amber-200' : 'border-slate-200'
+                  }`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center"><User className="w-3.5 h-3.5 text-emerald-700" /></div>
+                          <p className="font-bold text-slate-800 text-sm">{inq.tourist_name || 'Tourist'}</p>
+                          <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                            inq.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' :
+                            inq.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
+                            inq.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+                          }`}>{inq.status}</span>
+                        </div>
+                        <div className="ml-9 space-y-0.5 text-xs text-slate-500">
+                          <p>📅 {inq.start_date?.split('T')[0]}{inq.end_date ? ` – ${inq.end_date.split('T')[0]}` : ''}</p>
+                          <p>👥 {inq.number_of_guests || 1} guest(s)</p>
+                          {inq.total_amount && <p>💰 ₱{parseFloat(inq.total_amount).toLocaleString()}</p>}
+                          {inq.payment_proof_url && (
+                            <a href={inq.payment_proof_url} target="_blank" rel="noreferrer" className="text-emerald-700 font-semibold hover:underline">📎 View Payment Proof</a>
+                          )}
+                          {inq.message && <p className="text-slate-400 italic mt-1">&ldquo;{inq.message}&rdquo;</p>}
+                        </div>
+                      </div>
+                      {inq.status === 'PENDING' && (
+                        <div className="flex flex-col gap-2">
+                          <button onClick={() => handleConfirmBooking(inq.id)} className="px-3 py-1.5 bg-emerald-900 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-800">✓ Confirm</button>
+                          <button onClick={() => handleCancelBooking(inq.id)} className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-bold rounded-lg hover:bg-red-600">✕ Cancel</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Payment Tracking */}
+        {activeTab === 'payments' && (
+          <div>
+            <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Payment Tracking</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {[
+                { label: 'Total Inquiries', value: inquiries.length, color: 'bg-slate-50 text-slate-800' },
+                { label: 'Confirmed Bookings', value: inquiries.filter(i => i.status === 'CONFIRMED').length, color: 'bg-emerald-50 text-emerald-900' },
+                { label: 'With Payment Proof', value: inquiries.filter(i => i.payment_proof_url).length, color: 'bg-amber-50 text-amber-900' },
+              ].map(s => (
+                <div key={s.label} className={`${s.color} border border-slate-100 rounded-2xl p-5`}>
+                  <p className="text-xs font-bold uppercase tracking-wide opacity-60 mb-1">{s.label}</p>
+                  <p className="text-3xl font-black">{s.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-400 text-[10px] uppercase font-bold bg-slate-50">
+                    {['Guest','Dates','Guests','Payment Proof','Status','Amount'].map(h => <th key={h} className="py-3 px-4">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {inquiries.map(inq => (
+                    <tr key={inq.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-slate-600">
+                      <td className="py-3 px-4 font-semibold">{inq.tourist_name || '—'}</td>
+                      <td className="py-3 px-4">{inq.start_date?.split('T')[0] || '—'}{inq.end_date ? ` → ${inq.end_date.split('T')[0]}` : ''}</td>
+                      <td className="py-3 px-4">{inq.number_of_guests || 1}</td>
+                      <td className="py-3 px-4">
+                        {inq.payment_proof_url ? (
+                          <a href={inq.payment_proof_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-emerald-700 font-semibold hover:underline">
+                            <Eye className="w-3 h-3" /> View Proof
+                          </a>
+                        ) : <span className="text-slate-300">None</span>}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          inq.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' :
+                          inq.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
+                          inq.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+                        }`}>{inq.status}</span>
+                      </td>
+                      <td className="py-3 px-4 font-bold">{inq.total_amount ? `₱${parseFloat(inq.total_amount).toLocaleString()}` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Reviews Received */}
+        {activeTab === 'reviews' && (
+          <div>
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-base">Reviews from Guests</h3>
+              {avgRating && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 px-4 py-2 rounded-xl">
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <span className="font-black text-amber-900 text-lg">{avgRating}</span>
+                  <span className="text-xs text-amber-700">/ 5 ({receivedReviews.length} reviews)</span>
+                </div>
+              )}
+            </div>
+            {receivedReviews.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-sm"><Star className="w-10 h-10 mx-auto mb-2 opacity-30" /> No reviews yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {receivedReviews.map(rev => (
+                  <div key={rev.id} className="bg-white border border-slate-200 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-bold text-slate-800 text-sm">{rev.reviewer_name || 'Anonymous'}</p>
+                      <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><Star key={s} className={`w-4 h-4 ${s<=rev.rating?'fill-amber-400 text-amber-400':'text-slate-200'}`}/>)}</div>
+                    </div>
+                    {rev.comment && <p className="text-slate-600 text-xs leading-relaxed">{rev.comment}</p>}
+                    <p className="text-slate-300 text-[10px] mt-2">{new Date(rev.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div> {/* <-- Closes Tab Content container */}
 
       {selectedDocUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">

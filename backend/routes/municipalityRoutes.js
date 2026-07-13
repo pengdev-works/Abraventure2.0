@@ -22,8 +22,8 @@ router.put('/attractions/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), upl
 router.delete('/attractions/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), deleteAttraction);
 
 // Municipality Profile & Cover Images Customization
-router.put('/profile', verifyToken, requireRoles(['MUNICIPAL_DOT']), updateMunicipalityProfile);
-router.post('/images', verifyToken, requireRoles(['MUNICIPAL_DOT']), upload.single('image'), addMunicipalityImage);
-router.delete('/images/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), deleteMunicipalityImage);
+router.put('/profile', verifyToken, requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']), updateMunicipalityProfile);
+router.post('/images', verifyToken, requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']), upload.single('image'), addMunicipalityImage);
+router.delete('/images/:id', verifyToken, requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']), deleteMunicipalityImage);
 
 export default router;

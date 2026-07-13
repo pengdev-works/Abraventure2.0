@@ -190,13 +190,14 @@ export const deleteAttraction = async (req, res) => {
   }
 };
 
-// Update Municipality Profile Description (Municipal DOT only)
+// Update Municipality Profile Description (Municipal/Provincial DOT)
 export const updateMunicipalityProfile = async (req, res) => {
-  const { description } = req.body;
-  const { municipality_id } = req.user;
+  const { description, municipalityId } = req.body;
+  const { role } = req.user;
+  const targetMunId = role === 'PROVINCIAL_DOT' ? municipalityId : req.user.municipality_id;
 
-  if (!municipality_id) {
-    return res.status(400).json({ message: 'User is not assigned to a municipality.' });
+  if (!targetMunId) {
+    return res.status(400).json({ message: 'Municipality ID is required.' });
   }
 
   try {
@@ -204,7 +205,7 @@ export const updateMunicipalityProfile = async (req, res) => {
       `UPDATE municipalities
        SET description = COALESCE($1, description)
        WHERE id = $2 RETURNING *`,
-      [description, municipality_id]
+      [description, targetMunId]
     );
 
     if (result.rows.length === 0) {
@@ -221,13 +222,14 @@ export const updateMunicipalityProfile = async (req, res) => {
   }
 };
 
-// Add Municipality Image (Municipal DOT only)
+// Add Municipality Image (Municipal/Provincial DOT)
 export const addMunicipalityImage = async (req, res) => {
-  const { municipality_id } = req.user;
-  const { isFeatured } = req.body;
+  const { role } = req.user;
+  const { isFeatured, municipalityId } = req.body;
+  const targetMunId = role === 'PROVINCIAL_DOT' ? municipalityId : req.user.municipality_id;
 
-  if (!municipality_id) {
-    return res.status(400).json({ message: 'User is not assigned to a municipality.' });
+  if (!targetMunId) {
+    return res.status(400).json({ message: 'Municipality ID is required.' });
   }
 
   if (!req.file) {
@@ -239,15 +241,15 @@ export const addMunicipalityImage = async (req, res) => {
   try {
     // If setting as featured, remove featured status from other images of this municipality
     if (isFeatured === 'true' || isFeatured === true) {
-      await pool.query('UPDATE municipality_images SET is_featured = false WHERE municipality_id = $1', [municipality_id]);
+      await pool.query('UPDATE municipality_images SET is_featured = false WHERE municipality_id = $1', [targetMunId]);
       // Also update featured_image_url in municipalities table
-      await pool.query('UPDATE municipalities SET featured_image_url = $1 WHERE id = $2', [imageUrl, municipality_id]);
+      await pool.query('UPDATE municipalities SET featured_image_url = $1 WHERE id = $2', [imageUrl, targetMunId]);
     }
 
     const result = await pool.query(
       `INSERT INTO municipality_images (municipality_id, image_url, is_featured)
        VALUES ($1, $2, $3) RETURNING *`,
-      [municipality_id, imageUrl, isFeatured === 'true' || isFeatured === true]
+      [targetMunId, imageUrl, isFeatured === 'true' || isFeatured === true]
     );
 
     return res.status(201).json({
@@ -260,23 +262,21 @@ export const addMunicipalityImage = async (req, res) => {
   }
 };
 
-// Delete Municipality Image (Municipal DOT only)
+// Delete Municipality Image (Municipal/Provincial DOT)
 export const deleteMunicipalityImage = async (req, res) => {
   const { id } = req.params;
-  const { municipality_id } = req.user;
-
-  if (!municipality_id) {
-    return res.status(400).json({ message: 'User is not assigned to a municipality.' });
-  }
+  const { role } = req.user;
+  const userMunId = req.user.municipality_id;
 
   try {
-    // Verify ownership
+    // Verify ownership/permission
     const checkRes = await pool.query('SELECT * FROM municipality_images WHERE id = $1', [id]);
     if (checkRes.rows.length === 0) {
       return res.status(404).json({ message: 'Municipality image not found.' });
     }
 
-    if (checkRes.rows[0].municipality_id !== municipality_id) {
+    const targetMunId = checkRes.rows[0].municipality_id;
+    if (role !== 'PROVINCIAL_DOT' && targetMunId !== userMunId) {
       return res.status(403).json({ message: 'Forbidden. You do not manage this municipality\'s images.' });
     }
 
@@ -284,13 +284,13 @@ export const deleteMunicipalityImage = async (req, res) => {
 
     // If the deleted image was featured, set another image (if any) as featured or reset featured_image_url
     if (checkRes.rows[0].is_featured) {
-      const remainingRes = await pool.query('SELECT * FROM municipality_images WHERE municipality_id = $1 ORDER BY id DESC LIMIT 1', [municipality_id]);
+      const remainingRes = await pool.query('SELECT * FROM municipality_images WHERE municipality_id = $1 ORDER BY id DESC LIMIT 1', [targetMunId]);
       if (remainingRes.rows.length > 0) {
         const newFeatured = remainingRes.rows[0];
         await pool.query('UPDATE municipality_images SET is_featured = true WHERE id = $1', [newFeatured.id]);
-        await pool.query('UPDATE municipalities SET featured_image_url = $1 WHERE id = $2', [newFeatured.image_url, municipality_id]);
+        await pool.query('UPDATE municipalities SET featured_image_url = $1 WHERE id = $2', [newFeatured.image_url, targetMunId]);
       } else {
-        await pool.query('UPDATE municipalities SET featured_image_url = NULL WHERE id = $2', [municipality_id]);
+        await pool.query('UPDATE municipalities SET featured_image_url = NULL WHERE id = $2', [targetMunId]);
       }
     }
 

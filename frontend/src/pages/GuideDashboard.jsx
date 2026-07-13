@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Award, FileText, User, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar } from 'lucide-react';
+import { Award, FileText, User, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar, Star } from 'lucide-react';
 
 const GuideDashboard = () => {
   const { token, user } = useAuth();
@@ -24,6 +24,14 @@ const GuideDashboard = () => {
   // Inquiry reply state
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [replyText, setReplyText] = useState('');
+
+  // Reviews received
+  const [receivedReviews, setReceivedReviews] = useState([]);
+
+  // Availability calendar
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   const fetchProfileAndRequirements = async () => {
     if (!token || !user) return;
@@ -79,7 +87,58 @@ const GuideDashboard = () => {
 
   useEffect(() => {
     fetchProfileAndRequirements();
+    fetchReceivedReviews();
   }, [token, user]);
+
+  const fetchReceivedReviews = async () => {
+    if (!token) return;
+    try {
+      const r = await fetch('/api/reviews/received', { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setReceivedReviews(await r.json());
+    } catch (err) { console.error(err); }
+  };
+
+  const handleConfirmBooking = async (id) => {
+    try {
+      await fetch(`/api/inquiries/reply/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ replyMessage: 'Your tour guide booking is confirmed! We will meet at the agreed location.', status: 'CONFIRMED' }),
+      });
+      await fetchProfileAndRequirements();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleCancelBooking = async (id) => {
+    if (!window.confirm('Cancel this booking?')) return;
+    try {
+      await fetch(`/api/inquiries/reply/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ replyMessage: 'Sorry, this booking has been cancelled. Please contact us to reschedule.', status: 'CANCELLED' }),
+      });
+      await fetchProfileAndRequirements();
+    } catch (err) { console.error(err); }
+  };
+
+  const buildCalendarDays = () => {
+    const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const confirmedBookings = inquiries.filter(i => i.status === 'CONFIRMED' && i.start_date);
+    const bookedDates = new Set();
+    confirmedBookings.forEach(b => {
+      const start = new Date(b.start_date);
+      const end = b.end_date ? new Date(b.end_date) : new Date(b.start_date);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (d.getFullYear() === calendarYear && d.getMonth() === calendarMonth) bookedDates.add(d.getDate());
+      }
+    });
+    return { firstDay, daysInMonth, bookedDates };
+  };
+
+  const avgRating = receivedReviews.length > 0
+    ? (receivedReviews.reduce((s, r) => s + r.rating, 0) / receivedReviews.length).toFixed(1)
+    : null;
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -210,6 +269,8 @@ const GuideDashboard = () => {
           { id: 'documents', label: 'Accreditation Docs', icon: FileText },
           { id: 'profile', label: 'Guide Details & Photo', icon: User },
           { id: 'inquiries', label: `Inquiries (${inquiries.length})`, icon: MessageSquare },
+          { id: 'calendar', label: 'Availability Calendar', icon: Calendar },
+          { id: 'reviews', label: `My Reviews (${receivedReviews.length})`, icon: Star },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -517,7 +578,79 @@ const GuideDashboard = () => {
           </div>
         )}
 
-      </div>
+        {/* Availability Calendar */}
+        {activeTab === 'calendar' && (() => {
+          const { firstDay, daysInMonth, bookedDates } = buildCalendarDays();
+          const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-slate-800 text-base">Guide Availability Calendar</h3>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { let m=calendarMonth-1,y=calendarYear; if(m<0){m=11;y--;} setCalendarMonth(m);setCalendarYear(y); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">‹</button>
+                  <span className="text-sm font-bold text-slate-800 min-w-[130px] text-center">{MONTH_NAMES[calendarMonth]} {calendarYear}</span>
+                  <button onClick={() => { let m=calendarMonth+1,y=calendarYear; if(m>11){m=0;y++;} setCalendarMonth(m);setCalendarYear(y); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">›</button>
+                </div>
+              </div>
+              <div className="flex gap-4 text-xs mb-4">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-red-400 rounded-full"/> Booked</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-100 border border-emerald-300 rounded-full"/> Available</span>
+              </div>
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="grid grid-cols-7 bg-emerald-900">
+                  {dayNames.map(d => <div key={d} className="text-center text-white text-[10px] font-bold uppercase py-2">{d}</div>)}
+                </div>
+                <div className="grid grid-cols-7">
+                  {Array.from({length: firstDay}).map((_,i) => <div key={`e-${i}`} className="h-12 bg-slate-50 border border-slate-100"/>)}
+                  {Array.from({length: daysInMonth},(_,i)=>i+1).map(day => {
+                    const isBooked = bookedDates.has(day);
+                    const isToday = day===new Date().getDate() && calendarMonth===new Date().getMonth() && calendarYear===new Date().getFullYear();
+                    return (
+                      <div key={day} className={`h-12 border border-slate-100 flex items-center justify-center ${isBooked?'bg-red-50':'bg-white hover:bg-emerald-50'}`}>
+                        <span className={`text-xs font-semibold ${isBooked?'text-red-600':isToday?'text-white':'text-slate-700'} ${isToday?'bg-emerald-900 rounded-full w-6 h-6 flex items-center justify-center':''}`}>{day}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mt-3 text-center">Red = Booked tour days (confirmed). Green = Available.</p>
+            </div>
+          );
+        })()}
+
+        {/* Reviews */}
+        {activeTab === 'reviews' && (
+          <div>
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-base">Tourist Reviews</h3>
+              {avgRating && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 px-4 py-2 rounded-xl">
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400"/>
+                  <span className="font-black text-amber-900 text-lg">{avgRating}</span>
+                  <span className="text-xs text-amber-700">/ 5 ({receivedReviews.length} reviews)</span>
+                </div>
+              )}
+            </div>
+            {receivedReviews.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-sm"><Star className="w-10 h-10 mx-auto mb-2 opacity-30"/> No reviews yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {receivedReviews.map(rev => (
+                  <div key={rev.id} className="bg-white border border-slate-200 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-bold text-slate-800 text-sm">{rev.reviewer_name || 'Anonymous'}</p>
+                      <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><Star key={s} className={`w-4 h-4 ${s<=rev.rating?'fill-amber-400 text-amber-400':'text-slate-200'}`}/>)}</div>
+                    </div>
+                    {rev.comment && <p className="text-slate-600 text-xs leading-relaxed">{rev.comment}</p>}
+                    <p className="text-slate-300 text-[10px] mt-2">{new Date(rev.created_at).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div> {/* <-- Closes Tab Content container */}
 
       {selectedDocUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
