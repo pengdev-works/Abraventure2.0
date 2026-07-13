@@ -10,7 +10,7 @@ import 'leaflet.markercluster';
 import { 
   Search, MapPin, Navigation, Compass, Info, Check, 
   ChevronRight, X, ArrowRight, Heart, Star, Map as MapIcon, 
-  Home as HomeIcon, Award, Phone, Mail, Navigation2, RefreshCw 
+  Home as HomeIcon, Award, Phone, Mail, Navigation2, RefreshCw, Menu 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -168,6 +168,14 @@ const InteractiveMap = () => {
   const [selectedMunicipality, setSelectedMunicipality] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Helper to auto-close sidebar on mobile
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  };
 
   // Map Navigation Focus State
   const [mapCenter, setMapCenter] = useState([17.6000, 120.6200]); // Abra Centroid
@@ -283,6 +291,7 @@ const InteractiveMap = () => {
   const handleSelectSuggestion = (suggestion) => {
     setSearchTerm('');
     setShowSearchSuggestions(false);
+    closeSidebarOnMobile();
 
     if (suggestion.type === 'municipality') {
       const mun = suggestion.data;
@@ -359,6 +368,7 @@ const InteractiveMap = () => {
         lyr.setStyle(geoJsonStyle(feature));
       },
       click: (e) => {
+        closeSidebarOnMobile();
         const lyr = e.target;
         const mapObj = lyr._map;
         
@@ -376,6 +386,7 @@ const InteractiveMap = () => {
 
   // Handle marker popup button click events
   const handleMarkerAction = (item, action) => {
+    closeSidebarOnMobile();
     if (action === 'details') {
       setActiveDetailItem(item);
     } else if (action === 'route') {
@@ -409,6 +420,12 @@ const InteractiveMap = () => {
   const handleAcquireLocation = () => {
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    // Secure context check for modern mobile browsers
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      toast.error('Location detection is blocked by your browser on unsecure HTTP connections. Please choose a starting municipality from the dropdown instead.', { duration: 6000 });
       return;
     }
 
@@ -529,11 +546,19 @@ const InteractiveMap = () => {
 
   const filteredItems = getFilteredItems();
 
-  return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50">
+    return (
+    <div className="relative flex h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50">
       
+      {/* Mobile Backdrop Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-25 transition-all duration-300"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* ─── LEFT SIDEBAR PANEL ────────────────────────────────────────────────────── */}
-      <div className="w-full md:w-96 flex-shrink-0 flex flex-col bg-white border-r border-slate-200/80 z-20 shadow-xl overflow-hidden">
+      <div className={`fixed inset-y-0 left-0 z-35 w-[85vw] max-w-[360px] flex flex-col bg-white border-r border-slate-200/80 shadow-2xl transition-transform duration-300 md:relative md:translate-x-0 md:w-96 md:flex ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
         {/* Search header container */}
         <div className="p-4 bg-gradient-to-br from-slate-900 to-emerald-950 text-white relative">
@@ -544,13 +569,26 @@ const InteractiveMap = () => {
               <Compass className="w-5 h-5 text-amber-400 rotate-45" />
               Abra Interactive Map
             </h2>
-            <button 
-              onClick={handleResetMap}
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/90 transition-all"
-              title="Reset Map Layout"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            
+            <div className="flex items-center gap-1.5">
+              {/* Reset Map Layout */}
+              <button 
+                onClick={handleResetMap}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/90 transition-all"
+                title="Reset Map Layout"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+
+              {/* Mobile Close Button */}
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all"
+                title="Close Sidebar"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
           </div>
 
           {/* Core Autocomplete Search */}
@@ -823,6 +861,7 @@ const InteractiveMap = () => {
                   <div
                     key={`${item.type}-${item.id}`}
                     onClick={() => {
+                      closeSidebarOnMobile();
                       // Move map directly to this marker
                       if (window.focusMarkerOnMap) {
                         const success = window.focusMarkerOnMap(item.id);
@@ -905,6 +944,15 @@ const InteractiveMap = () => {
 
       {/* ─── MAIN MAP DISPLAY AND FLOATING WIDGETS ─────────────────────────────────── */}
       <div className="flex-1 relative h-full">
+        
+        {/* Floating Mobile Open Sidebar Button */}
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="md:hidden absolute top-4 left-4 z-[999] w-10 h-10 bg-white hover:bg-slate-50 text-slate-700 hover:text-emerald-900 rounded-xl shadow-lg border border-slate-200/80 flex items-center justify-center transition-all hover:scale-105"
+          title="Open Sidebar"
+        >
+          <Menu className="w-5 h-5 text-emerald-950" />
+        </button>
         
         {/* Routing overlay floating card */}
         {routeSummary && (
