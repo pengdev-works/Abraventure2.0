@@ -431,7 +431,7 @@ const InteractiveMap = () => {
 
     toast.loading('Acquiring location coordinates...', { id: 'geoloc' });
     
-    const options = { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 };
+    const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
     const success = (pos) => {
       const coords = {
@@ -449,7 +449,7 @@ const InteractiveMap = () => {
       if (options.enableHighAccuracy) {
         console.warn(`High accuracy geolocation failed (${err.message}). Retrying with standard accuracy...`);
         options.enableHighAccuracy = false;
-        options.timeout = 6000;
+        options.timeout = 15000;
         navigator.geolocation.getCurrentPosition(success, finalError, options);
       } else {
         finalError(err);
@@ -458,15 +458,21 @@ const InteractiveMap = () => {
 
     const finalError = (err) => {
       console.error('Geolocation failed:', err);
-      let errMsg = 'Unable to retrieve location. Please select a starting municipality instead.';
+      let errMsg = 'Location retrieval timed out.';
       if (err.code === 1) { // PERMISSION_DENIED
-        errMsg = 'Location permission denied. Please allow browser location access or select a starting municipality.';
+        errMsg = 'Location permission denied.';
       } else if (err.code === 2) { // POSITION_UNAVAILABLE
-        errMsg = 'Position unavailable. Please select a starting municipality from the dropdown instead.';
-      } else if (err.code === 3) { // TIMEOUT
-        errMsg = 'Location request timed out. Please select a starting municipality from the dropdown instead.';
+        errMsg = 'Position unavailable.';
       }
-      toast.error(errMsg, { id: 'geoloc' });
+      
+      // Automatic fallback to Bangued (Capital) so routing remains functional
+      setStartPoint({
+        lat: 17.5973,
+        lon: 120.6200,
+        name: 'Bangued (Capital - Fallback)'
+      });
+
+      toast.error(`${errMsg} Defaulting starting point to Bangued (Capital).`, { id: 'geoloc', duration: 6000 });
     };
 
     navigator.geolocation.getCurrentPosition(success, error, options);
