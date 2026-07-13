@@ -552,13 +552,13 @@ const InteractiveMap = () => {
       {/* Mobile Backdrop Overlay */}
       {isSidebarOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-25 transition-all duration-300"
+          className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9990] transition-all duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* ─── LEFT SIDEBAR PANEL ────────────────────────────────────────────────────── */}
-      <div className={`fixed inset-y-0 left-0 z-35 w-[85vw] max-w-[360px] flex flex-col bg-white border-r border-slate-200/80 shadow-2xl transition-transform duration-300 md:relative md:translate-x-0 md:w-96 md:flex ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-[9999] w-[85vw] max-w-[360px] flex flex-col bg-white border-r border-slate-200/80 shadow-2xl transition-transform duration-300 md:relative md:translate-x-0 md:w-96 md:flex ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
         {/* Search header container */}
         <div className="p-4 bg-gradient-to-br from-slate-900 to-emerald-950 text-white relative">
@@ -948,7 +948,7 @@ const InteractiveMap = () => {
         {/* Floating Mobile Open Sidebar Button */}
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="md:hidden absolute top-4 left-4 z-[999] w-10 h-10 bg-white hover:bg-slate-50 text-slate-700 hover:text-emerald-900 rounded-xl shadow-lg border border-slate-200/80 flex items-center justify-center transition-all hover:scale-105"
+          className="md:hidden absolute top-4 left-4 z-[9999] pointer-events-auto w-10 h-10 bg-white hover:bg-slate-50 text-slate-700 hover:text-emerald-900 rounded-xl shadow-lg border border-slate-200/80 flex items-center justify-center transition-all hover:scale-105"
           title="Open Sidebar"
         >
           <Menu className="w-5 h-5 text-emerald-950" />
