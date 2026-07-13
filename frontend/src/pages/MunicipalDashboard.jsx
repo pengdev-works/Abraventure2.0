@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
+import Swal from 'sweetalert2';
 import { Landmark, Compass, FolderClosed, CheckSquare, Plus, Trash2, Edit, AlertCircle, FileCheck, CheckCircle, User, Upload, Mail, Phone, MapPin, X, Calendar, BarChart3, MessageSquare, Star, Download, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { jsPDF } from 'jspdf';
@@ -8,6 +10,7 @@ import SafeImage from '../components/SafeImage';
 
 const MunicipalDashboard = () => {
   const { token, user, refreshUser } = useAuth();
+  const { showAlert } = useAlert();
 
   const [activeTab, setActiveTab] = useState('attractions');
   const [data, setData] = useState({ homestays: [], guides: [] });
@@ -323,17 +326,17 @@ const MunicipalDashboard = () => {
         })
       });
       if (response.ok) {
-        alert('Complaint resolved successfully!');
+        showAlert('Complaint resolved successfully!', 'success');
         setResolvingComplaintId(null);
         setComplaintResolution('');
         await fetchComplaints();
       } else {
         const err = await response.json();
-        alert(err.message || 'Failed to resolve complaint.');
+        showAlert(err.message || 'Failed to resolve complaint.', 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('Server error.');
+      showAlert('Server error.', 'error');
     }
   };
 
@@ -571,35 +574,48 @@ const MunicipalDashboard = () => {
 
       const resData = await response.json();
       if (response.ok) {
-        alert(editingAttractionId ? 'Attraction updated successfully.' : 'Attraction added successfully.');
+        showAlert(editingAttractionId ? 'Attraction updated successfully.' : 'Attraction added successfully.', 'success');
         handleCancelAttractionEdit();
         await fetchMunicipalityData();
       } else {
-        alert(resData.message || 'Failed to save attraction.');
+        showAlert(resData.message || 'Failed to save attraction.', 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('Server error saving attraction.');
+      showAlert('Server error saving attraction.', 'error');
     }
   };
 
   const handleDeleteAttraction = async (id) => {
-    if (!window.confirm('Delete this tourist attraction?')) return;
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'Do you want to delete this tourist attraction?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0F3D3E',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'rounded-3xl',
+      }
+    });
+    if (!result.isConfirmed) return;
     try {
       const response = await fetch(`/api/municipalities/attractions/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
-        alert('Attraction deleted successfully.');
+        showAlert('Attraction deleted successfully.', 'success');
         await fetchMunicipalityData();
       } else {
         const resData = await response.json();
-        alert(resData.message || 'Failed to delete attraction.');
+        showAlert(resData.message || 'Failed to delete attraction.', 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('Server error deleting attraction.');
+      showAlert('Server error deleting attraction.', 'error');
     }
   };
 
@@ -625,7 +641,7 @@ const MunicipalDashboard = () => {
       if (response.ok) {
         setReqName('');
         setReqDesc('');
-        alert('Accreditation requirement added successfully.');
+        showAlert('Accreditation requirement added successfully.', 'success');
         await fetchData();
       }
     } catch (err) {
@@ -634,7 +650,20 @@ const MunicipalDashboard = () => {
   };
 
   const handleDeleteRequirement = async (reqId) => {
-    if (!window.confirm('Delete this requirement? Existing documents will be affected.')) return;
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'Delete this requirement? Existing documents will be affected.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0F3D3E',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'rounded-3xl',
+      }
+    });
+    if (!result.isConfirmed) return;
     try {
       const response = await fetch(`/api/requirements/${reqId}`, {
         method: 'DELETE',
@@ -661,7 +690,7 @@ const MunicipalDashboard = () => {
 
       if (response.ok) {
         setReviewRemarks('');
-        alert(`Document marked as ${status.toLowerCase()}.`);
+        showAlert(`Document marked as ${status.toLowerCase()}.`, 'success');
         await fetchData();
       }
     } catch (err) {
@@ -681,7 +710,7 @@ const MunicipalDashboard = () => {
       });
 
       if (response.ok) {
-        alert('Stakeholder endorsed successfully.');
+        showAlert('Stakeholder endorsed successfully.', 'success');
         await fetchData();
       }
     } catch (err) {

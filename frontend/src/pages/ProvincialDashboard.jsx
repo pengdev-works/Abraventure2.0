@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
+import Swal from 'sweetalert2';
 import {
   Landmark, ShieldCheck, Users, Home, Award, Calendar, AlertCircle,
   FileText, CheckCircle, BarChart3, Megaphone, ClipboardList,
@@ -17,6 +19,7 @@ const PIE_COLORS = ['#0F3D3E', '#f59e0b', '#6366f1', '#ec4899', '#10b981'];
 
 const ProvincialDashboard = () => {
   const { token } = useAuth();
+  const { showAlert } = useAlert();
 
   const [data, setData] = useState({ homestays: [], guides: [], municipalAdmins: [] });
   const [loading, setLoading] = useState(true);
@@ -221,7 +224,7 @@ const ProvincialDashboard = () => {
         await fetchDashboardData();
       } else {
         const err = await response.json();
-        alert(err.message || 'Action failed.');
+        showAlert(err.message || 'Action failed.', 'error');
       }
     } catch (err) {
       console.error('Error in approval action:', err);
@@ -250,7 +253,20 @@ const ProvincialDashboard = () => {
   };
 
   const handleDeleteAnn = async (id) => {
-    if (!window.confirm('Delete this announcement?')) return;
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'Do you want to delete this announcement?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0F3D3E',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'rounded-3xl',
+      }
+    });
+    if (!result.isConfirmed) return;
     await fetch(`/api/announcements/${id}`, { method: 'DELETE', headers });
     await fetchAnnouncements();
   };
@@ -371,7 +387,7 @@ const ProvincialDashboard = () => {
         URL.revokeObjectURL(url);
       })
       .catch(err => {
-        alert('Failed to generate backup.');
+        showAlert('Failed to generate backup.', 'error');
       });
   };
 
@@ -381,9 +397,20 @@ const ProvincialDashboard = () => {
       setBackupMsg({ type: 'error', text: 'Please select a backup JSON file.' });
       return;
     }
-    if (!window.confirm('WARNING: THIS WILL OVERWRITE ALL CURRENT DATABASE DATA AND CANNOT BE UNDONE. Are you absolutely sure you want to proceed?')) {
-      return;
-    }
+    const result = await Swal.fire({
+      title: 'Warning!',
+      text: 'THIS WILL OVERWRITE ALL CURRENT DATABASE DATA AND CANNOT BE UNDONE. Are you absolutely sure you want to proceed?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, overwrite database!',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'rounded-3xl',
+      }
+    });
+    if (!result.isConfirmed) return;
     
     setBackupMsg({ type: '', text: '' });
     setBackupRestoring(true);

@@ -300,3 +300,37 @@ export const deleteMunicipalityImage = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error deleting municipality image.' });
   }
 };
+
+// Get all map data (municipalities, attractions, approved homestays)
+export const getMapData = async (req, res) => {
+  try {
+    // 1. Get all municipalities
+    const municipalitiesRes = await pool.query(
+      `SELECT id, name, description, featured_image_url FROM municipalities ORDER BY name ASC`
+    );
+
+    // 2. Get all tourist attractions
+    const attractionsRes = await pool.query(
+      `SELECT id, municipality_id, name, description, category, image_url, location_details, latitude, longitude FROM tourist_attractions ORDER BY name ASC`
+    );
+
+    // 3. Get all approved homestays
+    const homestaysRes = await pool.query(
+      `SELECT h.id, h.owner_id, h.name, h.description, h.address, h.latitude, h.longitude, h.contact_email, h.contact_phone, u.municipality_id
+       FROM homestay_profiles h
+       JOIN user_accounts u ON h.owner_id = u.id
+       WHERE h.status = 'APPROVED'
+       ORDER BY h.name ASC`
+    );
+
+    return res.status(200).json({
+      municipalities: municipalitiesRes.rows,
+      attractions: attractionsRes.rows,
+      homestays: homestaysRes.rows
+    });
+  } catch (err) {
+    console.error('Error fetching map data:', err);
+    return res.status(500).json({ message: 'Internal server error fetching map data.' });
+  }
+};
+

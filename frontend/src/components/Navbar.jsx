@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Compass, Menu, X, LogOut, User, Calendar, MapPin, Bell, Info, CheckCheck, Trash2 } from 'lucide-react';
+import { Compass, Menu, X, LogOut, User, Calendar, MapPin, Bell, Info, CheckCheck, Trash2, Map } from 'lucide-react';
 
 const Navbar = () => {
   const { user, token, logout } = useAuth();
@@ -119,6 +119,10 @@ const Navbar = () => {
               <Link to="/municipalities" className={navLink}>
                 <MapPin className="w-3.5 h-3.5 text-amber-500" />
                 Explore
+              </Link>
+              <Link to="/map" className={navLink}>
+                <Map className="w-3.5 h-3.5 text-amber-500" />
+                Interactive Map
               </Link>
               <Link to="/events" className={navLink}>
                 <Calendar className="w-3.5 h-3.5 text-amber-500" />
@@ -260,6 +264,9 @@ const Navbar = () => {
             <Link to="/" onClick={() => setIsOpen(false)} className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 font-semibold text-sm transition-all">Home</Link>
             <Link to="/municipalities" onClick={() => setIsOpen(false)} className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 font-semibold text-sm transition-all">
               <MapPin className="w-4 h-4 text-amber-500" /> Explore Municipalities
+            </Link>
+            <Link to="/map" onClick={() => setIsOpen(false)} className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 font-semibold text-sm transition-all">
+              <Map className="w-4 h-4 text-amber-500" /> Interactive Map
             </Link>
             <Link to="/events" onClick={() => setIsOpen(false)} className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 font-semibold text-sm transition-all">
               <Calendar className="w-4 h-4 text-amber-500" /> Events & Festivals

@@ -1,16 +1,14 @@
-import pg from 'pg';
+import { Pool } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 pool.on('connect', () => {
-  console.log('Database connection pool established.');
+  console.log('Database connection pool established via WebSockets.');
 });
 
 pool.on('error', (err) => {

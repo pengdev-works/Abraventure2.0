@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
+import Swal from 'sweetalert2';
 import { Home, FileText, Bed, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar, User, Compass, Star, CreditCard, Users, Eye } from 'lucide-react';
 import SafeImage from '../components/SafeImage';
 
 const OwnerDashboard = () => {
   const { token, user, refreshUser } = useAuth();
+  const { showAlert } = useAlert();
   
   const [activeTab, setActiveTab] = useState('documents');
   const [profile, setProfile] = useState(null);
@@ -169,7 +172,7 @@ const OwnerDashboard = () => {
       });
 
       if (response.ok) {
-        alert('Homestay profile updated successfully.');
+        showAlert('Homestay profile updated successfully.', 'success');
         await fetchProfileAndRequirements();
       }
     } catch (err) {
@@ -193,10 +196,10 @@ const OwnerDashboard = () => {
       });
 
       if (response.ok) {
-        alert('File uploaded successfully for evaluation.');
+        showAlert('File uploaded successfully for evaluation.', 'success');
         await fetchProfileAndRequirements();
       } else {
-        alert('Upload failed.');
+        showAlert('Upload failed.', 'error');
       }
     } catch (err) {
       console.error(err);
@@ -219,7 +222,7 @@ const OwnerDashboard = () => {
       });
 
       if (response.ok) {
-        alert('Photo uploaded and added to your gallery.');
+        showAlert('Photo uploaded and added to your gallery.', 'success');
         await fetchProfileAndRequirements();
       }
     } catch (err) {
@@ -228,7 +231,20 @@ const OwnerDashboard = () => {
   };
 
   const handleDeletePhoto = async (photoId) => {
-    if (!window.confirm('Delete this photo?')) return;
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'Do you want to delete this photo from your gallery?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0f3d3e',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'rounded-3xl',
+      }
+    });
+    if (!result.isConfirmed) return;
     try {
       const response = await fetch(`/api/listings/homestay/images/${photoId}`, {
         method: 'DELETE',
@@ -264,7 +280,7 @@ const OwnerDashboard = () => {
       if (response.ok) {
         setRoomPrice('');
         setRoomDesc('');
-        alert('Room added successfully.');
+        showAlert('Room added successfully.', 'success');
         await fetchProfileAndRequirements();
       }
     } catch (err) {
@@ -273,7 +289,20 @@ const OwnerDashboard = () => {
   };
 
   const handleDeleteRoom = async (roomId) => {
-    if (!window.confirm('Delete this room configuration?')) return;
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: 'Do you want to delete this room configuration?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0f3d3e',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'rounded-3xl',
+      }
+    });
+    if (!result.isConfirmed) return;
     try {
       const response = await fetch(`/api/listings/homestay/rooms/${roomId}`, {
         method: 'DELETE',
@@ -304,7 +333,7 @@ const OwnerDashboard = () => {
       if (response.ok) {
         setReplyText('');
         setSelectedInquiry(null);
-        alert('Reply sent successfully to the tourist.');
+        showAlert('Reply sent successfully to the tourist.', 'success');
         await fetchProfileAndRequirements();
       }
     } catch (err) {

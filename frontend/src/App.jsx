@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { AlertProvider } from './context/AlertContext';
 import Layout from './components/Layout';
 import RouteGuard from './components/RouteGuard';
 
@@ -19,12 +20,14 @@ import Events from './pages/Events';
 import TravelTips from './pages/TravelTips';
 import PhotoGallery from './pages/PhotoGallery';
 import TouristDashboard from './pages/TouristDashboard';
+import InteractiveMap from './pages/InteractiveMap';
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Layout>
+      <AlertProvider>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Layout>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
@@ -32,6 +35,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/municipalities" element={<Municipalities />} />
             <Route path="/municipalities/:id" element={<MunicipalityDetails />} />
+            <Route path="/map" element={<InteractiveMap />} />
             <Route path="/events" element={<Events />} />
             <Route path="/travel-tips" element={<TravelTips />} />
             <Route path="/municipalities/:id/gallery" element={<PhotoGallery />} />
@@ -96,6 +100,7 @@ function App() {
           </Routes>
         </Layout>
       </BrowserRouter>
+      </AlertProvider>
     </AuthProvider>
   );
 }

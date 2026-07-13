@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { Award, FileText, User, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar, Star } from 'lucide-react';
 
 const GuideDashboard = () => {
   const { token, user } = useAuth();
+  const { showAlert } = useAlert();
   
   const [activeTab, setActiveTab] = useState('documents');
   const [profile, setProfile] = useState(null);
@@ -161,11 +163,11 @@ const GuideDashboard = () => {
       });
 
       if (response.ok) {
-        alert('Guide profile updated successfully.');
+        showAlert('Guide profile updated successfully.', 'success');
         setProfilePic(null);
         await fetchProfileAndRequirements();
       } else {
-        alert('Update failed.');
+        showAlert('Update failed.', 'error');
       }
     } catch (err) {
       console.error(err);
@@ -188,10 +190,10 @@ const GuideDashboard = () => {
       });
 
       if (response.ok) {
-        alert('File uploaded successfully for evaluation.');
+        showAlert('File uploaded successfully for evaluation.', 'success');
         await fetchProfileAndRequirements();
       } else {
-        alert('Upload failed.');
+        showAlert('Upload failed.', 'error');
       }
     } catch (err) {
       console.error(err);
@@ -215,7 +217,7 @@ const GuideDashboard = () => {
       if (response.ok) {
         setReplyText('');
         setSelectedInquiry(null);
-        alert('Reply sent successfully to the tourist.');
+        showAlert('Reply sent successfully to the tourist.', 'success');
         await fetchProfileAndRequirements();
       }
     } catch (err) {

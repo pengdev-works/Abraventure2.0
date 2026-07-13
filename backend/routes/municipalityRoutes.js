@@ -7,7 +7,8 @@ import {
   deleteAttraction,
   updateMunicipalityProfile,
   addMunicipalityImage,
-  deleteMunicipalityImage
+  deleteMunicipalityImage,
+  getMapData
 } from '../controllers/municipalityController.js';
 import { verifyToken, requireRoles } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
@@ -15,6 +16,7 @@ import upload from '../middleware/uploadMiddleware.js';
 const router = express.Router();
 
 router.get('/', getMunicipalities);
+router.get('/map/data', getMapData);
 router.get('/:id', getMunicipalityDetails);
 
 router.post('/attractions', verifyToken, requireRoles(['MUNICIPAL_DOT']), upload.single('image'), addAttraction);

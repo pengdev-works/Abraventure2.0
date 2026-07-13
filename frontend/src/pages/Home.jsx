@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Compass, Calendar, MapPin, ShieldCheck, ArrowRight, Star, Mountain, Waves, TreePine } from 'lucide-react';
+import { Compass, Calendar, MapPin, ShieldCheck, ArrowRight, Star, Mountain, Waves, TreePine, Map } from 'lucide-react';
 
 const Home = () => {
   return (
@@ -49,10 +49,13 @@ const Home = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4 animate-fadeSlideUp delay-300">
-            <Link to="/municipalities" className="btn-abra-primary text-sm">
-              <MapPin className="w-4 h-4" />
+            <Link to="/map" className="btn-abra-primary text-sm shadow-lg shadow-amber-400/20 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-emerald-950 font-bold border-0">
+              <Map className="w-4 h-4 text-emerald-950" />
+              Interactive Map
+            </Link>
+            <Link to="/municipalities" className="btn-abra-secondary text-sm">
+              <MapPin className="w-4 h-4 text-amber-400" />
               Explore Municipalities
-              <ArrowRight className="w-4 h-4" />
             </Link>
             <Link to="/itinerary" className="btn-abra-secondary text-sm">
               <Calendar className="w-4 h-4 text-amber-400" />
