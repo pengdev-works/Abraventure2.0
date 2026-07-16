@@ -121,7 +121,14 @@ pool.query(`
     resolved_by UUID REFERENCES user_accounts(id)
   );
 `)
-  .then(() => console.log('[DATABASE] All migrations verified successfully.'))
+  .then(async () => {
+    try {
+      await pool.query(`ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'ENDORSED'`);
+    } catch (err) {
+      console.warn('[DATABASE] ALTER TYPE account_status warning (might already exist or transaction restriction):', err.message);
+    }
+    console.log('[DATABASE] All migrations verified successfully.');
+  })
   .catch(err => console.error('[DATABASE] Migration error:', err));
 
 const __filename = fileURLToPath(import.meta.url);

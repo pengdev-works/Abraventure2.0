@@ -23,6 +23,47 @@ export const createInquiry = async (req, res) => {
   }
 
   try {
+    // ── Date overlap check: block if selected dates conflict with a CONFIRMED booking ──
+    if (startDate) {
+      const effectiveEnd = endDate || startDate; // single-day if no end date
+      let overlapQuery = null;
+      let overlapParams = null;
+
+      if (homestayId) {
+        overlapQuery = `
+          SELECT id FROM bookings_inquiries
+          WHERE homestay_id = $1
+            AND status = 'CONFIRMED'
+            AND start_date IS NOT NULL
+            AND (
+              -- new range overlaps existing: NOT (new_end < existing_start OR new_start > existing_end)
+              NOT ($2::date > COALESCE(end_date, start_date) OR $3::date < start_date)
+            )
+          LIMIT 1`;
+        overlapParams = [homestayId, effectiveEnd, startDate];
+      } else if (guideId) {
+        overlapQuery = `
+          SELECT id FROM bookings_inquiries
+          WHERE guide_id = $1
+            AND status = 'CONFIRMED'
+            AND start_date IS NOT NULL
+            AND (
+              NOT ($2::date > COALESCE(end_date, start_date) OR $3::date < start_date)
+            )
+          LIMIT 1`;
+        overlapParams = [guideId, effectiveEnd, startDate];
+      }
+
+      if (overlapQuery) {
+        const overlapCheck = await pool.query(overlapQuery, overlapParams);
+        if (overlapCheck.rows.length > 0) {
+          return res.status(409).json({
+            message: 'Those dates are already booked and confirmed. Please choose different dates.',
+          });
+        }
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO bookings_inquiries (tourist_id, homestay_id, guide_id, start_date, end_date, number_of_guests, message, status, payment_proof_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8)
@@ -262,3 +303,32 @@ export const uploadPaymentProof = async (req, res) => {
   }
 };
 
+// Get confirmed booked date ranges for a homestay or guide (public)
+export const getBookedDates = async (req, res) => {
+  const { homestayId, guideId } = req.query;
+
+  if (!homestayId && !guideId) {
+    return res.status(400).json({ message: 'Provide homestayId or guideId.' });
+  }
+
+  try {
+    let queryStr, params;
+    if (homestayId) {
+      queryStr = `SELECT start_date, end_date FROM bookings_inquiries
+                  WHERE homestay_id = $1 AND status = 'CONFIRMED' AND start_date IS NOT NULL
+                  ORDER BY start_date ASC`;
+      params = [homestayId];
+    } else {
+      queryStr = `SELECT start_date, end_date FROM bookings_inquiries
+                  WHERE guide_id = $1 AND status = 'CONFIRMED' AND start_date IS NOT NULL
+                  ORDER BY start_date ASC`;
+      params = [guideId];
+    }
+
+    const result = await pool.query(queryStr, params);
+    return res.status(200).json(result.rows);
+  } catch (err) {
+    console.error('Error fetching booked dates:', err);
+    return res.status(500).json({ message: 'Server error fetching booked dates.' });
+  }
+};

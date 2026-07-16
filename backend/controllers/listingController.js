@@ -401,12 +401,12 @@ export const endorseStakeholder = async (req, res) => {
     // Log endorsement
     await pool.query(
       `INSERT INTO approval_logs (target_user_id, action_by, previous_status, new_status, remarks)
-       VALUES ($1, $2, 'PENDING', 'PENDING', $3)`,
+       VALUES ($1, $2, 'PENDING', 'ENDORSED', $3)`,
       [applicantId, reviewerId, `ENDORSED BY MUNICIPAL: ${remarks}`]
     );
 
-    // Update profile status locally
-    await pool.query(`UPDATE ${table} SET status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
+    // Update profile status to ENDORSED (awaiting Provincial DOT approval)
+    await pool.query(`UPDATE ${table} SET status = 'ENDORSED', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
 
     return res.status(200).json({ message: 'Stakeholder endorsed successfully to Provincial DOT.' });
   } catch (err) {

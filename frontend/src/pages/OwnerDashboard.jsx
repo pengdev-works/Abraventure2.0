@@ -386,7 +386,7 @@ const OwnerDashboard = () => {
         {[
           { id: 'documents', label: 'Accreditation Docs', icon: FileText },
           { id: 'profile', label: 'Homestay Details & Photos', icon: Home },
-          { id: 'rooms', label: 'Rooms Configuration', icon: Bed },
+          { id: 'rooms', label: 'Sleeping Arrangements', icon: Bed },
           { id: 'inquiries', label: `Inquiries (${inquiries.length})`, icon: MessageSquare },
           { id: 'calendar', label: 'Availability Calendar', icon: Calendar },
           { id: 'guests', label: 'Guest Management', icon: Users },
@@ -592,40 +592,43 @@ const OwnerDashboard = () => {
           </div>
         )}
 
-        {/* Rooms Tab */}
+        {/* Sleeping Arrangements Tab */}
         {activeTab === 'rooms' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form */}
             <div className="lg:col-span-1 border border-slate-150 p-6 rounded-2xl bg-slate-50">
-              <h3 className="font-bold text-slate-805 text-sm mb-4 border-b border-slate-205 pb-2">Configure Room</h3>
+              <h3 className="font-bold text-slate-800 text-sm mb-1 border-b border-slate-200 pb-2">Add a Sleeping Space</h3>
+              <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">Describe how guests will sleep in your home. No need to match hotel standards — just be honest and helpful.</p>
               <form onSubmit={handleAddRoom} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Room Type</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Sleeping Space Type</label>
                   <select
                     value={roomType}
                     onChange={(e) => setRoomType(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
                   >
-                    <option value="Single">Single Room</option>
-                    <option value="Double">Double Room</option>
-                    <option value="Twin">Twin Room</option>
-                    <option value="Family">Family Suite</option>
-                    <option value="Cabin">Entire Cabin/House</option>
+                    <option value="Private Room">Private Room</option>
+                    <option value="Shared Room">Shared Room</option>
+                    <option value="Family Room">Family Room</option>
+                    <option value="Entire Home">Entire Home</option>
+                    <option value="Loft / Attic Room">Loft / Attic Room</option>
+                    <option value="Outdoor Cottage">Outdoor Cottage</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Price Per Night (₱)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Suggested Rate per Night (₱)</label>
                   <input
                     type="number"
                     required
                     value={roomPrice}
                     onChange={(e) => setRoomPrice(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="e.g. 1500"
+                    placeholder="e.g. 500"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">Tourists can still negotiate via inquiry.</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Capacity (Guests)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Max Guests</label>
                   <input
                     type="number"
                     min="1"
@@ -636,30 +639,31 @@ const OwnerDashboard = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Description</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Description <span className="text-slate-400 font-normal">(optional)</span></label>
                   <textarea
-                    rows="2"
+                    rows="3"
                     value={roomDesc}
                     onChange={(e) => setRoomDesc(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="Amenities like AC, WiFi, private bath..."
+                    placeholder="e.g. A cozy private room with a comfortable bed, shared bathroom down the hall. Meals can be arranged with the host family."
                   ></textarea>
                 </div>
                 <button
                   type="submit"
                   className="w-full py-2 bg-emerald-900 text-white font-bold rounded-lg text-xs cursor-pointer hover:bg-emerald-800"
                 >
-                  Save Room Option
+                  Save Sleeping Space
                 </button>
               </form>
             </div>
 
             {/* List */}
             <div className="lg:col-span-2">
-              <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Active Room Configurations</h3>
+              <h3 className="font-bold text-slate-800 text-base mb-1 border-b border-slate-100 pb-2">Your Sleeping Spaces</h3>
+              <p className="text-[10px] text-slate-400 mb-4">These will be shown to tourists browsing your homestay so they know what to expect.</p>
               {profile?.rooms && profile.rooms.length === 0 ? (
                 <p className="text-slate-400 text-xs py-8 text-center bg-slate-50 border border-slate-100 rounded-xl">
-                  No rooms configured. Add rooms on the left panel to list options.
+                  No sleeping spaces added yet. Use the form on the left to describe your home.
                 </p>
               ) : (
                 <div className="space-y-4">
@@ -667,8 +671,8 @@ const OwnerDashboard = () => {
                     <div key={rm.id} className="p-4 rounded-xl border border-slate-150 bg-white flex justify-between items-center gap-4">
                       <div>
                         <h4 className="font-bold text-slate-800 text-sm">{rm.room_type}</h4>
-                        <p className="text-slate-450 text-xs mt-0.5">Capacity: {rm.capacity} Guests • {rm.description || 'Basic amenities'}</p>
-                        <p className="text-emerald-950 font-bold text-xs mt-1.5">₱{parseFloat(rm.price_per_night).toLocaleString()} / night</p>
+                        <p className="text-slate-500 text-xs mt-0.5">Up to {rm.capacity} guests{rm.description ? ` · ${rm.description}` : ''}</p>
+                        <p className="text-emerald-800 font-bold text-xs mt-1.5">Suggested rate: ₱{parseFloat(rm.price_per_night).toLocaleString()} / night</p>
                       </div>
                       <button
                         onClick={() => handleDeleteRoom(rm.id)}
@@ -686,103 +690,175 @@ const OwnerDashboard = () => {
 
         {/* Received Inquiries Tab */}
         {activeTab === 'inquiries' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* List of inquiries */}
-            <div className="lg:col-span-1 border-r border-slate-100 pr-4 space-y-3 max-h-[500px] overflow-y-auto">
-              <h3 className="font-bold text-slate-800 text-sm mb-3">Booking Inquiries Received</h3>
-              {inquiries.length === 0 ? (
-                <p className="text-slate-400 text-xs py-4 text-center">No inquiries received yet.</p>
-              ) : (
-                inquiries.map((inq) => (
-                  <div
-                    key={inq.id}
-                    onClick={() => setSelectedInquiry(inq)}
-                    className={`p-4 rounded-xl border cursor-pointer text-xs transition-all ${
-                      selectedInquiry?.id === inq.id
-                        ? 'border-emerald-900 bg-emerald-900/5'
-                        : 'border-slate-150 bg-white hover:bg-slate-50/50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start gap-2 mb-1">
-                      <h4 className="font-bold text-slate-800">{inq.tourist_name}</h4>
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                        inq.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {inq.status}
-                      </span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border border-slate-200 rounded-2xl overflow-hidden" style={{minHeight: '520px'}}>
+            {/* Conversation List */}
+            <div className="lg:col-span-1 border-r border-slate-200 bg-slate-50 flex flex-col">
+              <div className="px-4 py-3 border-b border-slate-200 bg-white">
+                <h3 className="font-bold text-slate-800 text-sm">Inquiries</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">{inquiries.length} conversation{inquiries.length !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                {inquiries.length === 0 ? (
+                  <p className="text-slate-400 text-xs py-8 text-center">No inquiries yet.</p>
+                ) : (
+                  inquiries.map((inq) => (
+                    <div
+                      key={inq.id}
+                      onClick={() => setSelectedInquiry(inq)}
+                      className={`px-4 py-3 cursor-pointer transition-colors ${
+                        selectedInquiry?.id === inq.id
+                          ? 'bg-emerald-900/8 border-l-4 border-emerald-900'
+                          : 'hover:bg-slate-100/70 border-l-4 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-bold text-emerald-800">{(inq.tourist_name || 'G')[0].toUpperCase()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="font-bold text-slate-800 text-xs truncate">{inq.tourist_name}</p>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                              inq.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                              inq.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-700' :
+                              inq.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>{inq.status}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 truncate mt-0.5">{inq.message}</p>
+                          {inq.start_date && (
+                            <p className="text-[10px] text-slate-400 mt-0.5">📅 {new Date(inq.start_date).toLocaleDateString()}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {inq.start_date && (
-                      <p className="text-slate-450 mt-1 font-semibold">
-                        Check-in: {new Date(inq.start_date).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
 
-            {/* Inquiry Chat Panel */}
-            <div className="lg:col-span-2">
+            {/* Chat Panel */}
+            <div className="lg:col-span-2 flex flex-col bg-white">
               {selectedInquiry ? (
-                <div className="space-y-4">
-                  <div className="bg-slate-50 p-4 border border-slate-150 rounded-2xl">
-                    <h4 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2 mb-2 flex items-center gap-1">
-                      <User className="w-4 h-4 text-emerald-900" /> Inquiry Details
-                    </h4>
-                    <div className="space-y-1.5 text-xs text-slate-600">
-                      <p><strong>Tourist Name:</strong> {selectedInquiry.tourist_name}</p>
-                      <p><strong>Email:</strong> {selectedInquiry.tourist_email}</p>
-                      <p><strong>Phone:</strong> {selectedInquiry.tourist_phone || 'None'}</p>
-                      {selectedInquiry.start_date && (
-                        <p>
-                          <strong>Dates:</strong> {new Date(selectedInquiry.start_date).toLocaleDateString()} 
-                          {selectedInquiry.end_date ? ` to ${new Date(selectedInquiry.end_date).toLocaleDateString()}` : ''}
-                        </p>
-                      )}
-                      <p><strong>Guests:</strong> {selectedInquiry.number_of_guests}</p>
+                <>
+                  {/* Chat Header */}
+                  <div className="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-emerald-800">{(selectedInquiry.tourist_name || 'G')[0].toUpperCase()}</span>
                     </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-800 text-sm">{selectedInquiry.tourist_name}</p>
+                      <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-0.5">
+                        {selectedInquiry.tourist_email && <span>✉️ {selectedInquiry.tourist_email}</span>}
+                        {selectedInquiry.tourist_phone && <span>📞 {selectedInquiry.tourist_phone}</span>}
+                        {selectedInquiry.start_date && (
+                          <span>📅 {new Date(selectedInquiry.start_date).toLocaleDateString()}{selectedInquiry.end_date ? ` → ${new Date(selectedInquiry.end_date).toLocaleDateString()}` : ''}</span>
+                        )}
+                        {selectedInquiry.number_of_guests && <span>👥 {selectedInquiry.number_of_guests} guest(s)</span>}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                      selectedInquiry.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
+                      selectedInquiry.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' :
+                      selectedInquiry.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                      'bg-slate-100 text-slate-600'
+                    }`}>{selectedInquiry.status}</span>
                   </div>
 
-                  {/* Tourist Message */}
-                  <div className="bg-emerald-900/5 border border-emerald-900/10 p-4 rounded-2xl">
-                    <p className="text-[10px] font-extrabold text-emerald-950 uppercase tracking-wide mb-1">Tourist Message</p>
-                    <p className="text-xs text-slate-700 leading-relaxed font-light">{selectedInquiry.message}</p>
+                  {/* Chat Bubbles */}
+                  <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50" style={{minHeight: '220px', maxHeight: '280px'}}>
+                    {/* Tourist message — left side */}
+                    <div className="flex items-end gap-2">
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 mb-0.5">
+                        <span className="text-xs font-bold text-emerald-800">{(selectedInquiry.tourist_name || 'G')[0].toUpperCase()}</span>
+                      </div>
+                      <div className="max-w-[75%]">
+                        <p className="text-[10px] text-slate-400 mb-1 ml-1">{selectedInquiry.tourist_name}</p>
+                        <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm">
+                          <p className="text-xs text-slate-700 leading-relaxed">{selectedInquiry.message}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Host reply — right side */}
+                    {selectedInquiry.reply_message && (
+                      <div className="flex items-end gap-2 flex-row-reverse">
+                        <div className="w-7 h-7 rounded-full bg-emerald-900 flex items-center justify-center flex-shrink-0 mb-0.5">
+                          <span className="text-xs font-bold text-white">H</span>
+                        </div>
+                        <div className="max-w-[75%]">
+                          <p className="text-[10px] text-slate-400 mb-1 mr-1 text-right">You (Host)</p>
+                          <div className="bg-emerald-900 rounded-2xl rounded-br-sm px-4 py-2.5 shadow-sm">
+                            <p className="text-xs text-white leading-relaxed">{selectedInquiry.reply_message}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Status indicators */}
+                    {selectedInquiry.status === 'CONFIRMED' && (
+                      <div className="text-center">
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full">✅ Booking Confirmed</span>
+                      </div>
+                    )}
+                    {selectedInquiry.status === 'CANCELLED' && (
+                      <div className="text-center">
+                        <span className="text-[10px] bg-red-100 text-red-700 font-bold px-3 py-1 rounded-full">❌ Booking Declined</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Existing Reply */}
-                  {selectedInquiry.reply_message && (
-                    <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl">
-                      <p className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wide mb-1">Your Response</p>
-                      <p className="text-xs text-slate-750 leading-relaxed font-light">{selectedInquiry.reply_message}</p>
-                    </div>
-                  )}
-
-                  {/* Reply Form */}
-                  <form onSubmit={handleReplyInquiry} className="space-y-3">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Compose Reply</label>
-                    <textarea
-                      required
-                      rows="3"
-                      placeholder="Input GCash details, check-in instructions, confirm availability, or state reservations..."
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white"
-                    ></textarea>
-                    <div className="flex justify-end">
+                  {/* Chat Input + Actions */}
+                  <div className="border-t border-slate-200 bg-white flex-shrink-0">
+                    {/* Reply input */}
+                    <form onSubmit={handleReplyInquiry} className="p-3 flex items-end gap-2">
+                      <textarea
+                        required
+                        rows="2"
+                        placeholder="Type your reply... (GCash details, check-in info, availability...)"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReplyInquiry(e); } }}
+                        className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:border-emerald-400 focus:bg-white resize-none transition-colors"
+                      />
                       <button
                         type="submit"
-                        className="px-6 py-2 bg-emerald-900 text-white font-bold text-xs rounded-xl cursor-pointer hover:bg-emerald-850 shadow"
+                        className="p-2.5 bg-emerald-900 text-white rounded-xl hover:bg-emerald-800 transition-colors flex-shrink-0"
+                        title="Send reply"
                       >
-                        Send Response
+                        <svg className="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                       </button>
-                    </div>
-                  </form>
-                </div>
+                    </form>
+
+                    {/* Confirm / Decline — for PENDING and RESPONDED */}
+                    {(selectedInquiry.status === 'PENDING' || selectedInquiry.status === 'RESPONDED') && (
+                      <div className="px-3 pb-3 space-y-2">
+                        {selectedInquiry.status === 'RESPONDED' && (
+                          <p className="text-[10px] text-center text-slate-400 italic">You've replied. Ready to confirm this booking?</p>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { handleConfirmBooking(selectedInquiry.id); setSelectedInquiry(null); }}
+                            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            ✓ Confirm Booking
+                          </button>
+                          <button
+                            onClick={() => { handleCancelBooking(selectedInquiry.id); setSelectedInquiry(null); }}
+                            className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            ✕ Decline
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
-                <div className="text-center py-20 bg-slate-50/50 border border-slate-100 rounded-2xl text-slate-450 p-6 flex flex-col justify-center items-center">
-                  <MessageSquare className="w-12 h-12 text-slate-300 mb-2" />
-                  <p className="font-bold text-sm">Select an Inquiry</p>
-                  <p className="text-xs text-slate-500">Pick an inquiry from the left list to review contact details and send replies.</p>
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400">
+                  <MessageSquare className="w-12 h-12 text-slate-200 mb-3" />
+                  <p className="font-bold text-sm text-slate-600">Select a conversation</p>
+                  <p className="text-xs mt-1">Choose an inquiry from the left to read the message and reply.</p>
                 </div>
               )}
             </div>
@@ -886,12 +962,13 @@ const OwnerDashboard = () => {
         {/* Payment Tracking */}
         {activeTab === 'payments' && (
           <div>
-            <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Payment Tracking</h3>
+            <h3 className="font-bold text-slate-800 text-base mb-1 border-b border-slate-100 pb-2">Payment Tracker</h3>
+            <p className="text-xs text-slate-400 mb-5">Track which confirmed guests have sent payment. Payment is collected via GCash or cash on arrival — share your GCash number in your inquiry reply.</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {[
-                { label: 'Total Inquiries', value: inquiries.length, color: 'bg-slate-50 text-slate-800' },
                 { label: 'Confirmed Bookings', value: inquiries.filter(i => i.status === 'CONFIRMED').length, color: 'bg-emerald-50 text-emerald-900' },
-                { label: 'With Payment Proof', value: inquiries.filter(i => i.payment_proof_url).length, color: 'bg-amber-50 text-amber-900' },
+                { label: 'Payment Received', value: inquiries.filter(i => i.status === 'CONFIRMED' && i.payment_proof_url).length, color: 'bg-sky-50 text-sky-900' },
+                { label: 'Pay on Arrival', value: inquiries.filter(i => i.status === 'CONFIRMED' && !i.payment_proof_url).length, color: 'bg-amber-50 text-amber-900' },
               ].map(s => (
                 <div key={s.label} className={`${s.color} border border-slate-100 rounded-2xl p-5`}>
                   <p className="text-xs font-bold uppercase tracking-wide opacity-60 mb-1">{s.label}</p>
@@ -899,39 +976,39 @@ const OwnerDashboard = () => {
                 </div>
               ))}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 text-[10px] uppercase font-bold bg-slate-50">
-                    {['Guest','Dates','Guests','Payment Proof','Status','Amount'].map(h => <th key={h} className="py-3 px-4">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {inquiries.map(inq => (
-                    <tr key={inq.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-slate-600">
-                      <td className="py-3 px-4 font-semibold">{inq.tourist_name || '—'}</td>
-                      <td className="py-3 px-4">{inq.start_date?.split('T')[0] || '—'}{inq.end_date ? ` → ${inq.end_date.split('T')[0]}` : ''}</td>
-                      <td className="py-3 px-4">{inq.number_of_guests || 1}</td>
-                      <td className="py-3 px-4">
-                        {inq.payment_proof_url ? (
-                          <a href={inq.payment_proof_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-emerald-700 font-semibold hover:underline">
+            {inquiries.filter(i => i.status === 'CONFIRMED').length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-sm bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
+                <p className="font-semibold">No confirmed bookings yet.</p>
+                <p className="text-xs mt-1">Confirm inquiries from the Guest Management tab to track payments here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {inquiries.filter(i => i.status === 'CONFIRMED').map(inq => (
+                  <div key={inq.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-bold text-slate-800 text-sm">{inq.tourist_name || 'Guest'}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {inq.start_date?.split('T')[0]}{inq.end_date ? ` – ${inq.end_date.split('T')[0]}` : ''} · {inq.number_of_guests || 1} guest(s)
+                      </p>
+                      {inq.tourist_phone && <p className="text-xs text-slate-400 mt-0.5">📞 {inq.tourist_phone}</p>}
+                      {inq.tourist_email && <p className="text-xs text-slate-400">✉️ {inq.tourist_email}</p>}
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      {inq.payment_proof_url ? (
+                        <div>
+                          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full block mb-1">✅ Payment Received</span>
+                          <a href={inq.payment_proof_url} target="_blank" rel="noreferrer" className="text-[10px] text-emerald-700 font-semibold hover:underline flex items-center gap-1 justify-end">
                             <Eye className="w-3 h-3" /> View Proof
                           </a>
-                        ) : <span className="text-slate-300">None</span>}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                          inq.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' :
-                          inq.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
-                          inq.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
-                        }`}>{inq.status}</span>
-                      </td>
-                      <td className="py-3 px-4 font-bold">{inq.total_amount ? `₱${parseFloat(inq.total_amount).toLocaleString()}` : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-full block">💵 Pay on Arrival</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

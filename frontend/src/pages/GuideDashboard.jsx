@@ -480,100 +480,175 @@ const GuideDashboard = () => {
 
         {/* Received Inquiries Tab */}
         {activeTab === 'inquiries' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* List of inquiries */}
-            <div className="lg:col-span-1 border-r border-slate-100 pr-4 space-y-3 max-h-[500px] overflow-y-auto">
-              <h3 className="font-bold text-slate-800 text-sm mb-3">Tour Inquiries Received</h3>
-              {inquiries.length === 0 ? (
-                <p className="text-slate-450 text-xs py-4 text-center">No inquiries received yet.</p>
-              ) : (
-                inquiries.map((inq) => (
-                  <div
-                    key={inq.id}
-                    onClick={() => setSelectedInquiry(inq)}
-                    className={`p-4 rounded-xl border cursor-pointer text-xs transition-all ${
-                      selectedInquiry?.id === inq.id
-                        ? 'border-emerald-900 bg-emerald-900/5'
-                        : 'border-slate-150 bg-white hover:bg-slate-50/50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start gap-2 mb-1">
-                      <h4 className="font-bold text-slate-800">{inq.tourist_name}</h4>
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                        inq.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {inq.status}
-                      </span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border border-slate-200 rounded-2xl overflow-hidden" style={{minHeight: '520px'}}>
+            {/* Conversation List */}
+            <div className="lg:col-span-1 border-r border-slate-200 bg-slate-50 flex flex-col">
+              <div className="px-4 py-3 border-b border-slate-200 bg-white">
+                <h3 className="font-bold text-slate-800 text-sm">Tour Inquiries</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">{inquiries.length} conversation{inquiries.length !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                {inquiries.length === 0 ? (
+                  <p className="text-slate-400 text-xs py-8 text-center">No inquiries yet.</p>
+                ) : (
+                  inquiries.map((inq) => (
+                    <div
+                      key={inq.id}
+                      onClick={() => setSelectedInquiry(inq)}
+                      className={`px-4 py-3 cursor-pointer transition-colors ${
+                        selectedInquiry?.id === inq.id
+                          ? 'bg-emerald-900/8 border-l-4 border-emerald-900'
+                          : 'hover:bg-slate-100/70 border-l-4 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-bold text-sky-800">{(inq.tourist_name || 'G')[0].toUpperCase()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="font-bold text-slate-800 text-xs truncate">{inq.tourist_name}</p>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                              inq.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                              inq.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-700' :
+                              inq.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>{inq.status}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 truncate mt-0.5">{inq.message}</p>
+                          {inq.start_date && (
+                            <p className="text-[10px] text-slate-400 mt-0.5">📅 {new Date(inq.start_date).toLocaleDateString()}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {inq.start_date && (
-                      <p className="text-slate-450 mt-1 font-semibold">
-                        Tour Date: {new Date(inq.start_date).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
 
-            {/* Inquiry Chat Panel */}
-            <div className="lg:col-span-2">
+            {/* Chat Panel */}
+            <div className="lg:col-span-2 flex flex-col bg-white">
               {selectedInquiry ? (
-                <div className="space-y-4">
-                  <div className="bg-slate-50 p-4 border border-slate-150 rounded-2xl">
-                    <h4 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2 mb-2 flex items-center gap-1">
-                      <User className="w-4 h-4 text-emerald-900" /> Tourist Details
-                    </h4>
-                    <div className="space-y-1.5 text-xs text-slate-650">
-                      <p><strong>Tourist Name:</strong> {selectedInquiry.tourist_name}</p>
-                      <p><strong>Email:</strong> {selectedInquiry.tourist_email}</p>
-                      <p><strong>Phone:</strong> {selectedInquiry.tourist_phone || 'None'}</p>
-                      {selectedInquiry.start_date && (
-                        <p><strong>Tour Date:</strong> {new Date(selectedInquiry.start_date).toLocaleDateString()}</p>
-                      )}
-                      <p><strong>Guests:</strong> {selectedInquiry.number_of_guests}</p>
+                <>
+                  {/* Chat Header */}
+                  <div className="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-sky-800">{(selectedInquiry.tourist_name || 'G')[0].toUpperCase()}</span>
                     </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-800 text-sm">{selectedInquiry.tourist_name}</p>
+                      <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-0.5">
+                        {selectedInquiry.tourist_email && <span>✉️ {selectedInquiry.tourist_email}</span>}
+                        {selectedInquiry.tourist_phone && <span>📞 {selectedInquiry.tourist_phone}</span>}
+                        {selectedInquiry.start_date && (
+                          <span>📅 {new Date(selectedInquiry.start_date).toLocaleDateString()}{selectedInquiry.end_date ? ` → ${new Date(selectedInquiry.end_date).toLocaleDateString()}` : ''}</span>
+                        )}
+                        {selectedInquiry.number_of_guests && <span>👥 {selectedInquiry.number_of_guests} guest(s)</span>}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                      selectedInquiry.status === 'PENDING' ? 'bg-amber-100 text-amber-800' :
+                      selectedInquiry.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' :
+                      selectedInquiry.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                      'bg-slate-100 text-slate-600'
+                    }`}>{selectedInquiry.status}</span>
                   </div>
 
-                  {/* Tourist Message */}
-                  <div className="bg-emerald-900/5 border border-emerald-900/10 p-4 rounded-2xl">
-                    <p className="text-[10px] font-extrabold text-emerald-950 uppercase tracking-wide mb-1">Tourist Message</p>
-                    <p className="text-xs text-slate-700 leading-relaxed font-light">{selectedInquiry.message}</p>
+                  {/* Chat Bubbles */}
+                  <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50" style={{minHeight: '220px', maxHeight: '280px'}}>
+                    {/* Tourist message — left side */}
+                    <div className="flex items-end gap-2">
+                      <div className="w-7 h-7 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0 mb-0.5">
+                        <span className="text-xs font-bold text-sky-800">{(selectedInquiry.tourist_name || 'G')[0].toUpperCase()}</span>
+                      </div>
+                      <div className="max-w-[75%]">
+                        <p className="text-[10px] text-slate-400 mb-1 ml-1">{selectedInquiry.tourist_name}</p>
+                        <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm">
+                          <p className="text-xs text-slate-700 leading-relaxed">{selectedInquiry.message}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Guide reply — right side */}
+                    {selectedInquiry.reply_message && (
+                      <div className="flex items-end gap-2 flex-row-reverse">
+                        <div className="w-7 h-7 rounded-full bg-emerald-900 flex items-center justify-center flex-shrink-0 mb-0.5">
+                          <span className="text-xs font-bold text-white">G</span>
+                        </div>
+                        <div className="max-w-[75%]">
+                          <p className="text-[10px] text-slate-400 mb-1 mr-1 text-right">You (Guide)</p>
+                          <div className="bg-emerald-900 rounded-2xl rounded-br-sm px-4 py-2.5 shadow-sm">
+                            <p className="text-xs text-white leading-relaxed">{selectedInquiry.reply_message}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Status indicators */}
+                    {selectedInquiry.status === 'CONFIRMED' && (
+                      <div className="text-center">
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full">✅ Tour Booking Confirmed</span>
+                      </div>
+                    )}
+                    {selectedInquiry.status === 'CANCELLED' && (
+                      <div className="text-center">
+                        <span className="text-[10px] bg-red-100 text-red-700 font-bold px-3 py-1 rounded-full">❌ Booking Declined</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Existing Reply */}
-                  {selectedInquiry.reply_message && (
-                    <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl">
-                      <p className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wide mb-1">Your Response</p>
-                      <p className="text-xs text-slate-750 leading-relaxed font-light">{selectedInquiry.reply_message}</p>
-                    </div>
-                  )}
-
-                  {/* Reply Form */}
-                  <form onSubmit={handleReplyInquiry} className="space-y-3">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Compose Reply</label>
-                    <textarea
-                      required
-                      rows="3"
-                      placeholder="Input GCash details, check-in instructions, confirm availability, or state reservations..."
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white"
-                    ></textarea>
-                    <div className="flex justify-end">
+                  {/* Chat Input + Actions */}
+                  <div className="border-t border-slate-200 bg-white flex-shrink-0">
+                    {/* Reply input */}
+                    <form onSubmit={handleReplyInquiry} className="p-3 flex items-end gap-2">
+                      <textarea
+                        required
+                        rows="2"
+                        placeholder="Type your reply... (meeting point, GCash details, tour details...)"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReplyInquiry(e); } }}
+                        className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:border-emerald-400 focus:bg-white resize-none transition-colors"
+                      />
                       <button
                         type="submit"
-                        className="px-6 py-2 bg-emerald-900 text-white font-bold text-xs rounded-xl cursor-pointer hover:bg-emerald-850 shadow"
+                        className="p-2.5 bg-emerald-900 text-white rounded-xl hover:bg-emerald-800 transition-colors flex-shrink-0"
+                        title="Send reply"
                       >
-                        Send Response
+                        <svg className="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                       </button>
-                    </div>
-                  </form>
-                </div>
+                    </form>
+
+                    {/* Confirm / Decline — for PENDING and RESPONDED */}
+                    {(selectedInquiry.status === 'PENDING' || selectedInquiry.status === 'RESPONDED') && (
+                      <div className="px-3 pb-3 space-y-2">
+                        {selectedInquiry.status === 'RESPONDED' && (
+                          <p className="text-[10px] text-center text-slate-400 italic">You've replied. Ready to confirm this booking?</p>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { handleConfirmBooking(selectedInquiry.id); setSelectedInquiry(null); }}
+                            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            ✓ Confirm Booking
+                          </button>
+                          <button
+                            onClick={() => { handleCancelBooking(selectedInquiry.id); setSelectedInquiry(null); }}
+                            className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            ✕ Decline
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
-                <div className="text-center py-20 bg-slate-50/50 border border-slate-100 rounded-2xl text-slate-450 p-6 flex flex-col justify-center items-center">
-                  <MessageSquare className="w-12 h-12 text-slate-300 mb-2" />
-                  <p className="font-bold text-sm">Select an Inquiry</p>
-                  <p className="text-xs text-slate-500">Pick an inquiry from the left list to review contact details and send replies.</p>
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400">
+                  <MessageSquare className="w-12 h-12 text-slate-200 mb-3" />
+                  <p className="font-bold text-sm text-slate-600">Select a conversation</p>
+                  <p className="text-xs mt-1">Choose an inquiry from the left to read the message and reply.</p>
                 </div>
               )}
             </div>

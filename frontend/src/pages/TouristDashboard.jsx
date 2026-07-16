@@ -23,6 +23,9 @@ const TouristDashboard = () => {
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
 
+  // Selected booking for chat view
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
   // Complaint form state
   const [selectedMunId, setSelectedMunId] = useState('');
   const [complaintTitle, setComplaintTitle] = useState('');
@@ -239,7 +242,7 @@ const TouristDashboard = () => {
   }
 
   const activeBookingsCount = bookings.filter(b => b.status === 'CONFIRMED').length;
-  const pendingPaymentsCount = bookings.filter(b => b.status === 'PENDING' && !b.payment_proof_url).length;
+  const pendingPaymentsCount = bookings.filter(b => b.status === 'CONFIRMED' && !b.payment_proof_url).length;
   const pendingComplaintsCount = complaints.filter(c => c.status === 'PENDING').length;
 
   return (
@@ -329,158 +332,209 @@ const TouristDashboard = () => {
         
         {/* Bookings & Payments Tab */}
         {activeTab === 'bookings' && (
-          <div className="space-y-6">
-            <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">Homestay & Guide Bookings</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Track your requests, responses, upload proofs of payment, or write reviews.</p>
-              </div>
-            </div>
-
-            {bookings.length === 0 ? (
-              <div className="text-center py-16 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
-                <Calendar className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                <h3 className="font-bold text-slate-700 text-sm">No bookings found</h3>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Explore municipalities and select a homestay or guide to submit your first online booking inquiry.</p>
-                <Link to="/municipalities" className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-900 text-white text-xs font-bold rounded-xl hover:bg-emerald-805 transition-colors">
-                  Browse Accommodations
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {bookings.map((booking) => {
-                  const isHomestay = !!booking.homestay_id;
-                  const targetName = isHomestay ? booking.homestay_name : booking.guide_name;
-                  const dateString = booking.start_date 
-                    ? `${new Date(booking.start_date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})} - ${new Date(booking.end_date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}`
-                    : 'N/A';
-                  
-                  return (
-                    <div key={booking.id} className="border border-slate-200 rounded-2xl hover:shadow-md hover:border-slate-300 transition-all bg-white p-5 flex flex-col md:flex-row md:items-start gap-5">
-                      {/* Left Badge Indicator */}
-                      <div className="flex-shrink-0">
-                        <div className={`p-4 rounded-xl flex items-center justify-center ${isHomestay ? 'bg-emerald-50 text-emerald-900 border border-emerald-105' : 'bg-sky-50 text-sky-900 border border-sky-105'}`}>
-                          {isHomestay ? <Calendar className="w-6 h-6" /> : <ChevronRight className="w-6 h-6 rotate-90" />}
-                        </div>
-                      </div>
-
-                      {/* Info Panel */}
-                      <div className="flex-1 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${isHomestay ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800'}`}>
-                            {isHomestay ? 'Homestay' : 'Tour Guide'}
-                          </span>
-                          {getStatusBadge(booking.status)}
-                        </div>
-
-                        <h3 className="font-extrabold text-slate-800 text-base">{targetName}</h3>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-1.5 gap-x-4 text-xs text-slate-500">
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>{dateString}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>{booking.number_of_guests || 0} Guest(s)</span>
-                          </div>
-                          {booking.total_amount && (
-                            <div className="flex items-center gap-1.5 font-bold text-slate-700">
-                              <CreditCard className="w-3.5 h-3.5" />
-                              <span>₱ {parseFloat(booking.total_amount).toLocaleString()}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border border-slate-200 rounded-2xl overflow-hidden" style={{minHeight: '520px'}}>
+              {/* Booking List */}
+              <div className="lg:col-span-1 border-r border-slate-200 bg-slate-50 flex flex-col">
+                <div className="px-4 py-3 border-b border-slate-200 bg-white">
+                  <h2 className="font-bold text-slate-800 text-sm">My Bookings</h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{bookings.length} inquiry{bookings.length !== 1 ? 's' : ''} sent</p>
+                </div>
+                {bookings.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                    <Calendar className="w-10 h-10 text-slate-200 mb-2" />
+                    <p className="text-xs font-bold text-slate-500">No bookings yet</p>
+                    <Link to="/municipalities" className="mt-3 text-[10px] bg-emerald-900 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800">Browse Homestays</Link>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                    {bookings.map((booking) => {
+                      const isHomestay = !!booking.homestay_id;
+                      const targetName = isHomestay ? booking.homestay_name : booking.guide_name;
+                      return (
+                        <div
+                          key={booking.id}
+                          onClick={() => setSelectedBooking(booking)}
+                          className={`px-4 py-3 cursor-pointer transition-colors ${
+                            selectedBooking?.id === booking.id
+                              ? 'bg-emerald-900/8 border-l-4 border-emerald-900'
+                              : 'hover:bg-slate-100/70 border-l-4 border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isHomestay ? 'bg-emerald-100' : 'bg-sky-100'}`}>
+                              {isHomestay
+                                ? <Calendar className="w-4 h-4 text-emerald-800" />
+                                : <ChevronRight className="w-4 h-4 text-sky-800 rotate-90" />
+                              }
                             </div>
-                          )}
-                        </div>
-
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-600 mt-2">
-                          <p className="font-semibold text-slate-700 mb-1">My Message:</p>
-                          <p className="italic font-light">"{booking.message}"</p>
-                          
-                          {booking.reply_message && (
-                            <div className="mt-3 pt-3 border-t border-slate-200">
-                              <p className="font-semibold text-emerald-850 mb-1 flex items-center gap-1">
-                                <MessageSquare className="w-3.5 h-3.5" /> Host Reply:
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="font-bold text-slate-800 text-xs truncate">{targetName}</p>
+                                {getStatusBadge(booking.status)}
+                              </div>
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5">{booking.message}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {isHomestay ? '🏠 Homestay' : '🧭 Tour Guide'}
                               </p>
-                              <p className="font-medium text-emerald-950">"{booking.reply_message}"</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Conversation View */}
+              <div className="lg:col-span-2 flex flex-col bg-white">
+                {selectedBooking ? (
+                  (() => {
+                    const isHomestay = !!selectedBooking.homestay_id;
+                    const targetName = isHomestay ? selectedBooking.homestay_name : selectedBooking.guide_name;
+                    const dateString = selectedBooking.start_date
+                      ? `${new Date(selectedBooking.start_date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}${selectedBooking.end_date ? ' – ' + new Date(selectedBooking.end_date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : ''}`
+                      : null;
+                    return (
+                      <>
+                        {/* Chat Header */}
+                        <div className="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3 flex-shrink-0">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isHomestay ? 'bg-emerald-100' : 'bg-sky-100'}`}>
+                            {isHomestay ? <Calendar className="w-4 h-4 text-emerald-800" /> : <ChevronRight className="w-4 h-4 text-sky-800 rotate-90" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-slate-800 text-sm">{targetName}</p>
+                            <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-0.5">
+                              <span>{isHomestay ? '🏠 Homestay' : '🧭 Tour Guide'}</span>
+                              {dateString && <span>📅 {dateString}</span>}
+                              {selectedBooking.number_of_guests && <span>👥 {selectedBooking.number_of_guests} guest(s)</span>}
+                              {selectedBooking.total_amount && <span>💰 ₱{parseFloat(selectedBooking.total_amount).toLocaleString()}</span>}
+                            </div>
+                          </div>
+                          {getStatusBadge(selectedBooking.status)}
+                        </div>
+
+                        {/* Chat Bubbles */}
+                        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50" style={{minHeight: '220px', maxHeight: '280px'}}>
+                          {/* Tourist message — RIGHT (it's you) */}
+                          <div className="flex items-end gap-2 flex-row-reverse">
+                            <div className="w-7 h-7 rounded-full bg-emerald-900 flex items-center justify-center flex-shrink-0 mb-0.5">
+                              <span className="text-xs font-bold text-white">{(user?.fullName || 'Y')[0].toUpperCase()}</span>
+                            </div>
+                            <div className="max-w-[75%]">
+                              <p className="text-[10px] text-slate-400 mb-1 mr-1 text-right">You</p>
+                              <div className="bg-emerald-900 rounded-2xl rounded-br-sm px-4 py-2.5 shadow-sm">
+                                <p className="text-xs text-white leading-relaxed">{selectedBooking.message}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Host reply — LEFT */}
+                          {selectedBooking.reply_message ? (
+                            <div className="flex items-end gap-2">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mb-0.5 ${isHomestay ? 'bg-emerald-100' : 'bg-sky-100'}`}>
+                                <span className={`text-xs font-bold ${isHomestay ? 'text-emerald-800' : 'text-sky-800'}`}>{isHomestay ? 'H' : 'G'}</span>
+                              </div>
+                              <div className="max-w-[75%]">
+                                <p className="text-[10px] text-slate-400 mb-1 ml-1">{isHomestay ? 'Host' : 'Guide'}</p>
+                                <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm">
+                                  <p className="text-xs text-slate-700 leading-relaxed">{selectedBooking.reply_message}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-end gap-2">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mb-0.5 ${isHomestay ? 'bg-emerald-50' : 'bg-sky-50'}`}>
+                                <span className={`text-xs font-bold ${isHomestay ? 'text-emerald-400' : 'text-sky-400'}`}>{isHomestay ? 'H' : 'G'}</span>
+                              </div>
+                              <div className="bg-white border border-dashed border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2.5">
+                                <p className="text-xs text-slate-400 italic">Waiting for {isHomestay ? 'host' : 'guide'} to reply...</p>
+                              </div>
                             </div>
                           )}
-                        </div>
-                      </div>
 
-                      {/* Action buttons */}
-                      <div className="flex flex-col gap-2 min-w-[180px] md:self-stretch justify-center items-stretch border-t md:border-t-0 md:border-l border-slate-150 pt-4 md:pt-0 md:pl-5">
-                        
-                        {/* Payment Proof status */}
-                        {booking.payment_proof_url ? (
-                          <div className="text-center md:text-left bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 text-xs text-emerald-850">
-                            <div className="font-bold flex items-center gap-1 justify-center md:justify-start">
-                              <CheckCircle className="w-3.5 h-3.5" /> Proof Attached
-                            </div>
-                            <a href={booking.payment_proof_url} target="_blank" rel="noreferrer" className="underline font-semibold block text-[10px] mt-1 hover:text-emerald-950">
-                              View Submitted File
-                            </a>
-                          </div>
-                        ) : (
-                          booking.status === 'PENDING' && (
-                            <div>
-                              {uploadingPaymentId === booking.id ? (
-                                <div className="space-y-2">
-                                  <input 
-                                    type="file" 
-                                    accept="image/*"
-                                    onChange={e => setPaymentFile(e.target.files[0])}
-                                    className="w-full text-[10px] border border-slate-200 rounded p-1 bg-slate-50 cursor-pointer"
-                                  />
-                                  {uploadError && <p className="text-[10px] text-red-600">{uploadError}</p>}
-                                  {uploadSuccess && <p className="text-[10px] text-emerald-700">{uploadSuccess}</p>}
-                                  <div className="flex gap-1.5">
-                                    <button 
-                                      onClick={() => handleUploadPaymentProof(booking.id)}
-                                      className="flex-1 py-1 px-2 bg-emerald-900 text-white rounded font-bold text-[10px] hover:bg-emerald-800"
-                                    >
-                                      Submit
-                                    </button>
-                                    <button 
-                                      onClick={() => { setUploadingPaymentId(null); setPaymentFile(null); }}
-                                      className="py-1 px-2 border border-slate-200 text-slate-500 rounded font-semibold text-[10px]"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button 
-                                  onClick={() => setUploadingPaymentId(booking.id)}
-                                  className="w-full py-2 px-3 border border-dashed border-amber-300 text-amber-800 bg-amber-50/50 rounded-xl font-bold text-xs hover:bg-amber-50 transition-colors flex items-center justify-center gap-1.5"
-                                >
-                                  <Upload className="w-3.5 h-3.5" /> Upload Payment Proof
-                                </button>
+                          {selectedBooking.status === 'CONFIRMED' && (
+                            <div className="text-center"><span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full">✅ Booking Confirmed</span></div>
+                          )}
+                          {selectedBooking.status === 'CANCELLED' && (
+                            <div className="text-center"><span className="text-[10px] bg-red-100 text-red-700 font-bold px-3 py-1 rounded-full">❌ Booking Declined</span></div>
+                          )}
+                          {selectedBooking.status === 'RESPONDED' && (
+                            <div className="text-center"><span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">💬 {isHomestay ? 'Host' : 'Guide'} has replied — awaiting their confirmation</span></div>
+                          )}
+                        </div>
+
+                        {/* Bottom Actions */}
+                        <div className="border-t border-slate-200 bg-white flex-shrink-0 p-4 space-y-2">
+                          <p className="text-[10px] text-slate-400 text-center">Ref: #{selectedBooking.id.substring(0,8)}</p>
+
+                          {/* Contact host card shown when replied but not yet confirmed */}
+                          {selectedBooking.status === 'RESPONDED' && (
+                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs space-y-1.5">
+                              <p className="font-bold text-blue-800 text-[11px]">The host has replied! 🏠</p>
+                              <p className="text-slate-600 text-[10px]">They will confirm your booking soon. You can also reach them directly:</p>
+                              {selectedBooking.tourist_email && (
+                                <a href={`mailto:${selectedBooking.tourist_email}`} className="flex items-center gap-1.5 text-[10px] text-blue-700 font-semibold hover:underline">
+                                  ✉️ {selectedBooking.tourist_email}
+                                </a>
+                              )}
+                              {selectedBooking.tourist_phone && (
+                                <a href={`tel:${selectedBooking.tourist_phone}`} className="flex items-center gap-1.5 text-[10px] text-blue-700 font-semibold hover:underline">
+                                  📞 {selectedBooking.tourist_phone}
+                                </a>
                               )}
                             </div>
-                          )
-                        )}
+                          )}
 
-                        {/* Review write option */}
-                        {booking.status === 'CONFIRMED' && (
-                          <button 
-                            onClick={() => handleOpenReviewModal(booking)}
-                            className="w-full py-2 px-3 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
-                          >
-                            <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" /> Write Review
-                          </button>
-                        )}
-                        
-                        <div className="text-[10px] text-slate-400 text-center font-medium mt-1">
-                          Ref: #{booking.id.substring(0,8)}
+                          {selectedBooking.status === 'CONFIRMED' && (
+                            selectedBooking.payment_proof_url ? (
+                              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs text-emerald-850 flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="font-bold">Payment Proof Submitted</p>
+                                  <a href={selectedBooking.payment_proof_url} target="_blank" rel="noreferrer" className="underline text-[10px] hover:text-emerald-950">View File</a>
+                                </div>
+                              </div>
+                            ) : uploadingPaymentId === selectedBooking.id ? (
+                              <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                <p className="text-xs font-bold text-slate-700">Upload GCash / Bank Transfer Proof</p>
+                                <input type="file" accept="image/*" onChange={e => setPaymentFile(e.target.files[0])} className="w-full text-[10px] border border-slate-200 rounded p-1 bg-white cursor-pointer" />
+                                {uploadError && <p className="text-[10px] text-red-600">{uploadError}</p>}
+                                {uploadSuccess && <p className="text-[10px] text-emerald-700">{uploadSuccess}</p>}
+                                <div className="flex gap-2">
+                                  <button onClick={() => handleUploadPaymentProof(selectedBooking.id)} className="flex-1 py-2 bg-emerald-900 text-white rounded-xl font-bold text-xs hover:bg-emerald-800">Submit Proof</button>
+                                  <button onClick={() => { setUploadingPaymentId(null); setPaymentFile(null); }} className="py-2 px-4 border border-slate-200 text-slate-500 rounded-xl font-semibold text-xs hover:bg-slate-50">Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button onClick={() => setUploadingPaymentId(selectedBooking.id)} className="w-full py-2.5 border border-dashed border-sky-300 text-sky-800 bg-sky-50/50 rounded-xl font-bold text-xs hover:bg-sky-50 transition-colors flex items-center justify-center gap-1.5">
+                                <Upload className="w-3.5 h-3.5" /> Upload GCash / Bank Proof
+                              </button>
+                            )
+                          )}
+
+                          {selectedBooking.status === 'CONFIRMED' && (
+                            <button onClick={() => handleOpenReviewModal(selectedBooking)} className="w-full py-2.5 border border-amber-200 text-amber-800 bg-amber-50/50 hover:bg-amber-50 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5">
+                              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> Write a Review
+                            </button>
+                          )}
+
+                          {selectedBooking.status === 'PENDING' && (
+                            <p className="text-[10px] text-center text-slate-400 italic">Your inquiry has been sent. Waiting for the {isHomestay ? 'host' : 'guide'} to reply.</p>
+                          )}
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                      </>
+                    );
+                  })()
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400">
+                    <MessageSquare className="w-12 h-12 text-slate-200 mb-3" />
+                    <p className="font-bold text-sm text-slate-600">Select a booking</p>
+                    <p className="text-xs mt-1">Choose a booking from the left to view your conversation with the host.</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
         {/* Complaints Hub Tab */}
         {activeTab === 'complaints' && (

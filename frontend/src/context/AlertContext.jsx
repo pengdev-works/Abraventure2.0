@@ -64,7 +64,6 @@ export const AlertProvider = ({ children }) => {
         });
         break;
       default:
-        toast.className = 'info-toast';
         toast(message, {
           ...options,
           iconTheme: {

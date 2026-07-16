@@ -1142,7 +1142,9 @@ const MunicipalDashboard = () => {
                           <td className="py-3.5 px-4 font-bold text-slate-800">{hs.name}</td>
                           <td className="py-3.5 px-4">{hs.owner_name}</td>
                           <td className="py-3.5 px-4">
-                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${hs.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${
+                                hs.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+                                hs.status === 'ENDORSED' ? 'bg-blue-100 text-blue-800' :
                                 hs.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
                               }`}>
                               {hs.status}
@@ -1157,8 +1159,11 @@ const MunicipalDashboard = () => {
                                 Endorse Profile
                               </button>
                             )}
-                            {hs.status !== 'PENDING' && (
-                              <span className="text-slate-400 italic">No pending profile review</span>
+                            {hs.status === 'ENDORSED' && (
+                              <span className="text-blue-600 font-semibold text-[10px] italic">Endorsed — Awaiting Provincial Review</span>
+                            )}
+                            {(hs.status === 'APPROVED' || hs.status === 'REJECTED') && (
+                              <span className="text-slate-400 italic text-[10px]">No pending profile review</span>
                             )}
                           </td>
                         </tr>
@@ -1191,7 +1196,9 @@ const MunicipalDashboard = () => {
                           <td className="py-3.5 px-4 font-bold text-slate-800">{g.guide_name}</td>
                           <td className="py-3.5 px-4">{g.email}</td>
                           <td className="py-3.5 px-4">
-                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${g.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${
+                                g.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+                                g.status === 'ENDORSED' ? 'bg-blue-100 text-blue-800' :
                                 g.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
                               }`}>
                               {g.status}
@@ -1206,8 +1213,11 @@ const MunicipalDashboard = () => {
                                 Endorse Profile
                               </button>
                             )}
-                            {g.status !== 'PENDING' && (
-                              <span className="text-slate-400 italic">No pending profile review</span>
+                            {g.status === 'ENDORSED' && (
+                              <span className="text-blue-600 font-semibold text-[10px] italic">Endorsed — Awaiting Provincial Review</span>
+                            )}
+                            {(g.status === 'APPROVED' || g.status === 'REJECTED') && (
+                              <span className="text-slate-400 italic text-[10px]">No pending profile review</span>
                             )}
                           </td>
                         </tr>

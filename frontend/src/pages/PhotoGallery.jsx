@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Compass, Image, ArrowLeft, ZoomIn, Download, ExternalLink, RefreshCw } from 'lucide-react';
+import { Image, ArrowLeft, ZoomIn, Download } from 'lucide-react';
 import SafeImage from '../components/SafeImage';
 
 const PhotoGallery = () => {

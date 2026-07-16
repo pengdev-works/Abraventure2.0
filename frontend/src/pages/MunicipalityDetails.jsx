@@ -1,73 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Calendar, HelpCircle, Phone, Mail, Award, CheckCircle, Info, Landmark, Star, Map, MessageSquare, Upload, Image } from 'lucide-react';
+import { MapPin, Calendar, HelpCircle, Phone, Mail, Award, CheckCircle, Info, Landmark, Star, MessageSquare, Upload, Image, Home, BedDouble, Users } from 'lucide-react';
 import SafeImage from '../components/SafeImage';
-
-// Leaflet Map Component (lazy-loaded to avoid SSR issues)
-const AttractionMap = ({ attractions, homestays }) => {
-  const [MapComponents, setMapComponents] = useState(null);
-
-  useEffect(() => {
-    // Dynamically import leaflet to avoid SSR issues
-    Promise.all([
-      import('react-leaflet'),
-      import('leaflet'),
-    ]).then(([rl, L]) => {
-      // Fix default marker icons
-      delete L.default.Icon.Default.prototype._getIconUrl;
-      L.default.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-      });
-      setMapComponents({ MapContainer: rl.MapContainer, TileLayer: rl.TileLayer, Marker: rl.Marker, Popup: rl.Popup });
-    }).catch(console.error);
-  }, []);
-
-  if (!MapComponents) return (
-    <div className="flex items-center justify-center h-64 bg-slate-100 rounded-xl text-slate-400 text-sm">
-      <div className="text-center">
-        <Map className="w-8 h-8 mx-auto mb-2 opacity-40" />
-        <p>Loading map...</p>
-      </div>
-    </div>
-  );
-
-  const { MapContainer, TileLayer, Marker, Popup } = MapComponents;
-
-  const allPoints = [
-    ...attractions.filter(a => a.latitude && a.longitude).map(a => ({ ...a, type: 'attraction' })),
-    ...homestays.filter(h => h.latitude && h.longitude).map(h => ({ ...h, type: 'homestay' })),
-  ];
-
-  const center = allPoints.length > 0
-    ? [parseFloat(allPoints[0].latitude), parseFloat(allPoints[0].longitude)]
-    : [17.5946, 120.4551]; // Abra default center
-
-  return (
-    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: '400px' }}>
-      <MapContainer center={center} zoom={11} style={{ height: '100%', width: '100%' }}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {allPoints.map((pt, i) => (
-          <Marker key={i} position={[parseFloat(pt.latitude), parseFloat(pt.longitude)]}>
-            <Popup>
-              <div>
-                <p className="font-bold text-sm">{pt.name}</p>
-                <p className="text-xs text-slate-500">{pt.type === 'attraction' ? '🏞️ Attraction' : '🏠 Homestay'}</p>
-                {pt.location_details && <p className="text-xs">{pt.location_details}</p>}
-                {pt.address && <p className="text-xs">{pt.address}</p>}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
-    </div>
-  );
-};
 
 // Star Rating Component
 const StarRating = ({ rating, onChange, size = 'w-6 h-6' }) => (
@@ -126,7 +61,7 @@ const MunicipalityDetails = () => {
   const [inquirySuccess, setInquirySuccess] = useState('');
   const [inquiryError, setInquiryError] = useState('');
   const [inquiryLoading, setInquiryLoading] = useState(false);
-  const [paymentProofFile, setPaymentProofFile] = useState(null);
+  const [bookedDates, setBookedDates] = useState([]); // confirmed booked ranges
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -179,7 +114,13 @@ const MunicipalityDetails = () => {
     setInquiryMessage('');
     setInquiryDateStart('');
     setInquiryDateEnd('');
-    setPaymentProofFile(null);
+    setBookedDates([]);
+    // Fetch booked dates for this homestay/guide
+    const param = type === 'HOMESTAY' ? `homestayId=${item.id}` : `guideId=${item.id}`;
+    fetch(`/api/inquiries/booked-dates?${param}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setBookedDates)
+      .catch(console.error);
   };
 
   const handleInquirySubmit = async (e) => {
@@ -196,7 +137,6 @@ const MunicipalityDetails = () => {
       formData.append('endDate', inquiryDateEnd || '');
       formData.append('numberOfGuests', inquiryGuests);
       formData.append('message', inquiryMessage);
-      if (paymentProofFile) formData.append('paymentProof', paymentProofFile);
 
       const response = await fetch('/api/inquiries', {
         method: 'POST',
@@ -281,15 +221,12 @@ const MunicipalityDetails = () => {
   );
 
   const { municipality, attractions, homestays, guides, localDOT } = data;
-  const mapAttractions = attractions || [];
-  const mapHomestays = homestays || [];
 
   const TABS = [
     { id: 'attractions', label: `Attractions (${attractions.length})` },
     { id: 'homestays', label: `Homestays (${homestays.length})` },
     { id: 'guides', label: `Guides (${guides.length})` },
     { id: 'events', label: `Events (${events.length})` },
-    { id: 'map', label: 'Interactive Map' },
     { id: 'gallery', label: 'Photo Gallery' },
     { id: 'reviews', label: 'Reviews' },
   ];
@@ -324,7 +261,6 @@ const MunicipalityDetails = () => {
                   activeTab === tab.id ? 'border-emerald-900 text-emerald-950' : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                {tab.id === 'map' && <Map className="w-3.5 h-3.5" />}
                 {tab.id === 'reviews' && <Star className="w-3.5 h-3.5" />}
                 {tab.id === 'events' && <Calendar className="w-3.5 h-3.5" />}
                 {tab.id === 'gallery' && <Image className="w-3.5 h-3.5" />}
@@ -379,9 +315,13 @@ const MunicipalityDetails = () => {
             {/* Homestays Tab */}
             {activeTab === 'homestays' && (
               <div>
+                <p className="text-xs text-slate-400 mb-5 italic flex items-center gap-1.5">
+                  <Home className="w-3.5 h-3.5 text-emerald-700" />
+                  These are real local homes in Abra — expect warm hospitality, home-cooked meals, and an authentic mountain experience.
+                </p>
                 {homestays.length === 0 ? (
                   <div className="text-center py-16 text-slate-500 bg-white rounded-2xl border border-slate-100 p-8 shadow-sm">
-                    <Landmark className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                    <Home className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                     <p className="font-semibold text-lg">No accredited homestays yet.</p>
                   </div>
                 ) : (
@@ -389,28 +329,120 @@ const MunicipalityDetails = () => {
                     {homestays.map(h => {
                       const revList = reviews.homestays[h.id] || [];
                       const avg = avgRating(revList);
+                      const photos = h.images || [];
+                      const arrangements = h.sleeping_arrangements || [];
                       return (
                         <div key={h.id} className="bg-white rounded-2xl border border-slate-200/60 overflow-hidden shadow-sm flex flex-col">
-                          <div className="h-48 bg-slate-100 relative">
-                              <SafeImage src={h.images && h.images.length > 0 ? h.images[0].image_url : 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800'} alt={h.name} className="w-full h-full object-cover" fallback="landscape" />
-                            <div className="absolute top-3 right-3 bg-emerald-900 text-white font-bold text-xs px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
-                              <CheckCircle className="w-3.5 h-3.5 text-amber-400" /> Verified
+
+                          {/* Photo strip */}
+                          <div className="relative h-52 bg-slate-100">
+                            <SafeImage
+                              src={photos.length > 0 ? photos[0].image_url : 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=800'}
+                              alt={h.name}
+                              className="w-full h-full object-cover"
+                              fallback="landscape"
+                            />
+                            {/* Overlay gradient */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                            {/* Badges */}
+                            <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                              <span className="bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3 text-amber-400" /> DOT Accredited
+                              </span>
+                              <span className="bg-white/90 text-emerald-900 font-bold text-[10px] px-2.5 py-1 rounded-full shadow flex items-center gap-1">
+                                <Home className="w-3 h-3" /> Local Family Home
+                              </span>
+                            </div>
+                            {/* Photo count */}
+                            {photos.length > 1 && (
+                              <div className="absolute top-3 right-3 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Image className="w-3 h-3" /> {photos.length} photos
+                              </div>
+                            )}
+                            {/* Host name overlay */}
+                            <div className="absolute bottom-3 left-4">
+                              <p className="text-white/80 text-[10px] font-medium">Hosted by</p>
+                              <p className="text-white font-bold text-sm">{h.owner_name}</p>
                             </div>
                           </div>
-                          <div className="p-6 flex-grow flex flex-col justify-between">
-                            <div>
-                              <h3 className="text-xl font-bold text-slate-800 mb-1">{h.name}</h3>
-                              <p className="text-xs text-slate-400 mb-2 flex items-center gap-0.5"><MapPin className="w-3.5 h-3.5" /> {h.address}</p>
-                              {/* Rating */}
-                              <div className="flex items-center gap-1.5 mb-3">
-                                <div className="flex gap-0.5">{[1,2,3,4,5].map(s=><Star key={s} className={`w-3.5 h-3.5 ${s<=Math.round(avg)?'fill-amber-400 text-amber-400':'text-slate-200'}`}/>)}</div>
-                                <span className="text-xs text-slate-500">{avg > 0 ? avg.toFixed(1) : 'No reviews'} ({revList.length})</span>
-                              </div>
-                              <p className="text-slate-500 text-xs leading-relaxed mb-4 line-clamp-3">{h.description}</p>
+
+                          {/* Thumbnail strip */}
+                          {photos.length > 1 && (
+                            <div className="flex gap-1.5 px-4 pt-3">
+                              {photos.slice(1, 4).map((img, i) => (
+                                <div key={i} className="w-16 h-12 rounded-lg overflow-hidden border border-slate-100 flex-shrink-0">
+                                  <SafeImage src={img.image_url} alt="" className="w-full h-full object-cover" fallback="landscape" />
+                                </div>
+                              ))}
+                              {photos.length > 4 && (
+                                <div className="w-16 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs flex-shrink-0">
+                                  +{photos.length - 4}
+                                </div>
+                              )}
                             </div>
-                            <div className="border-t border-slate-100 pt-4 mt-2 flex flex-col gap-2">
-                              <button onClick={() => openInquiry('HOMESTAY', h)} className="w-full py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl transition-all">
-                                Book / Send Inquiry
+                          )}
+
+                          <div className="p-5 flex-grow flex flex-col justify-between">
+                            <div>
+                              {/* Name & address */}
+                              <h3 className="text-lg font-bold text-slate-800 mb-0.5">{h.name}</h3>
+                              <p className="text-xs text-slate-400 mb-3 flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5 flex-shrink-0" /> {h.address}
+                              </p>
+
+                              {/* Star rating */}
+                              <div className="flex items-center gap-1.5 mb-3">
+                                <div className="flex gap-0.5">{[1,2,3,4,5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(avg) ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} />)}</div>
+                                <span className="text-xs text-slate-500">{avg > 0 ? avg.toFixed(1) : 'No reviews yet'} ({revList.length})</span>
+                              </div>
+
+                              {/* Description */}
+                              <p className="text-slate-500 text-xs leading-relaxed mb-4">{h.description}</p>
+
+                              {/* Sleeping arrangements */}
+                              {arrangements.length > 0 && (
+                                <div className="mb-4 bg-amber-50 border border-amber-100 rounded-xl p-3">
+                                  <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                    <BedDouble className="w-3.5 h-3.5" /> Sleeping Arrangements
+                                  </p>
+                                  <div className="space-y-1.5">
+                                    {arrangements.map((rm, i) => (
+                                      <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                                        <span className="font-semibold text-slate-700 whitespace-nowrap">{rm.room_type}</span>
+                                        <span className="text-slate-400">·</span>
+                                        <span className="flex items-center gap-0.5 text-slate-500 whitespace-nowrap">
+                                          <Users className="w-3 h-3" /> up to {rm.capacity} guests
+                                        </span>
+                                        {rm.description && <span className="text-slate-400 truncate">— {rm.description}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Contact info */}
+                              {(h.contact_phone || h.contact_email) && (
+                                <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-2">
+                                  {h.contact_phone && (
+                                    <a href={`tel:${h.contact_phone}`} className="flex items-center gap-1 hover:text-emerald-800 transition-colors">
+                                      <Phone className="w-3.5 h-3.5" /> {h.contact_phone}
+                                    </a>
+                                  )}
+                                  {h.contact_email && (
+                                    <a href={`mailto:${h.contact_email}`} className="flex items-center gap-1 hover:text-emerald-800 transition-colors">
+                                      <Mail className="w-3.5 h-3.5" /> {h.contact_email}
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="border-t border-slate-100 pt-4 mt-3 flex flex-col gap-2">
+                              <button
+                                onClick={() => openInquiry('HOMESTAY', h)}
+                                className="w-full py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl transition-all"
+                              >
+                                Send an Inquiry
                               </button>
                               {user?.role === 'TOURIST' && (
                                 <button
@@ -559,20 +591,6 @@ const MunicipalityDetails = () => {
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* Map Tab */}
-            {activeTab === 'map' && (
-              <div>
-                <div className="mb-4 flex items-center gap-4 text-xs text-slate-500">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-blue-500 rounded-full inline-block" /> Attractions</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-full inline-block" /> Homestays</span>
-                </div>
-                <AttractionMap attractions={mapAttractions} homestays={mapHomestays} />
-                {mapAttractions.filter(a => !a.latitude).length > 0 && (
-                  <p className="text-xs text-slate-400 mt-3 text-center">Some locations are not yet mapped. The Municipal DOT will update coordinates soon.</p>
                 )}
               </div>
             )}
@@ -742,6 +760,29 @@ const MunicipalityDetails = () => {
             <form onSubmit={handleInquirySubmit} className="p-6 space-y-4">
               {inquiryError && <div className="flex items-center gap-1.5 bg-red-50 text-red-600 p-3 rounded-lg text-xs border border-red-200"><Info className="w-4 h-4" /><span>{inquiryError}</span></div>}
               {inquirySuccess && <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 p-3 rounded-lg text-xs border border-emerald-200"><CheckCircle className="w-4 h-4" /><span>{inquirySuccess}</span></div>}
+
+              {/* Booked Dates Availability Notice */}
+              {bookedDates.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
+                  <p className="text-[11px] font-bold text-amber-800 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    Already Booked — Choose Different Dates
+                  </p>
+                  <div className="space-y-1">
+                    {bookedDates.map((range, i) => {
+                      const start = new Date(range.start_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+                      const end = range.end_date ? new Date(range.end_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : start;
+                      return (
+                        <div key={i} className="flex items-center gap-1.5 text-[10px] text-amber-700 font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                          {start === end ? start : `${start} — ${end}`}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Start Date</label>
@@ -752,6 +793,7 @@ const MunicipalityDetails = () => {
                   <input type="date" value={inquiryDateEnd} onChange={e => setInquiryDateEnd(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs" />
                 </div>
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Number of Guests</label>
                 <input type="number" min="1" required value={inquiryGuests} onChange={e => setInquiryGuests(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs" />
@@ -760,19 +802,9 @@ const MunicipalityDetails = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Message</label>
                 <textarea required rows="3" value={inquiryMessage} onChange={e => setInquiryMessage(e.target.value)} placeholder="Ask about details, rooms, pricing, GCash number..." className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs" />
               </div>
-              {/* Payment Proof Upload */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  <Upload className="w-3.5 h-3.5 inline mr-1" /> Payment Proof (optional)
-                </label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={e => setPaymentProofFile(e.target.files[0])}
-                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Upload GCash screenshot or bank transfer receipt if you've already paid.</p>
-              </div>
+              <p className="text-[10px] text-slate-400 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                💡 Once the host confirms and replies with payment details (e.g. GCash number), you can send payment and upload proof from your <strong>Dashboard → My Bookings</strong>.
+              </p>
               {!token && (
                 <div className="text-center text-xs text-slate-400 border border-slate-100 p-2 rounded-lg bg-amber-50/50">
                   <Link to="/login" className="text-emerald-950 font-bold hover:underline">Sign In</Link> to contact this provider.

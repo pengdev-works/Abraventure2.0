@@ -51,7 +51,7 @@ export const getMunicipalityDetails = async (req, res) => {
       [id]
     );
     
-    // Add images for each homestay
+    // Add images and sleeping arrangements for each homestay
     const homestays = homestaysResult.rows;
     for (const homestay of homestays) {
       const imgRes = await pool.query(
@@ -59,6 +59,14 @@ export const getMunicipalityDetails = async (req, res) => {
         [homestay.id]
       );
       homestay.images = imgRes.rows;
+
+      // Fetch room descriptions as "sleeping arrangements" (no pricing shown to tourists)
+      const roomRes = await pool.query(
+        `SELECT room_type, capacity, description FROM homestay_rooms
+         WHERE homestay_id = $1 ORDER BY created_at ASC`,
+        [homestay.id]
+      );
+      homestay.sleeping_arrangements = roomRes.rows;
     }
 
     // 4. Get Approved Tour Guides
