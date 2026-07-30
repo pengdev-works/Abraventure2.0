@@ -45,7 +45,7 @@ export const addHomestayImage = async (req, res) => {
     return res.status(400).json({ message: 'No image uploaded.' });
   }
 
-  const imageUrl = `/uploads/${req.file.filename}`;
+  const imageUrl = req.file.path;
 
   try {
     // Get homestay id
@@ -195,7 +195,7 @@ export const updateTourGuideProfile = async (req, res) => {
   
   let profilePictureUrl = req.body.profilePictureUrl;
   if (req.file) {
-    profilePictureUrl = `/uploads/${req.file.filename}`;
+    profilePictureUrl = req.file.path;
   }
 
   try {
@@ -226,7 +226,7 @@ export const updateMunicipalDotProfile = async (req, res) => {
   
   let profilePictureUrl = req.body.profilePictureUrl;
   if (req.file) {
-    profilePictureUrl = `/uploads/${req.file.filename}`;
+    profilePictureUrl = req.file.path;
   }
 
   const client = await pool.connect();
@@ -494,3 +494,222 @@ export const approveAccount = async (req, res) => {
     client.release();
   }
 };
+
+// ─── DOT USER ACCOUNT CRUD (Provincial DOT only) ──────────────────────────────
+
+/**
+ * GET /api/listings/users
+ * Returns all MUNICIPAL_DOT and PROVINCIAL_DOT accounts with municipality name.
+ */
+export const getAllDotUsers = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.phone_number, u.role, u.status, u.created_at,
+              m.id AS municipality_id, m.name AS municipality_name,
+              p.designation, p.office_address, p.profile_picture_url
+       FROM user_accounts u
+       LEFT JOIN municipalities m ON u.municipality_id = m.id
+       LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
+       WHERE u.role IN ('MUNICIPAL_DOT', 'PROVINCIAL_DOT')
+       ORDER BY u.role ASC, u.created_at DESC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (err) {
+    console.error('Error fetching DOT users:', err);
+    return res.status(500).json({ message: 'Internal server error fetching DOT users.' });
+  }
+};
+
+/**
+ * POST /api/listings/users
+ * Creates a new MUNICIPAL_DOT or PROVINCIAL_DOT account.
+ * Prevents duplicate Municipal DOT per municipality.
+ */
+export const createDotUser = async (req, res) => {
+  const { email, password, fullName, phoneNumber, role, municipalityId, designation, officeAddress, forceCreate } = req.body;
+
+  if (!email || !password || !fullName || !role) {
+    return res.status(400).json({ message: 'Email, password, full name, and role are required.' });
+  }
+
+  if (!['MUNICIPAL_DOT', 'PROVINCIAL_DOT'].includes(role)) {
+    return res.status(400).json({ message: 'Role must be MUNICIPAL_DOT or PROVINCIAL_DOT.' });
+  }
+
+  if (role === 'MUNICIPAL_DOT' && !municipalityId) {
+    return res.status(400).json({ message: 'Municipality is required for Municipal DOT accounts.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Check if email already exists
+    const emailCheck = await client.query('SELECT id FROM user_accounts WHERE email = $1', [email]);
+    if (emailCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Email is already registered to another account.' });
+    }
+
+    // Duplicate municipality guard for Municipal DOT
+    if (role === 'MUNICIPAL_DOT' && !forceCreate) {
+      const dupCheck = await client.query(
+        `SELECT u.id, u.full_name, u.status FROM user_accounts u
+         WHERE u.municipality_id = $1 AND u.role = 'MUNICIPAL_DOT' AND u.status = 'APPROVED'
+         LIMIT 1`,
+        [municipalityId]
+      );
+      if (dupCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          message: `This municipality already has an approved Municipal DOT officer (${dupCheck.rows[0].full_name}). Delete or edit the existing account first, or confirm to create anyway.`,
+          existingUser: dupCheck.rows[0],
+          requiresForce: true,
+        });
+      }
+    }
+
+    // Hash password
+    const bcrypt = (await import('bcryptjs')).default;
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const munId = municipalityId ? parseInt(municipalityId) : null;
+
+    // Insert user account (status APPROVED since created by Provincial DOT directly)
+    const userResult = await client.query(
+      `INSERT INTO user_accounts (email, password_hash, role, full_name, phone_number, municipality_id, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'APPROVED')
+       RETURNING id, email, role, full_name, phone_number, municipality_id, status`,
+      [email, passwordHash, role, fullName, phoneNumber || null, munId]
+    );
+
+    const user = userResult.rows[0];
+
+    // Create DOT profile record
+    if (role === 'MUNICIPAL_DOT') {
+      await client.query(
+        `INSERT INTO municipal_dot_profiles (user_id, designation, office_address)
+         VALUES ($1, $2, $3)`,
+        [user.id, designation || 'Tourism Officer', officeAddress || 'Municipal Hall']
+      );
+    }
+
+    await client.query('COMMIT');
+    return res.status(201).json({ message: 'DOT account created successfully.', user });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error creating DOT user:', err);
+    return res.status(500).json({ message: 'Internal server error creating DOT user.' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * PUT /api/listings/users/:id
+ * Updates full_name, phone_number, email, municipality_id, status, designation, officeAddress
+ * for any MUNICIPAL_DOT or PROVINCIAL_DOT account.
+ */
+export const updateDotUser = async (req, res) => {
+  const { id } = req.params;
+  const { fullName, phoneNumber, email, municipalityId, status, designation, officeAddress } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Verify target is a DOT account
+    const targetRes = await client.query(
+      `SELECT id, role FROM user_accounts WHERE id = $1 AND role IN ('MUNICIPAL_DOT','PROVINCIAL_DOT')`,
+      [id]
+    );
+    if (targetRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'DOT account not found.' });
+    }
+
+    // Check email uniqueness if changing email
+    if (email) {
+      const emailCheck = await client.query(
+        'SELECT id FROM user_accounts WHERE email = $1 AND id != $2',
+        [email, id]
+      );
+      if (emailCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Email is already in use by another account.' });
+      }
+    }
+
+    const munId = municipalityId ? parseInt(municipalityId) : null;
+
+    await client.query(
+      `UPDATE user_accounts
+       SET full_name    = COALESCE($1, full_name),
+           phone_number = COALESCE($2, phone_number),
+           email        = COALESCE($3, email),
+           municipality_id = CASE WHEN $4::int IS NOT NULL THEN $4::int ELSE municipality_id END,
+           status       = COALESCE($5, status),
+           updated_at   = CURRENT_TIMESTAMP
+       WHERE id = $6`,
+      [fullName, phoneNumber, email, munId, status, id]
+    );
+
+    // Update municipal_dot_profiles if applicable
+    if (targetRes.rows[0].role === 'MUNICIPAL_DOT') {
+      await client.query(
+        `UPDATE municipal_dot_profiles
+         SET designation    = COALESCE($1, designation),
+             office_address = COALESCE($2, office_address)
+         WHERE user_id = $3`,
+        [designation, officeAddress, id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    const updated = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.phone_number, u.role, u.status,
+              m.id AS municipality_id, m.name AS municipality_name,
+              p.designation, p.office_address
+       FROM user_accounts u
+       LEFT JOIN municipalities m ON u.municipality_id = m.id
+       LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
+       WHERE u.id = $1`,
+      [id]
+    );
+
+    return res.status(200).json({ message: 'DOT account updated successfully.', user: updated.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error updating DOT user:', err);
+    return res.status(500).json({ message: 'Internal server error updating DOT user.' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * DELETE /api/listings/users/:id
+ * Hard-deletes a DOT account. Cascades child records via FK constraints.
+ */
+export const deleteDotUser = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const check = await pool.query(
+      `SELECT id, full_name, role FROM user_accounts WHERE id = $1 AND role IN ('MUNICIPAL_DOT','PROVINCIAL_DOT')`,
+      [id]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'DOT account not found or deletion not permitted.' });
+    }
+
+    await pool.query('DELETE FROM user_accounts WHERE id = $1', [id]);
+    return res.status(200).json({ message: `Account for "${check.rows[0].full_name}" deleted successfully.` });
+  } catch (err) {
+    console.error('Error deleting DOT user:', err);
+    return res.status(500).json({ message: 'Internal server error deleting DOT user.' });
+  }
+};
+

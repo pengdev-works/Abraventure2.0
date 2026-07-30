@@ -10,7 +10,11 @@ import {
   updateMunicipalDotProfile,
   getApplications,
   endorseStakeholder,
-  approveAccount
+  approveAccount,
+  getAllDotUsers,
+  createDotUser,
+  updateDotUser,
+  deleteDotUser,
 } from '../controllers/listingController.js';
 import { verifyToken, requireRoles } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
@@ -36,4 +40,11 @@ router.get('/applications', verifyToken, requireRoles(['MUNICIPAL_DOT', 'PROVINC
 router.put('/endorse/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), endorseStakeholder);
 router.put('/approve/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), approveAccount);
 
+// DOT User Account CRUD (Provincial DOT only)
+router.get('/users', verifyToken, requireRoles(['PROVINCIAL_DOT']), getAllDotUsers);
+router.post('/users', verifyToken, requireRoles(['PROVINCIAL_DOT']), createDotUser);
+router.put('/users/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), updateDotUser);
+router.delete('/users/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), deleteDotUser);
+
 export default router;
+

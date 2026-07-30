@@ -13,7 +13,7 @@ export const submitDocument = async (req, res) => {
     return res.status(400).json({ message: 'No file uploaded.' });
   }
 
-  const documentUrl = `/uploads/${req.file.filename}`;
+  const documentUrl = req.file.path;
 
   try {
     // Check if requirement exists

@@ -290,7 +290,7 @@ const MunicipalityDetails = () => {
                     {attractions.map(a => (
                       <div key={a.id} className="bg-white rounded-2xl border border-slate-200/60 overflow-hidden shadow-sm flex flex-col">
                         <div className="h-48 bg-slate-100">
-                          <img src={a.image_url || 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800'} alt={a.name} className="w-full h-full object-cover" />
+                          <SafeImage src={a.image_url} alt={a.name} className="w-full h-full object-cover" fallback="landscape" />
                         </div>
                         <div className="p-6 flex-grow flex flex-col justify-between">
                           <div>
@@ -537,7 +537,7 @@ const MunicipalityDetails = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {events.map(ev => (
                       <div key={ev.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        {ev.image_url && <img src={ev.image_url} alt={ev.title} className="w-full h-36 object-cover" />}
+                        {ev.image_url && <SafeImage src={ev.image_url} alt={ev.title} className="w-full h-36 object-cover" fallback="landscape" />}
                         <div className="p-5">
                           <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">{ev.category}</span>
                           <h3 className="font-extrabold text-slate-800 text-base mt-2 mb-1">{ev.title}</h3>
@@ -691,7 +691,7 @@ const MunicipalityDetails = () => {
                   <Award className="w-4 h-4 text-amber-500" /> Tourism Office
                 </div>
                 <div className="w-20 h-20 rounded-full overflow-hidden border border-slate-100 mb-3 bg-slate-100 shadow-inner flex-shrink-0">
-                  <img src={localDOT.profile_picture_url || municipality.featured_image_url || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800'} alt={localDOT.officer_name} className="w-full h-full object-cover" />
+                  <SafeImage src={localDOT.profile_picture_url || municipality.featured_image_url} alt={localDOT.officer_name} className="w-full h-full object-cover" fallback="avatar" />
                 </div>
                 <h3 className="font-bold text-slate-800 text-sm leading-tight">{localDOT.officer_name}</h3>
                 <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{localDOT.designation || 'Tourism Officer'}</p>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, MapPin, ArrowRight, Compass, Mountain, TreePine, Waves } from 'lucide-react';
+import SafeImage from '../components/SafeImage';
 
 const categoryColors = {
   Nature:     'bg-emerald-100 text-emerald-800',
@@ -173,10 +174,11 @@ const Municipalities = () => {
                 >
                   {/* Card Image */}
                   <div className="relative h-52 overflow-hidden bg-emerald-900">
-                    <img
-                      src={m.dot_profile_pic || m.featured_image_url || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80'}
+                    <SafeImage
+                      src={m.dot_profile_pic || m.featured_image_url}
                       alt={m.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-600 ease-out"
+                      fallback="landscape"
                     />
                     {/* Gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-black/20 to-transparent" />

@@ -16,7 +16,7 @@ export const upload = multer({ storage });
 export const createInquiry = async (req, res) => {
   const touristId = req.user.id;
   const { homestayId, guideId, startDate, endDate, numberOfGuests, message } = req.body;
-  const paymentProofUrl = req.file ? `/uploads/${req.file.filename}` : null;
+  const paymentProofUrl = req.file ? req.file.path : null;
 
   if (!message) {
     return res.status(400).json({ message: 'Message is required.' });
@@ -245,7 +245,7 @@ export const replyInquiry = async (req, res) => {
 export const uploadPaymentProof = async (req, res) => {
   const { id } = req.params;
   const touristId = req.user.id;
-  const paymentProofUrl = req.file ? `/uploads/${req.file.filename}` : null;
+  const paymentProofUrl = req.file ? req.file.path : null;
 
   if (!paymentProofUrl) {
     return res.status(400).json({ message: 'Payment proof file is required.' });

@@ -113,7 +113,7 @@ export const addAttraction = async (req, res) => {
 
   let imageUrl = req.body.imageUrl || null;
   if (req.file) {
-    imageUrl = `/uploads/${req.file.filename}`;
+    imageUrl = req.file.path;
   }
 
   try {
@@ -153,7 +153,7 @@ export const updateAttraction = async (req, res) => {
 
     let finalImageUrl = checkRes.rows[0].image_url;
     if (req.file) {
-      finalImageUrl = `/uploads/${req.file.filename}`;
+      finalImageUrl = req.file.path;
     } else if (imageUrl !== undefined) {
       finalImageUrl = imageUrl;
     }
@@ -244,7 +244,7 @@ export const addMunicipalityImage = async (req, res) => {
     return res.status(400).json({ message: 'No image file uploaded.' });
   }
 
-  const imageUrl = `/uploads/${req.file.filename}`;
+  const imageUrl = req.file.path;
 
   try {
     // If setting as featured, remove featured status from other images of this municipality
