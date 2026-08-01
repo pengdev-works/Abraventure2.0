@@ -137,3 +137,76 @@ export const setGuideAvailability = async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 };
+
+// GET /api/announcements/hero — public (Homepage hero banner)
+export const getHeroConfig = async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT * FROM homepage_hero ORDER BY id ASC LIMIT 1`);
+    if (result.rows.length === 0) {
+      return res.status(200).json({
+        badge_text: 'Province of Abra · Cordillera Administrative Region',
+        title: 'Explore the Heart of Cordillera Abra',
+        subtitle: 'From Kaparkan\'s limestone terraces to Itneg heritage weaving villages — discover verified homestays, accredited local guides, and hidden gems across all 27 municipalities.',
+        video_url: null,
+        background_image_url: null
+      });
+    }
+    return res.status(200).json(result.rows[0]);
+  } catch (err) {
+    console.error('getHeroConfig error:', err);
+    return res.status(500).json({ message: 'Server error fetching hero configuration.' });
+  }
+};
+
+// PUT /api/announcements/hero — PROVINCIAL_DOT only
+export const updateHeroConfig = async (req, res) => {
+  const { badgeText, title, subtitle, videoUrl, backgroundImageUrl } = req.body;
+  let finalVideoUrl = videoUrl || null;
+  let finalBgUrl = backgroundImageUrl || null;
+
+  if (req.file) {
+    const filePath = req.file.path || `/uploads/${req.file.filename}`;
+    if (req.file.mimetype && req.file.mimetype.startsWith('video/')) {
+      finalVideoUrl = filePath;
+    } else {
+      finalBgUrl = filePath;
+    }
+  }
+
+  try {
+    // Check if hero record exists
+    const checkRes = await pool.query(`SELECT id FROM homepage_hero ORDER BY id ASC LIMIT 1`);
+    let result;
+
+    if (checkRes.rows.length === 0) {
+      result = await pool.query(
+        `INSERT INTO homepage_hero (badge_text, title, subtitle, video_url, background_image_url, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [badgeText, title, subtitle, finalVideoUrl, finalBgUrl, req.user.id]
+      );
+    } else {
+      const heroId = checkRes.rows[0].id;
+      result = await pool.query(
+        `UPDATE homepage_hero
+         SET badge_text = COALESCE($1, badge_text),
+             title = COALESCE($2, title),
+             subtitle = COALESCE($3, subtitle),
+             video_url = CASE WHEN $4::text IS NOT NULL THEN $4::text ELSE video_url END,
+             background_image_url = CASE WHEN $5::text IS NOT NULL THEN $5::text ELSE background_image_url END,
+             updated_at = CURRENT_TIMESTAMP,
+             updated_by = $6
+         WHERE id = $7 RETURNING *`,
+        [badgeText, title, subtitle, finalVideoUrl, finalBgUrl, req.user.id, heroId]
+      );
+    }
+
+    return res.status(200).json({
+      message: 'Homepage Hero updated successfully!',
+      hero: result.rows[0]
+    });
+  } catch (err) {
+    console.error('updateHeroConfig error:', err);
+    return res.status(500).json({ message: 'Server error updating hero configuration.' });
+  }
+};
+

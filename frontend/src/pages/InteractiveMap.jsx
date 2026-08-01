@@ -7,10 +7,12 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 
-import { 
-  Search, MapPin, Navigation, Compass, Info, Check, 
-  ChevronRight, X, ArrowRight, Heart, Star, Map as MapIcon, 
-  Home as HomeIcon, Award, Phone, Mail, Navigation2, RefreshCw, Menu 
+import SafeImage, { formatMediaUrl } from '../components/SafeImage';
+
+import {
+  Search, MapPin, Navigation, Compass, Info, Check,
+  ChevronRight, X, ArrowRight, Heart, Star, Map as MapIcon,
+  Home as HomeIcon, Award, Phone, Mail, Navigation2, RefreshCw, Menu
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -86,8 +88,9 @@ const ClusterLayer = ({ items, onActionClick }) => {
       // Create Custom Popup HTML Structure
       const popupDiv = document.createElement('div');
       popupDiv.className = 'p-1 min-w-[200px] font-sans';
-      
-      const imgUrl = item.image_url || (item.images && item.images[0]?.image_url);
+
+      const rawImgUrl = item.image_url || (item.images && item.images[0]?.image_url);
+      const imgUrl = formatMediaUrl(rawImgUrl);
       const imgTag = imgUrl
         ? `<img src="${imgUrl}" class="w-full h-24 object-cover rounded-lg mb-2 border border-slate-200" alt="${item.name}" />`
         : `<div class="w-full h-20 bg-slate-100 rounded-lg flex items-center justify-center mb-2 text-slate-400"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>`;
@@ -296,7 +299,7 @@ const InteractiveMap = () => {
     if (suggestion.type === 'municipality') {
       const mun = suggestion.data;
       setSelectedMunicipality(mun);
-      
+
       // Zoom map to the municipality border if available in GeoJSON
       if (geoJsonData) {
         const feature = geoJsonData.features.find(
@@ -346,7 +349,7 @@ const InteractiveMap = () => {
   // GeoJSON interaction handler
   const onEachGeoJsonFeature = (feature, layer) => {
     const name = feature.properties.ADM3_EN;
-    
+
     // Bind subtle tooltip
     layer.bindTooltip(name, {
       permanent: false,
@@ -371,9 +374,9 @@ const InteractiveMap = () => {
         closeSidebarOnMobile();
         const lyr = e.target;
         const mapObj = lyr._map;
-        
+
         mapObj.fitBounds(lyr.getBounds(), { padding: [30, 30] });
-        
+
         const dbMun = data.municipalities.find(m => m.name.toLowerCase() === name.toLowerCase());
         if (dbMun) {
           setSelectedMunicipality(dbMun);
@@ -398,7 +401,7 @@ const InteractiveMap = () => {
         id: item.id
       });
       setActiveTab('directions');
-      
+
       // Auto-set start to user location or Bangued
       if (userGeolocation) {
         setStartPoint({
@@ -430,7 +433,7 @@ const InteractiveMap = () => {
     }
 
     toast.loading('Acquiring location coordinates...', { id: 'geoloc' });
-    
+
     const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
     const success = (pos) => {
@@ -464,7 +467,7 @@ const InteractiveMap = () => {
       } else if (err.code === 2) { // POSITION_UNAVAILABLE
         errMsg = 'Position unavailable.';
       }
-      
+
       // Automatic fallback to Bangued (Capital) so routing remains functional
       setStartPoint({
         lat: 17.5973,
@@ -491,29 +494,29 @@ const InteractiveMap = () => {
       const lon1 = startPoint.lon;
       const lat2 = endPoint.lat;
       const lon2 = endPoint.lon;
-      
+
       const R = 6371; // km
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = 
+      const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       const distanceKm = (R * c).toFixed(1);
-      
+
       const coordList = [
         [lat1, lon1],
         [lat2, lon2]
       ];
-      
+
       setRouteLine(coordList);
       setRouteSummary({
         distance: distanceKm,
         duration: 'As-the-crow-flies',
         isFallback: true
       });
-      
+
       const routePolyline = L.polyline(coordList);
       setMapBounds(routePolyline.getBounds());
       toast.success(`Calculated straight-line path: ${distanceKm} km`);
@@ -525,20 +528,20 @@ const InteractiveMap = () => {
         const url = `https://router.project-osrm.org/route/v1/driving/${startPoint.lon},${startPoint.lat};${endPoint.lon},${endPoint.lat}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('OSRM service failed to route.');
-        
+
         const routeData = await res.json();
-        
+
         if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
           const route = routeData.routes[0];
           // Coordinates in OSRM GeoJSON geometry are [lon, lat], Leaflet wants [lat, lon]
           const coordList = route.geometry.coordinates.map(c => [c[1], c[0]]);
-          
+
           setRouteLine(coordList);
-          
+
           const distanceKm = (route.distance / 1000).toFixed(1);
           const durationMins = Math.round(route.duration / 60);
-          const durationText = durationMins > 60 
-            ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` 
+          const durationText = durationMins > 60
+            ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m`
             : `${durationMins} mins`;
 
           setRouteSummary({
@@ -587,12 +590,12 @@ const InteractiveMap = () => {
 
   const filteredItems = getFilteredItems();
 
-    return (
+  return (
     <div className="relative flex h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50">
-      
+
       {/* Mobile Backdrop Overlay */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9990] transition-all duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -600,20 +603,20 @@ const InteractiveMap = () => {
 
       {/* ─── LEFT SIDEBAR PANEL ────────────────────────────────────────────────────── */}
       <div className={`fixed inset-y-0 left-0 z-[9999] w-[85vw] max-w-[360px] flex flex-col bg-white border-r border-slate-200/80 shadow-2xl transition-transform duration-300 md:relative md:translate-x-0 md:w-96 md:flex ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        
+
         {/* Search header container */}
         <div className="p-4 bg-gradient-to-br from-slate-900 to-emerald-950 text-white relative">
           <div className="absolute inset-0 bg-woven-dark opacity-20 pointer-events-none" />
-          
+
           <div className="flex items-center justify-between mb-3.5 relative z-10">
             <h2 className="text-base font-extrabold flex items-center gap-2">
               <Compass className="w-5 h-5 text-amber-400 rotate-45" />
               Abra Interactive Map
             </h2>
-            
+
             <div className="flex items-center gap-1.5">
               {/* Reset Map Layout */}
-              <button 
+              <button
                 onClick={handleResetMap}
                 className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/90 transition-all"
                 title="Reset Map Layout"
@@ -644,8 +647,8 @@ const InteractiveMap = () => {
               />
               <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-white/60 pointer-events-none focus-within:text-slate-400" />
               {searchTerm && (
-                <button 
-                  onClick={() => setSearchTerm('')} 
+                <button
+                  onClick={() => setSearchTerm('')}
                   className="absolute right-3.5 top-3 text-white/60 hover:text-white transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -656,9 +659,9 @@ const InteractiveMap = () => {
             {/* Suggestions Overlay Dropdown */}
             {showSearchSuggestions && searchResults.length > 0 && (
               <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowSearchSuggestions(false)} 
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowSearchSuggestions(false)}
                 />
                 <div className="absolute left-0 right-0 mt-1.5 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-100 z-50 overflow-hidden max-h-80 overflow-y-auto">
                   <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
@@ -672,10 +675,9 @@ const InteractiveMap = () => {
                         className="w-full px-4 py-2.5 text-left text-xs font-semibold hover:bg-amber-500/10 flex items-center justify-between transition-colors group"
                       >
                         <div className="flex items-center gap-2">
-                          <MapPin className={`w-3.5 h-3.5 ${
-                            res.type === 'municipality' ? 'text-indigo-600' :
-                            res.type === 'attraction' ? 'text-emerald-700' : 'text-amber-500'
-                          }`} />
+                          <MapPin className={`w-3.5 h-3.5 ${res.type === 'municipality' ? 'text-indigo-600' :
+                              res.type === 'attraction' ? 'text-emerald-700' : 'text-amber-500'
+                            }`} />
                           <span className="text-slate-800 font-bold group-hover:text-emerald-950">{res.name}</span>
                         </div>
                         <span className="text-[9px] px-1.5 py-0.5 rounded border uppercase tracking-wider text-slate-400 font-bold">
@@ -701,11 +703,10 @@ const InteractiveMap = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center py-1.5 px-1 rounded-xl transition-all border ${
-                activeTab === tab.id
+              className={`flex-1 flex flex-col items-center py-1.5 px-1 rounded-xl transition-all border ${activeTab === tab.id
                   ? 'bg-emerald-900 border-emerald-900 text-white font-bold shadow-md shadow-emerald-900/15'
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 font-medium'
-              }`}
+                }`}
             >
               <tab.icon className="w-3.5 h-3.5 mb-0.5" />
               <span className="text-[10px] tracking-wide">{tab.label}</span>
@@ -721,7 +722,7 @@ const InteractiveMap = () => {
                 <MapPin className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
                 Scope: {selectedMunicipality.name}
               </span>
-              <button 
+              <button
                 onClick={() => setSelectedMunicipality(null)}
                 className="text-[10px] text-emerald-700 hover:text-red-500 font-extrabold uppercase transition-colors"
               >
@@ -742,14 +743,14 @@ const InteractiveMap = () => {
 
         {/* Content list body */}
         <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/50">
-          
+
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400 text-xs">
               <RefreshCw className="w-8 h-8 animate-spin mb-3 text-emerald-900" />
               <p className="font-semibold text-slate-500">Loading map database...</p>
             </div>
           ) : activeTab === 'directions' ? (
-            
+
             /* ─── ROUTING INTERFACE PANEL ─── */
             <div className="p-4 space-y-4">
               <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
@@ -871,14 +872,14 @@ const InteractiveMap = () => {
                         <span className="text-xl font-extrabold">{routeSummary.duration}</span>
                       </div>
                     </div>
-                    
+
                     {routeSummary.isFallback && (
                       <div className="mb-3.5 px-3 py-2 bg-amber-500/15 border border-amber-400/30 rounded-xl text-[10px] font-extrabold text-amber-300 leading-normal flex items-start gap-1.5 animate-pulse">
                         <span className="mt-0.5">⚠️</span>
                         <span>Straight-Line Fallback: Driving route unavailable due to off-road location or terrain limits.</span>
                       </div>
                     )}
-                    
+
                     <div className="flex items-center gap-2 mb-4 text-xs font-semibold text-white/80">
                       <span className="text-amber-400 font-extrabold">Route:</span>
                       <span className="truncate">{startPoint.name.split(' (')[0]}</span>
@@ -953,15 +954,14 @@ const InteractiveMap = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-1 mb-0.5">
                           <h4 className="text-xs font-bold text-slate-800 truncate leading-snug group-hover:text-emerald-950">{item.name}</h4>
-                          <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded border flex-shrink-0 tracking-wider ${
-                            item.type === 'attraction' 
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                          <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded border flex-shrink-0 tracking-wider ${item.type === 'attraction'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                               : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}>
+                            }`}>
                             {item.type}
                           </span>
                         </div>
-                        
+
                         <p className="text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wide">{item.category || 'Eco-Tourism'}</p>
                         {item.address && (
                           <p className="text-[10px] text-slate-500 truncate mb-2">📍 {item.address}</p>
@@ -1003,7 +1003,7 @@ const InteractiveMap = () => {
 
       {/* ─── MAIN MAP DISPLAY AND FLOATING WIDGETS ─────────────────────────────────── */}
       <div className="flex-1 relative h-full">
-        
+
         {/* Floating Mobile Open Sidebar Button */}
         <button
           onClick={() => setIsSidebarOpen(true)}
@@ -1012,7 +1012,7 @@ const InteractiveMap = () => {
         >
           <Menu className="w-5 h-5 text-emerald-950" />
         </button>
-        
+
         {/* Routing overlay floating card */}
         {routeSummary && (
           <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur shadow-2xl rounded-2xl border border-slate-200 p-3 max-w-[280px] hidden md:block animate-fadeSlideDown">
@@ -1029,8 +1029,8 @@ const InteractiveMap = () => {
                   <span className="text-xs font-bold text-slate-600">{routeSummary.isFallback ? 'Straight-line' : `${routeSummary.duration} driving`}</span>
                 </div>
               </div>
-              <button 
-                onClick={handleClearRoute} 
+              <button
+                onClick={handleClearRoute}
                 className="text-slate-400 hover:text-slate-600 p-0.5 rounded"
               >
                 <X className="w-4 h-4" />
@@ -1048,7 +1048,7 @@ const InteractiveMap = () => {
           >
             <Navigation className="w-5 h-5 text-emerald-900" />
           </button>
-          
+
           <button
             onClick={() => {
               setMapCenter([17.6000, 120.6200]);
@@ -1063,9 +1063,9 @@ const InteractiveMap = () => {
         </div>
 
         {/* Map Container Rendering */}
-        <MapContainer 
-          center={mapCenter} 
-          zoom={mapZoom} 
+        <MapContainer
+          center={mapCenter}
+          zoom={mapZoom}
           style={{ height: '100%', width: '100%' }}
           zoomControl={false}
         >
@@ -1089,7 +1089,7 @@ const InteractiveMap = () => {
           )}
 
           {/* Cluster layer component for Attractions and Homestays */}
-          <ClusterLayer 
+          <ClusterLayer
             items={[
               ...data.attractions.map(a => ({ ...a, type: 'attraction' })),
               ...data.homestays.map(h => ({ ...h, type: 'homestay' }))
@@ -1136,7 +1136,7 @@ const InteractiveMap = () => {
       {activeDetailItem && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-100 max-w-lg w-full max-h-[85vh] flex flex-col animate-scaleUp">
-            
+
             {/* Image Header */}
             <div className="relative h-56 bg-slate-900">
               {activeDetailItem.image_url || (activeDetailItem.images && activeDetailItem.images[0]?.image_url) ? (
@@ -1159,11 +1159,10 @@ const InteractiveMap = () => {
               </button>
 
               <div className="absolute bottom-4 left-4 z-10">
-                <span className={`text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full border shadow-md ${
-                  activeDetailItem.type === 'attraction' 
-                    ? 'bg-emerald-900/90 text-white border-emerald-700/50' 
+                <span className={`text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full border shadow-md ${activeDetailItem.type === 'attraction'
+                    ? 'bg-emerald-900/90 text-white border-emerald-700/50'
                     : 'bg-amber-500/90 text-emerald-950 border-amber-400/50'
-                }`}>
+                  }`}>
                   {activeDetailItem.type === 'attraction' ? '🏞️ Attraction' : '🏠 Verified Homestay'}
                 </span>
               </div>
@@ -1180,6 +1179,18 @@ const InteractiveMap = () => {
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Overview</span>
                   <p className="text-slate-600 text-xs leading-relaxed font-light">{activeDetailItem.description}</p>
+                </div>
+              )}
+
+              {/* Video Player if video_url exists */}
+              {activeDetailItem.video_url && (
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest block">🎬 Video Showcase</span>
+                  <video
+                    src={formatMediaUrl(activeDetailItem.video_url)}
+                    controls
+                    className="w-full max-h-48 object-cover rounded-xl border border-slate-200 bg-black shadow-sm"
+                  />
                 </div>
               )}
 

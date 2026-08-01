@@ -8,6 +8,20 @@ const PLACEHOLDERS = {
   avatar:    'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=200&auto=format&fit=crop&q=60',
 };
 
+export const formatMediaUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  if (url.startsWith('uploads/')) {
+    return '/' + url;
+  }
+  if (!url.startsWith('/')) {
+    return '/' + url;
+  }
+  return url;
+};
+
 /**
  * SafeImage — renders an <img> and falls back to a placeholder on any load error.
  *
@@ -29,7 +43,8 @@ const SafeImage = ({
     PLACEHOLDERS[fallback] ??
     (fallback.startsWith('http') ? fallback : PLACEHOLDERS.landscape);
 
-  const resolvedSrc = errored || !src ? fallbackSrc : src;
+  const formattedSrc = formatMediaUrl(src);
+  const resolvedSrc = errored || !formattedSrc ? fallbackSrc : formattedSrc;
 
   return (
     <img

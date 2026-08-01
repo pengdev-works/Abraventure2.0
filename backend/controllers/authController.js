@@ -105,6 +105,21 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    // Check account approval status for non-tourist accounts
+    if (user.role === 'MUNICIPAL_DOT' || user.role === 'HOMESTAY_OWNER' || user.role === 'TOUR_GUIDE') {
+      if (user.status === 'PENDING') {
+        const roleLabel = user.role === 'MUNICIPAL_DOT' ? 'Municipal DOT Officer' : 'Stakeholder';
+        return res.status(403).json({
+          message: `Your ${roleLabel} account registration is currently pending approval by the Provincial DOT. Please wait for official authorization before logging in.`
+        });
+      }
+      if (user.status === 'REJECTED') {
+        return res.status(403).json({
+          message: 'Your registration request was rejected by the Provincial DOT. Please contact the Provincial Tourism Office for assistance.'
+        });
+      }
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       {

@@ -45,6 +45,10 @@ const MunicipalDashboard = () => {
   const [attractionImageFile, setAttractionImageFile] = useState(null);
   const [attractionImagePreview, setAttractionImagePreview] = useState('');
   const [attractionLoc, setAttractionLoc] = useState('');
+  const [attractionLat, setAttractionLat] = useState('');
+  const [attractionLng, setAttractionLng] = useState('');
+  const [attractionVideoFile, setAttractionVideoFile] = useState(null);
+  const [attractionVideoUrl, setAttractionVideoUrl] = useState('');
 
   const [reqName, setReqName] = useState('');
   const [reqDesc, setReqDesc] = useState('');
@@ -518,12 +522,33 @@ const MunicipalDashboard = () => {
     }
   };
 
+  const handleDetectAttractionCoords = () => {
+    if (!navigator.geolocation) {
+      showAlert('Geolocation is not supported by your browser.', 'error');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setAttractionLat(pos.coords.latitude.toFixed(6));
+        setAttractionLng(pos.coords.longitude.toFixed(6));
+        showAlert('GPS coordinates detected successfully!', 'success');
+      },
+      (err) => {
+        showAlert('Failed to acquire GPS location. Please type latitude & longitude manually.', 'error');
+      }
+    );
+  };
+
   const handleStartAttractionEdit = (att) => {
     setEditingAttractionId(att.id);
     setAttractionName(att.name);
     setAttractionDesc(att.description || '');
     setAttractionCategory(att.category || 'Nature');
     setAttractionLoc(att.location_details || '');
+    setAttractionLat(att.latitude !== null && att.latitude !== undefined ? att.latitude : '');
+    setAttractionLng(att.longitude !== null && att.longitude !== undefined ? att.longitude : '');
+    setAttractionVideoUrl(att.video_url || '');
+    setAttractionVideoFile(null);
     setAttractionImageFile(null);
     setAttractionImagePreview(att.image_url || '');
   };
@@ -534,6 +559,10 @@ const MunicipalDashboard = () => {
     setAttractionDesc('');
     setAttractionCategory('Nature');
     setAttractionLoc('');
+    setAttractionLat('');
+    setAttractionLng('');
+    setAttractionVideoUrl('');
+    setAttractionVideoFile(null);
     setAttractionImageFile(null);
     setAttractionImagePreview('');
     const fileInput = document.getElementById('attraction-file-input');
@@ -549,11 +578,19 @@ const MunicipalDashboard = () => {
     formData.append('description', attractionDesc);
     formData.append('category', attractionCategory);
     formData.append('locationDetails', attractionLoc);
+    if (attractionLat) formData.append('latitude', attractionLat);
+    if (attractionLng) formData.append('longitude', attractionLng);
 
     if (attractionImageFile) {
       formData.append('image', attractionImageFile);
     } else if (attractionImagePreview) {
       formData.append('imageUrl', attractionImagePreview);
+    }
+
+    if (attractionVideoFile) {
+      formData.append('video', attractionVideoFile);
+    } else if (attractionVideoUrl) {
+      formData.append('videoUrl', attractionVideoUrl);
     }
 
     try {
@@ -843,6 +880,27 @@ const MunicipalDashboard = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Upload Video Clip */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-705 mb-1">Upload Video Clip (MP4/WebM)</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => setAttractionVideoFile(e.target.files[0])}
+                    className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-900 hover:file:bg-amber-100 cursor-pointer"
+                  />
+                  <div className="mt-1">
+                    <input
+                      type="text"
+                      value={attractionVideoUrl}
+                      onChange={(e) => setAttractionVideoUrl(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                      placeholder="Or paste direct video URL (e.g. https://.../spot.mp4)"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-705 mb-1">Location Details</label>
                   <input
@@ -853,6 +911,45 @@ const MunicipalDashboard = () => {
                     placeholder="Barangay name, landmarks..."
                   />
                 </div>
+
+                {/* Exact Coordinates (Latitude & Longitude) */}
+                <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Exact GPS Coordinates</label>
+                    <button
+                      type="button"
+                      onClick={handleDetectAttractionCoords}
+                      className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                    >
+                      📍 Detect Coords
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-500">Latitude</span>
+                      <input
+                        type="number"
+                        step="any"
+                        value={attractionLat}
+                        onChange={(e) => setAttractionLat(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        placeholder="e.g. 17.765123"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-500">Longitude</span>
+                      <input
+                        type="number"
+                        step="any"
+                        value={attractionLng}
+                        onChange={(e) => setAttractionLng(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        placeholder="e.g. 120.781234"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex gap-2">
                   {editingAttractionId && (
                     <button

@@ -2,11 +2,17 @@ import express from 'express';
 import {
   getAnnouncements, getAllAnnouncements, createAnnouncement,
   updateAnnouncement, deleteAnnouncement, getActivityLogs,
-  getGuideAvailability, setGuideAvailability
+  getGuideAvailability, setGuideAvailability,
+  getHeroConfig, updateHeroConfig
 } from '../controllers/announcementController.js';
 import { verifyToken, requireRoles } from '../middleware/authMiddleware.js';
+import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
+
+// Homepage Hero Config
+router.get('/hero', getHeroConfig); // public
+router.put('/hero', verifyToken, requireRoles(['PROVINCIAL_DOT']), upload.single('media'), updateHeroConfig);
 
 // Announcements
 router.get('/', getAnnouncements); // public

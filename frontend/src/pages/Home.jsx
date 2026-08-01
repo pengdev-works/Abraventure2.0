@@ -1,79 +1,120 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Compass, Calendar, MapPin, ShieldCheck, ArrowRight, Star, Mountain, Waves, TreePine, Map } from 'lucide-react';
+import SafeImage, { formatMediaUrl } from '../components/SafeImage';
 
 const Home = () => {
+  const [heroConfig, setHeroConfig] = useState({
+    badge_text: 'Province of Abra · Cordillera Administrative Region',
+    title: 'Explore the Heart of Cordillera Abra',
+    subtitle: "From Kaparkan's limestone terraces to Itneg heritage weaving villages — discover verified homestays, accredited local guides, and hidden gems across all 27 municipalities.",
+    video_url: null,
+    background_image_url: null,
+  });
+
+  useEffect(() => {
+    fetch('/api/announcements/hero')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setHeroConfig(data); })
+      .catch(err => console.error('Error fetching hero settings:', err));
+  }, []);
+
   return (
-    <div className="relative">
+    <div className="relative font-sans text-slate-800">
 
       {/* ── Hero Section ────────────────────────────────── */}
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-hidden flex items-center"
         style={{
-          background: 'linear-gradient(160deg, #0a2526 0%, #0F3D3E 35%, #1E2A6E 75%, #0d1a3a 100%)',
-          minHeight: '620px',
+          background: 'linear-gradient(150deg, #06191a 0%, #0c3334 40%, #091a42 80%, #050d24 100%)',
+          minHeight: '680px',
         }}
       >
-        {/* Woven texture overlay */}
-        <div className="absolute inset-0 bg-woven-dark opacity-60" />
+        {/* Background Video */}
+        {heroConfig.video_url && (
+          <video
+            autoPlay loop muted playsInline
+            className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none"
+            src={formatMediaUrl(heroConfig.video_url)}
+          />
+        )}
 
-        {/* Decorative mountain silhouette */}
-        <div className="absolute bottom-0 left-0 right-0 overflow-hidden leading-none pointer-events-none">
-          <svg viewBox="0 0 1440 220" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full">
-            <path d="M0 220L180 80L360 140L540 40L720 100L900 20L1080 90L1260 50L1440 120V220H0Z" fill="rgba(15,61,62,0.3)" />
-            <path d="M0 220L240 120L480 160L720 60L960 130L1200 80L1440 150V220H0Z" fill="rgba(10,25,26,0.5)" />
-            <path d="M0 220L1440 220V180C1200 190 960 210 720 195C480 180 240 200 0 220Z" fill="#f8fafc" />
+        {/* Clear dark overlay for contrast */}
+        <div className="absolute inset-0 bg-slate-950/50 backdrop-brightness-90" />
+
+        {/* Decorative subtle ambient glows */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-amber-400/10 rounded-full blur-[120px] pointer-events-none" />
+
+        {/* Mountain silhouette at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 overflow-hidden leading-none pointer-events-none z-10">
+          <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full">
+            <path d="M0 120L180 45L360 85L540 15L720 60L900 5L1080 50L1260 25L1440 70V120H0Z" fill="rgba(15,50,52,0.25)" />
+            <path d="M0 120L1440 120V105C1200 112 960 120 720 115C480 108 240 115 0 120Z" fill="#f8fafc" />
           </svg>
         </div>
 
-        {/* Decorative orbs */}
-        <div className="absolute top-16 right-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-32 left-8 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
         {/* Hero Content */}
-        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-40 text-center">
-          {/* Province badge */}
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/15 text-white/90 text-xs font-bold uppercase tracking-widest px-5 py-2 rounded-full mb-8 animate-fadeSlideDown">
+        <div className="relative z-20 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-40 text-center">
+
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase tracking-[0.2em] px-5 py-2.5 rounded-full mb-8 shadow-lg shadow-black/20">
             <Compass className="w-4 h-4 text-amber-400" />
-            <span>Province of Abra · Cordillera Administrative Region</span>
+            <span>{heroConfig.badge_text || 'Province of Abra · Cordillera Administrative Region'}</span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold text-white tracking-tight leading-tight mb-6 animate-slideDown">
-            Explore the Heart of
-            <span className="block text-gradient-abra mt-1">Cordillera Abra</span>
+          {/* Main headline */}
+          <h1
+            className="font-black text-white leading-tight mb-6 tracking-tight drop-shadow-2xl"
+            style={{ fontSize: 'clamp(2.5rem, 6.5vw, 5rem)', textShadow: '0 4px 30px rgba(0,0,0,0.8)' }}
+          >
+            {heroConfig.title || 'Explore the Heart of Cordillera Abra'}
           </h1>
 
-          <p className="text-base md:text-lg text-white/65 mb-10 max-w-2xl mx-auto leading-relaxed font-light animate-fadeSlideUp delay-200">
-            From Kaparkan's limestone terraces to Itneg heritage weaving villages — discover
-            verified homestays, accredited local guides, and hidden gems across all 27 municipalities.
+          {/* Subtitle */}
+          <p
+            className="text-white/90 mb-10 max-w-2xl mx-auto leading-relaxed font-normal text-base md:text-xl drop-shadow-lg"
+            style={{ textShadow: '0 2px 15px rgba(0,0,0,0.8)' }}
+          >
+            {heroConfig.subtitle || "From Kaparkan's limestone terraces to Itneg heritage weaving villages — discover verified homestays, accredited local guides, and hidden gems across all 27 municipalities."}
           </p>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4 animate-fadeSlideUp delay-300">
-            <Link to="/map" className="btn-abra-primary text-sm shadow-lg shadow-amber-400/20 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-emerald-950 font-bold border-0">
-              <Map className="w-4 h-4 text-emerald-950" />
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row justify-center gap-3.5 mb-14">
+            <Link
+              to="/map"
+              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-full font-extrabold text-sm shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-amber-500/30"
+              style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: '#06191a' }}
+            >
+              <Map className="w-4 h-4 text-emerald-950 stroke-[2.5]" />
               Interactive Map
             </Link>
-            <Link to="/municipalities" className="btn-abra-secondary text-sm">
+            <Link
+              to="/municipalities"
+              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-full font-bold text-sm text-white bg-white/10 hover:bg-white/20 border border-white/30 hover:border-white/50 transition-all duration-300 backdrop-blur-md shadow-xl"
+            >
               <MapPin className="w-4 h-4 text-amber-400" />
               Explore Municipalities
             </Link>
-            <Link to="/itinerary" className="btn-abra-secondary text-sm">
+            <Link
+              to="/itinerary"
+              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-full font-bold text-sm text-white bg-white/10 hover:bg-white/20 border border-white/30 hover:border-white/50 transition-all duration-300 backdrop-blur-md shadow-xl"
+            >
               <Calendar className="w-4 h-4 text-amber-400" />
               Plan Your Itinerary
             </Link>
           </div>
 
-          {/* Stats */}
-          <div className="mt-14 flex justify-center gap-8 md:gap-14 animate-fadeSlideUp delay-400">
+          {/* Stats row */}
+          <div className="flex justify-center gap-10 md:gap-24">
             {[
               { value: '27', label: 'Municipalities', icon: MapPin },
               { value: '100+', label: 'Attractions', icon: Mountain },
               { value: '50+', label: 'Eco-Sites', icon: TreePine },
             ].map((s) => (
               <div key={s.label} className="flex flex-col items-center gap-1">
-                <s.icon className="w-4 h-4 text-amber-400/70 mb-0.5" />
-                <span className="text-2xl md:text-3xl font-extrabold text-white">{s.value}</span>
-                <span className="text-[10px] text-white/50 font-semibold uppercase tracking-widest">{s.label}</span>
+                <s.icon className="w-4 h-4 text-amber-400 mb-1" />
+                <span className="text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-md">{s.value}</span>
+                <span className="text-[11px] text-white/70 font-extrabold uppercase tracking-widest">{s.label}</span>
               </div>
             ))}
           </div>
@@ -157,7 +198,6 @@ const Home = () => {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="flex flex-col lg:flex-row items-center gap-12">
-            {/* Text */}
             <div className="max-w-xl">
               <span className="inline-flex items-center gap-1.5 text-amber-400 font-extrabold uppercase tracking-widest text-[10px] mb-4">
                 <Star className="w-3.5 h-3.5 fill-amber-400" />
@@ -189,13 +229,13 @@ const Home = () => {
               </Link>
             </div>
 
-            {/* Image */}
             <div className="w-full lg:w-[520px] flex-shrink-0">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
-                <img
-                  src="../uploads/images (4).jpg?w=800&auto=format&fit=crop&q=80"
+                <SafeImage
+                  src="/uploads/images (4).jpg"
                   alt="Kaparkan Falls, Tineg Abra"
                   className="w-full h-[360px] object-cover"
+                  fallback="landscape"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
@@ -239,7 +279,6 @@ const Home = () => {
           <div className="relative bg-emerald-900 rounded-3xl overflow-hidden shadow-2xl">
             <div className="absolute inset-0 bg-woven-dark opacity-50" />
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-            {/* Decorative orbs */}
             <div className="absolute -top-12 -right-12 w-56 h-56 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 

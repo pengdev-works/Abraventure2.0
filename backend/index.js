@@ -19,6 +19,7 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
+import { initOverdueCronJob, checkOverdueAssetsAndNotify } from './jobs/overdueAssetsCron.js';
 
 dotenv.config();
 
@@ -120,6 +121,26 @@ pool.query(`
     resolved_at TIMESTAMP WITH TIME ZONE,
     resolved_by UUID REFERENCES user_accounts(id)
   );
+
+  -- Tourist Attractions Video Column
+  ALTER TABLE tourist_attractions ADD COLUMN IF NOT EXISTS video_url TEXT;
+
+  -- Homepage Hero Banner & Video Settings (Provincial DOT Managed)
+  CREATE TABLE IF NOT EXISTS homepage_hero (
+    id SERIAL PRIMARY KEY,
+    badge_text VARCHAR(255) DEFAULT 'Province of Abra · Cordillera Administrative Region',
+    title VARCHAR(255) DEFAULT 'Explore the Heart of Cordillera Abra',
+    subtitle TEXT DEFAULT 'From Kaparkan''s limestone terraces to Itneg heritage weaving villages — discover verified homestays, accredited local guides, and hidden gems across all 27 municipalities.',
+    video_url TEXT,
+    background_image_url TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES user_accounts(id)
+  );
+
+  -- Initial Hero Seed if table is empty
+  INSERT INTO homepage_hero (badge_text, title, subtitle)
+  SELECT 'Province of Abra · Cordillera Administrative Region', 'Explore the Heart of Cordillera Abra', 'From Kaparkan''s limestone terraces to Itneg heritage weaving villages — discover verified homestays, accredited local guides, and hidden gems across all 27 municipalities.'
+  WHERE NOT EXISTS (SELECT 1 FROM homepage_hero);
 `)
   .then(async () => {
     try {
@@ -166,6 +187,12 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'ABRAVENTURE API is running.' });
 });
 
+// Manual CRON Trigger Endpoint for Nightly Overdue Asset Notifications
+app.post('/api/notifications/trigger-cron', async (req, res) => {
+  const result = await checkOverdueAssetsAndNotify();
+  res.status(result.success ? 200 : 500).json(result);
+});
+
 // Error fallback
 app.use((err, req, res, next) => {
   console.error('Server error details:', err);
@@ -174,4 +201,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`[ABRAVENTURE BACKEND] Server is active on port ${PORT}`);
+  initOverdueCronJob();
 });

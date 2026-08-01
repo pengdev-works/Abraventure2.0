@@ -61,6 +61,17 @@ const ProvincialDashboard = () => {
   const [newMunImageFeatured, setNewMunImageFeatured] = useState(false);
   const [contentMsg, setContentMsg] = useState({ type: '', text: '' });
 
+  // ─── Homepage Hero Banner & Video State ───────────────────────
+  const [heroForm, setHeroForm] = useState({
+    badgeText: 'Province of Abra · Cordillera Administrative Region',
+    title: 'Explore the Heart of Cordillera Abra',
+    subtitle: 'From Kaparkan\'s limestone terraces to Itneg heritage weaving villages — discover verified homestays, accredited local guides, and hidden gems across all 27 municipalities.',
+    videoUrl: '',
+  });
+  const [heroVideoFile, setHeroVideoFile] = useState(null);
+  const [heroMsg, setHeroMsg] = useState({ type: '', text: '' });
+  const [heroLoading, setHeroLoading] = useState(false);
+
   // ─── DOT User CRUD State ──────────────────────────────────────
   const [dotUsers, setDotUsers] = useState([]);
   const [dotUsersLoading, setDotUsersLoading] = useState(false);
@@ -148,13 +159,70 @@ const ProvincialDashboard = () => {
     } catch (err) { console.error(err); }
   };
 
+  const fetchHeroConfig = async () => {
+    try {
+      const r = await fetch('/api/announcements/hero');
+      if (r.ok) {
+        const d = await r.json();
+        setHeroForm({
+          badgeText: d.badge_text || '',
+          title: d.title || '',
+          subtitle: d.subtitle || '',
+          videoUrl: d.video_url || '',
+        });
+      }
+    } catch (err) { console.error('Error fetching hero config:', err); }
+  };
+
+  const handleUpdateHero = async (e) => {
+    e.preventDefault();
+    setHeroMsg({ type: '', text: '' });
+    setHeroLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('badgeText', heroForm.badgeText);
+      formData.append('title', heroForm.title);
+      formData.append('subtitle', heroForm.subtitle);
+      if (heroForm.videoUrl) formData.append('videoUrl', heroForm.videoUrl);
+      if (heroVideoFile) formData.append('media', heroVideoFile);
+
+      const r = await fetch('/api/announcements/hero', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setHeroMsg({ type: 'success', text: 'Homepage hero banner & background video updated successfully!' });
+        if (d.hero) {
+          setHeroForm({
+            badgeText: d.hero.badge_text || '',
+            title: d.hero.title || '',
+            subtitle: d.hero.subtitle || '',
+            videoUrl: d.hero.video_url || '',
+          });
+        }
+        setHeroVideoFile(null);
+      } else {
+        setHeroMsg({ type: 'error', text: d.message || 'Failed to update hero configuration.' });
+      }
+    } catch (err) {
+      setHeroMsg({ type: 'error', text: 'Server error updating hero.' });
+    } finally {
+      setHeroLoading(false);
+    }
+  };
+
   useEffect(() => { fetchDashboardData(); }, [token]);
 
   useEffect(() => {
     if (activeTab === 'analytics') fetchAnalytics();
     if (activeTab === 'announcements') fetchAnnouncements();
     if (activeTab === 'activity') fetchActivityLogs();
-    if (activeTab === 'content') fetchMunicipalitiesList();
+    if (activeTab === 'content') {
+      fetchMunicipalitiesList();
+      fetchHeroConfig();
+    }
     if (activeTab === 'complaints') fetchComplaints();
     if (activeTab === 'backup') fetchMunicipalitiesList();
     if (activeTab === 'accounts') {
@@ -1268,7 +1336,110 @@ const ProvincialDashboard = () => {
 
         {/* Content Management Tab */}
         {activeTab === 'content' && (
-          <div className="space-y-6">
+          <div className="space-y-8">
+
+            {/* ─── Homepage Hero Banner & Video Management ─── */}
+            <div className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-900/50">
+              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-white/10">
+                <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">Homepage Hero Banner &amp; Video Background</h3>
+                  <p className="text-xs text-white/60">Customize the top "Explore the Heart of Abra" title, tagline, and background video on the landing page.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateHero} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Badge Text */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Top Badge Text</label>
+                    <input
+                      type="text"
+                      value={heroForm.badgeText}
+                      onChange={e => setHeroForm(f => ({ ...f, badgeText: e.target.value }))}
+                      placeholder="Province of Abra · Cordillera Administrative Region"
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                  </div>
+
+                  {/* Headline Title */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Hero Title ("Explore the Heart of Abra")</label>
+                    <input
+                      type="text"
+                      required
+                      value={heroForm.title}
+                      onChange={e => setHeroForm(f => ({ ...f, title: e.target.value }))}
+                      placeholder="Explore the Heart of Cordillera Abra"
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Subtitle Tagline */}
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Subtitle / Tagline Description</label>
+                  <textarea
+                    rows="2"
+                    value={heroForm.subtitle}
+                    onChange={e => setHeroForm(f => ({ ...f, subtitle: e.target.value }))}
+                    placeholder="From Kaparkan's limestone terraces to Itneg heritage weaving villages..."
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                  />
+                </div>
+
+                {/* Video Upload or Video URL */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Upload Background Video File (MP4/WebM)</label>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={e => setHeroVideoFile(e.target.files[0])}
+                      className="w-full text-xs text-white/80 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-emerald-950 hover:file:bg-amber-400 cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Or Direct Video URL (Optional)</label>
+                    <input
+                      type="text"
+                      value={heroForm.videoUrl}
+                      onChange={e => setHeroForm(f => ({ ...f, videoUrl: e.target.value }))}
+                      placeholder="https://example.com/abra_hero.mp4"
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Current Active Video Preview */}
+                {heroForm.videoUrl && (
+                  <div className="mt-3 p-3 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="text-xs text-amber-300 font-bold">Active Background Video Attached</span>
+                    </div>
+                    <a href={heroForm.videoUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-amber-400 hover:underline">Preview Video →</a>
+                  </div>
+                )}
+
+                {heroMsg.text && (
+                  <p className={`text-xs font-semibold ${heroMsg.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {heroMsg.text}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={heroLoading}
+                  className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-emerald-950 font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {heroLoading ? 'Updating Hero...' : 'Publish Homepage Hero Changes'}
+                </button>
+              </form>
+            </div>
+
             <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Municipalities Profile &amp; Gallery Customization</h2>
             
             <div className="max-w-xs">

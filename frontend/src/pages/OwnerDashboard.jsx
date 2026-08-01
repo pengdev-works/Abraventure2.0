@@ -23,6 +23,8 @@ const OwnerDashboard = () => {
   const [hsAddress, setHsAddress] = useState('');
   const [hsPhone, setHsPhone] = useState('');
   const [hsEmail, setHsEmail] = useState('');
+  const [hsLat, setHsLat] = useState('');
+  const [hsLng, setHsLng] = useState('');
   
   // Room form state
   const [roomType, setRoomType] = useState('Single');
@@ -59,6 +61,8 @@ const OwnerDashboard = () => {
           setHsAddress(uData.profile.address || '');
           setHsPhone(uData.profile.contact_phone || '');
           setHsEmail(uData.profile.contact_email || '');
+          setHsLat(uData.profile.latitude !== null && uData.profile.latitude !== undefined ? uData.profile.latitude : '');
+          setHsLng(uData.profile.longitude !== null && uData.profile.longitude !== undefined ? uData.profile.longitude : '');
         }
       }
 
@@ -153,6 +157,23 @@ const OwnerDashboard = () => {
     ? (receivedReviews.reduce((s, r) => s + r.rating, 0) / receivedReviews.length).toFixed(1)
     : null;
 
+  const handleDetectHomestayCoords = () => {
+    if (!navigator.geolocation) {
+      showAlert('Geolocation is not supported by your browser.', 'error');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setHsLat(pos.coords.latitude.toFixed(6));
+        setHsLng(pos.coords.longitude.toFixed(6));
+        showAlert('GPS coordinates detected successfully!', 'success');
+      },
+      (err) => {
+        showAlert('Failed to acquire location. Please enter latitude & longitude manually.', 'error');
+      }
+    );
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     try {
@@ -167,7 +188,9 @@ const OwnerDashboard = () => {
           description: hsDesc,
           address: hsAddress,
           contactPhone: hsPhone,
-          contactEmail: hsEmail
+          contactEmail: hsEmail,
+          latitude: hsLat ? parseFloat(hsLat) : null,
+          longitude: hsLng ? parseFloat(hsLng) : null
         })
       });
 
@@ -549,6 +572,44 @@ const OwnerDashboard = () => {
                     />
                   </div>
                 </div>
+                {/* Exact Coordinates (Latitude & Longitude) */}
+                <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Exact GPS Coordinates for Interactive Map</label>
+                    <button
+                      type="button"
+                      onClick={handleDetectHomestayCoords}
+                      className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                    >
+                      📍 Detect My Location
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-500">Latitude</span>
+                      <input
+                        type="number"
+                        step="any"
+                        value={hsLat}
+                        onChange={(e) => setHsLat(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        placeholder="e.g. 17.597123"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-500">Longitude</span>
+                      <input
+                        type="number"
+                        step="any"
+                        value={hsLng}
+                        onChange={(e) => setHsLng(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        placeholder="e.g. 120.621234"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <button
                   type="submit"
                   className="px-6 py-2.5 bg-emerald-900 text-white font-bold rounded-xl text-xs cursor-pointer hover:bg-emerald-800"

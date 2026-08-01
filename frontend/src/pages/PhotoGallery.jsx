@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Image, ArrowLeft, ZoomIn, Download } from 'lucide-react';
-import SafeImage from '../components/SafeImage';
+import SafeImage, { formatMediaUrl } from '../components/SafeImage';
 
 const PhotoGallery = () => {
   const { id } = useParams();
@@ -151,7 +151,7 @@ const PhotoGallery = () => {
           </button>
           <div className="max-w-5xl max-h-[85vh] relative" onClick={(e) => e.stopPropagation()}>
             <img
-              src={activeLightboxImage}
+              src={formatMediaUrl(activeLightboxImage)}
               alt="Enlarged View"
               className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/10 bg-black"
             />

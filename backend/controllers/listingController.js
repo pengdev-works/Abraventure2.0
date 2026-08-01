@@ -2,38 +2,55 @@ import pool from '../config/db.js';
 
 // --- HOMESTAY PROFILE MANAGEMENT ---
 
+const parseCoord = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  const parsed = parseFloat(val);
+  return isNaN(parsed) ? null : parsed;
+};
+
 export const updateHomestayProfile = async (req, res) => {
   const userId = req.user.id;
   const { name, description, address, latitude, longitude, contactEmail, contactPhone } = req.body;
 
   try {
+    const latVal = parseCoord(latitude);
+    const lngVal = parseCoord(longitude);
+    const hsName = name && name.trim() ? name.trim() : 'Homestay';
+    const hsAddr = address && address.trim() ? address.trim() : 'Abra';
+
     const result = await pool.query(
-      `UPDATE homestay_profiles
-       SET name = $1, description = $2, address = $3, latitude = $4, longitude = $5, contact_email = $6, contact_phone = $7, updated_at = CURRENT_TIMESTAMP
-       WHERE owner_id = $8 RETURNING *`,
+      `INSERT INTO homestay_profiles (owner_id, name, description, address, latitude, longitude, contact_email, contact_phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (owner_id)
+       DO UPDATE SET
+         name = EXCLUDED.name,
+         description = EXCLUDED.description,
+         address = EXCLUDED.address,
+         latitude = EXCLUDED.latitude,
+         longitude = EXCLUDED.longitude,
+         contact_email = EXCLUDED.contact_email,
+         contact_phone = EXCLUDED.contact_phone,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
       [
-        name,
-        description,
-        address,
-        latitude ? parseFloat(latitude) : null,
-        longitude ? parseFloat(longitude) : null,
-        contactEmail,
-        contactPhone,
-        userId
+        userId,
+        hsName,
+        description || '',
+        hsAddr,
+        latVal,
+        lngVal,
+        contactEmail || null,
+        contactPhone || null
       ]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Homestay profile not found.' });
-    }
 
     return res.status(200).json({
       message: 'Homestay profile updated successfully.',
       profile: result.rows[0]
     });
   } catch (err) {
-    console.error('Error updating homestay:', err);
-    return res.status(500).json({ message: 'Internal server error updating homestay profile.' });
+    console.error('Error updating homestay profile:', err);
+    return res.status(500).json({ message: 'Internal server error updating homestay profile: ' + (err.message || '') });
   }
 };
 
@@ -192,7 +209,7 @@ export const deleteRoom = async (req, res) => {
 export const updateTourGuideProfile = async (req, res) => {
   const userId = req.user.id;
   const { bio, languagesSpoken, servicesOffered, areasCovered, priceRate } = req.body;
-  
+
   let profilePictureUrl = req.body.profilePictureUrl;
   if (req.file) {
     profilePictureUrl = req.file.path;
@@ -223,7 +240,7 @@ export const updateTourGuideProfile = async (req, res) => {
 export const updateMunicipalDotProfile = async (req, res) => {
   const userId = req.user.id;
   const { fullName, phoneNumber, designation, officeAddress } = req.body;
-  
+
   let profilePictureUrl = req.body.profilePictureUrl;
   if (req.file) {
     profilePictureUrl = req.file.path;
@@ -294,7 +311,7 @@ export const getApplications = async (req, res) => {
         JOIN user_accounts u ON h.owner_id = u.id
         WHERE u.municipality_id = $1
         ORDER BY h.created_at DESC`;
-      
+
       guidesQuery = `
         SELECT g.*, u.full_name as guide_name, u.email
         FROM tour_guide_profiles g
@@ -310,7 +327,7 @@ export const getApplications = async (req, res) => {
         JOIN user_accounts u ON h.owner_id = u.id
         JOIN municipalities m ON u.municipality_id = m.id
         ORDER BY h.created_at DESC`;
-      
+
       guidesQuery = `
         SELECT g.*, u.full_name as guide_name, u.email, m.name as municipality_name
         FROM tour_guide_profiles g

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Calendar, HelpCircle, Phone, Mail, Award, CheckCircle, Info, Landmark, Star, MessageSquare, Upload, Image, Home, BedDouble, Users } from 'lucide-react';
-import SafeImage from '../components/SafeImage';
+import SafeImage, { formatMediaUrl } from '../components/SafeImage';
 
 // Star Rating Component
 const StarRating = ({ rating, onChange, size = 'w-6 h-6' }) => (
@@ -297,6 +297,16 @@ const MunicipalityDetails = () => {
                             <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-950 font-semibold text-xs tracking-wider uppercase mb-3 inline-block">{a.category || 'Sightseeing'}</span>
                             <h3 className="text-xl font-bold text-slate-800 mb-2">{a.name}</h3>
                             <p className="text-slate-500 text-xs leading-relaxed mb-4 line-clamp-4">{a.description}</p>
+                            {a.video_url && (
+                              <div className="mb-4">
+                                <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest block mb-1">🎬 Video Preview</span>
+                                <video
+                                  src={formatMediaUrl(a.video_url)}
+                                  controls
+                                  className="w-full max-h-52 object-cover rounded-xl border border-slate-200 bg-black shadow-sm"
+                                />
+                              </div>
+                            )}
                           </div>
                           {a.location_details && (
                             <div className="text-xs text-slate-400 border-t border-slate-100 pt-3 flex items-start gap-1">

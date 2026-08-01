@@ -35,15 +35,23 @@ if (isCloudinaryConfigured) {
     cloudinary,
     params: async (req, file) => {
       let folder = 'abraventure/general';
+      let resource_type = 'image';
+      const isVideo = file.mimetype && file.mimetype.startsWith('video/');
+
       if (file.fieldname === 'profilePicture') folder = 'abraventure/profiles';
       else if (file.fieldname === 'image')     folder = 'abraventure/images';
+      else if (file.fieldname === 'video' || isVideo) {
+        folder = 'abraventure/videos';
+        resource_type = 'video';
+      }
       else if (file.fieldname === 'document')  folder = 'abraventure/documents';
       else if (file.fieldname === 'payment')   folder = 'abraventure/payments';
 
       return {
         folder,
-        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif'],
-        transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+        resource_type,
+        allowed_formats: isVideo ? ['mp4', 'webm', 'mov', 'quicktime', 'mkv'] : ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif'],
+        transformation: isVideo ? [] : [{ quality: 'auto', fetch_format: 'auto' }],
       };
     },
   });
@@ -63,7 +71,7 @@ if (isCloudinaryConfigured) {
 
 const baseUpload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB to allow video clips
 });
 
 // Helper wrapper to ensure req.file.path is a web-accessible URL in both Cloudinary and Local Disk mode

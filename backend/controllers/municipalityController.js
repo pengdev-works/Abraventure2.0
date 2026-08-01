@@ -50,7 +50,7 @@ export const getMunicipalityDetails = async (req, res) => {
        WHERE u.municipality_id = $1 AND h.status = 'APPROVED'`,
       [id]
     );
-    
+
     // Add images and sleeping arrangements for each homestay
     const homestays = homestaysResult.rows;
     for (const homestay of homestays) {
@@ -104,7 +104,7 @@ export const getMunicipalityDetails = async (req, res) => {
 
 // Add Attraction (Municipal DOT Admin only)
 export const addAttraction = async (req, res) => {
-  const { name, description, category, locationDetails, latitude, longitude } = req.body;
+  const { name, description, category, locationDetails, latitude, longitude, videoUrl } = req.body;
   const { municipality_id } = req.user; // from JWT token
 
   if (!name || !description) {
@@ -112,16 +112,33 @@ export const addAttraction = async (req, res) => {
   }
 
   let imageUrl = req.body.imageUrl || null;
+  let finalVideoUrl = videoUrl || null;
+
   if (req.file) {
-    imageUrl = req.file.path;
+    const filePath = req.file.path;
+    if (req.file.mimetype && req.file.mimetype.startsWith('video/')) {
+      finalVideoUrl = filePath;
+    } else {
+      imageUrl = filePath;
+    }
   }
 
   try {
     const result = await pool.query(
-      `INSERT INTO tourist_attractions (municipality_id, name, description, category, image_url, location_details, latitude, longitude)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO tourist_attractions (municipality_id, name, description, category, image_url, video_url, location_details, latitude, longitude)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [municipality_id, name, description, category, imageUrl, locationDetails, latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null]
+      [
+        municipality_id,
+        name,
+        description,
+        category,
+        imageUrl,
+        finalVideoUrl,
+        locationDetails,
+        latitude ? parseFloat(latitude) : null,
+        longitude ? parseFloat(longitude) : null
+      ]
     );
 
     return res.status(201).json({
@@ -137,7 +154,7 @@ export const addAttraction = async (req, res) => {
 // Edit Attraction (Municipal DOT Admin only)
 export const updateAttraction = async (req, res) => {
   const { id } = req.params;
-  const { name, description, category, imageUrl, locationDetails, latitude, longitude } = req.body;
+  const { name, description, category, imageUrl, videoUrl, locationDetails, latitude, longitude } = req.body;
   const { municipality_id } = req.user;
 
   try {
@@ -152,17 +169,35 @@ export const updateAttraction = async (req, res) => {
     }
 
     let finalImageUrl = checkRes.rows[0].image_url;
+    let finalVideoUrl = checkRes.rows[0].video_url;
+
     if (req.file) {
-      finalImageUrl = req.file.path;
-    } else if (imageUrl !== undefined) {
-      finalImageUrl = imageUrl;
+      const filePath = req.file.path;
+      if (req.file.mimetype && req.file.mimetype.startsWith('video/')) {
+        finalVideoUrl = filePath;
+      } else {
+        finalImageUrl = filePath;
+      }
+    } else {
+      if (imageUrl !== undefined) finalImageUrl = imageUrl;
+      if (videoUrl !== undefined) finalVideoUrl = videoUrl;
     }
 
     const result = await pool.query(
       `UPDATE tourist_attractions 
-       SET name = $1, description = $2, category = $3, image_url = $4, location_details = $5, latitude = $6, longitude = $7
-       WHERE id = $8 RETURNING *`,
-      [name, description, category, finalImageUrl, locationDetails, latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, id]
+       SET name = $1, description = $2, category = $3, image_url = $4, video_url = $5, location_details = $6, latitude = $7, longitude = $8
+       WHERE id = $9 RETURNING *`,
+      [
+        name,
+        description,
+        category,
+        finalImageUrl,
+        finalVideoUrl,
+        locationDetails,
+        latitude ? parseFloat(latitude) : null,
+        longitude ? parseFloat(longitude) : null,
+        id
+      ]
     );
 
     return res.status(200).json({
@@ -319,14 +354,15 @@ export const getMapData = async (req, res) => {
 
     // 2. Get all tourist attractions
     const attractionsRes = await pool.query(
-      `SELECT id, municipality_id, name, description, category, image_url, location_details, latitude, longitude FROM tourist_attractions ORDER BY name ASC`
+      `SELECT id, municipality_id, name, description, category, image_url, video_url, location_details, latitude, longitude FROM tourist_attractions ORDER BY name ASC`
     );
 
     // 3. Get all approved homestays
     const homestaysRes = await pool.query(
-      `SELECT h.id, h.owner_id, h.name, h.description, h.address, h.latitude, h.longitude, h.contact_email, h.contact_phone, u.municipality_id
+      `SELECT h.id, h.owner_id, h.name, h.description, h.address, h.latitude, h.longitude, h.contact_email, h.contact_phone, u.municipality_id, hi.image_url
        FROM homestay_profiles h
        JOIN user_accounts u ON h.owner_id = u.id
+       LEFT JOIN homestay_images hi ON hi.homestay_id = h.id AND hi.is_featured = true
        WHERE h.status = 'APPROVED'
        ORDER BY h.name ASC`
     );
