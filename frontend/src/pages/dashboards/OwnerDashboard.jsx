@@ -1,15 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useAlert } from '../context/AlertContext';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useAlert } from '../../context/AlertContext';
 import Swal from 'sweetalert2';
-import { Home, FileText, Bed, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar, User, Compass, Star, CreditCard, Users, Eye } from 'lucide-react';
-import SafeImage from '../components/SafeImage';
+import {
+  Home, FileText, Bed, MessageSquare, Upload, CheckCircle,
+  AlertTriangle, Trash2, Calendar, User, Compass, Star,
+  CreditCard, Users, Eye, Menu, X, ArrowUpRight, ShieldCheck
+} from 'lucide-react';
+import SafeImage from '../../components/common/SafeImage';
+import DarkModeToggle from '../../components/common/DarkModeToggle';
 
 const OwnerDashboard = () => {
-  const { token, user, refreshUser } = useAuth();
+  const { token, user, logout, refreshUser } = useAuth();
   const { showAlert } = useAlert();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  const [activeTab, setActiveTab] = useState('documents');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'documents');
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && t !== activeTab) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
   const [profile, setProfile] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -374,71 +389,181 @@ const OwnerDashboard = () => {
 
   const isApproved = profile?.status === 'APPROVED';
 
+  const ownerTabs = [
+    { id: 'documents', label: 'Accreditation Docs', icon: FileText },
+    { id: 'profile', label: 'Homestay Details & Photos', icon: Home },
+    { id: 'rooms', label: 'Sleeping Arrangements', icon: Bed },
+    { id: 'inquiries', label: 'Inquiries', icon: MessageSquare, badge: inquiries.length },
+    { id: 'calendar', label: 'Availability Calendar', icon: Calendar },
+    { id: 'guests', label: 'Guest Management', icon: Users },
+    { id: 'payments', label: 'Payment Tracking', icon: CreditCard },
+    { id: 'reviews', label: 'Reviews', icon: Star, badge: receivedReviews.length },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Header */}
-      <div className="mb-8 pb-5 border-b border-slate-200 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wider mb-2">
-            <Home className="w-4.5 h-4.5 text-amber-500" /> Stakeholder Dashboard
-          </div>
-          <h1 className="text-3xl font-extrabold text-slate-800">Homestay Provider Workspace</h1>
-          <p className="text-xs text-slate-450 mt-1">Manage rooms, upload verification documents, and respond to incoming booking inquiries.</p>
-        </div>
+    <div className="min-h-screen bg-[#FAF7F2] font-sans text-[#232120] flex flex-col lg:flex-row">
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
 
-        {/* Accreditation Status */}
-        <div className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 text-sm font-bold shadow-sm ${
-          isApproved ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-250 text-amber-800'
-        }`}>
-          {isApproved ? (
-            <>
-              <CheckCircle className="w-5 h-5 text-emerald-900 fill-emerald-900/10" />
-              <span>Listing Accredited & Public</span>
-            </>
-          ) : (
-            <>
-              <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" />
-              <span>Pending DOT Review ({profile?.status || 'PENDING'})</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-6 flex px-6 space-x-6 overflow-x-auto whitespace-nowrap scrollbar-none">
-        {[
-          { id: 'documents', label: 'Accreditation Docs', icon: FileText },
-          { id: 'profile', label: 'Homestay Details & Photos', icon: Home },
-          { id: 'rooms', label: 'Sleeping Arrangements', icon: Bed },
-          { id: 'inquiries', label: `Inquiries (${inquiries.length})`, icon: MessageSquare },
-          { id: 'calendar', label: 'Availability Calendar', icon: Calendar },
-          { id: 'guests', label: 'Guest Management', icon: Users },
-          { id: 'payments', label: 'Payment Tracking', icon: CreditCard },
-          { id: 'reviews', label: `Reviews (${receivedReviews.length})`, icon: Star },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          return (
+      {/* ── Proper Desktop & Mobile Sidebar ── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Top: Abraventure Official Logo & Masthead */}
+          <div className="p-5 border-b border-white/10 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 group">
+              <img
+                src="/abraventure-logo.png"
+                alt="Abraventure Official Logo"
+                className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+              <div className="min-w-0">
+                <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">
+                  ABRAVENTURE
+                </span>
+                <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">
+                  Homestay Host Portal
+                </span>
+              </div>
+            </Link>
             <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setSelectedInquiry(null);
-              }}
-              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 flex-shrink-0 ${
-                activeTab === tab.id
-                  ? 'border-emerald-900 text-emerald-950'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
             >
-              <Icon className="w-4.5 h-4.5" />
-              <span>{tab.label}</span>
+              <X className="w-5 h-5" />
             </button>
-          );
-        })}
-      </div>
+          </div>
 
-      {/* Tab Content */}
-      <div className="bg-white border border-slate-200 rounded-b-2xl shadow-sm p-6">
+          {/* Quick Context Strip */}
+          <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
+            <span className="text-white/70 flex items-center gap-2 font-mono truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              {user?.municipalityName || 'Abra'} Host Desk
+            </span>
+            <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold flex-shrink-0">
+              Live Site <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          {/* Main Navigation Features */}
+          <div className="p-3 space-y-1 flex-1">
+            <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+              Host Features
+            </div>
+            {ownerTabs.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSearchParams({ tab: tab.id });
+                    setSelectedInquiry(null);
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    isActive
+                      ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
+                  <span className="flex-1 truncate">{tab.label}</span>
+                  {tab.badge > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-[#153325]">
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Bottom Sidebar: Host Profile Card */}
+          <div className="p-4 border-t border-white/10 space-y-2 bg-[#0F261C]">
+            <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0">
+                  {user?.fullName?.charAt(0) || 'H'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{user?.fullName || 'Homestay Host'}</p>
+                  <p className="text-[10px] text-white/50 truncate font-mono">{profile?.name || user?.municipalityName || 'Abra Homestay'}</p>
+                </div>
+              </div>
+              {logout && (
+                <button
+                  onClick={logout}
+                  title="Sign out of portal"
+                  className="text-white/50 hover:text-rose-300 p-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold"
+                >
+                  Exit
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main Content Area ── */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Top Header Bar */}
+        <header className="bg-white border-b border-[#E8DFC8] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl border border-[#E8DFC8] text-[#153325] hover:bg-[#FAF7F2] cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+                  Verified Accommodation · {user?.municipalityName || 'Abra'}
+                </span>
+              </div>
+              <h1 className="font-serif text-lg sm:text-2xl font-bold text-[#153325]">
+                {ownerTabs.find(t => t.id === activeTab)?.label || 'Overview'}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <DarkModeToggle />
+            <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold ${
+              isApproved
+                ? 'bg-[#153325]/10 border-[#153325]/20 text-[#153325]'
+                : 'bg-[#B88B2A]/10 border-[#B88B2A]/30 text-[#B88B2A]'
+            }`}>
+              {isApproved ? (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5 text-[#153325]" />
+                  <span>Accredited Homestay ✓</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  <span>Pending Accreditation</span>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Dashboard Body Content */}
+        <div className="p-4 sm:p-8 space-y-6 max-w-7xl w-full">
+          {/* Tab Content Container */}
+          <div className="bg-white border border-[#E8DFC8] rounded-2xl shadow-sm p-4 sm:p-6">
         
         {/* Documents Tab */}
         {activeTab === 'documents' && (
@@ -513,69 +638,140 @@ const OwnerDashboard = () => {
           </div>
         )}
 
-        {/* Details and Photos Tab */}
+        {/* Details and Photos Tab — Homestay Owner Dossier */}
         {activeTab === 'profile' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* Form */}
-            <div>
-              <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Profile Information</h3>
+          <div className="space-y-6">
+            {/* TOP: Digital Credential Badge */}
+            <div className="relative rounded-2xl overflow-hidden border border-[#153325]/15 shadow-lg">
+              {/* Header band */}
+              <div className="bg-gradient-to-r from-[#153325] via-[#1e4a36] to-[#153325] px-6 pt-6 pb-16 relative">
+                <div className="absolute inset-0 opacity-5" style={{backgroundImage:'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)',backgroundSize:'12px 12px'}} />
+                <div className="flex items-start justify-between relative z-10">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#B88B2A]">🇵🇭 Republic of the Philippines</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 mt-0.5">Department of Tourism · Province of Abra</p>
+                    <h2 className="font-serif text-xl font-bold text-white mt-1">Accredited Homestay Operator</h2>
+                  </div>
+                  <div className="text-right">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isApproved ? 'bg-emerald-400/20 text-emerald-200 border-emerald-400/30' : 'bg-amber-400/20 text-amber-200 border-amber-400/30'}`}>
+                      {isApproved ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                      {isApproved ? 'Accredited' : 'Pending Review'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content over the band */}
+              <div className="bg-[var(--bg-card,#F3F8F4)] px-6 pb-6">
+                <div className="flex flex-col sm:flex-row gap-5 -mt-12 relative">
+                  {/* Icon badge */}
+                  <div className="flex-shrink-0">
+                    <div className="w-24 h-24 rounded-2xl border-4 border-[var(--bg-card,#F3F8F4)] overflow-hidden shadow-xl bg-[#153325] flex items-center justify-center">
+                      <Home className="w-10 h-10 text-white/60" />
+                    </div>
+                  </div>
+
+                  {/* Name & meta */}
+                  <div className="pt-14 sm:pt-2 flex-1">
+                    <h3 className="font-serif text-2xl font-bold text-[#153325]">{hsName || user.fullName}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{user.municipalityName} Homestay · {hsAddress || 'Address not set'}</p>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {hsPhone && <span className="px-2.5 py-0.5 bg-[#153325]/8 text-[#153325] text-[10px] font-bold rounded-full border border-[#153325]/15">📞 {hsPhone}</span>}
+                      {hsEmail && <span className="px-2.5 py-0.5 bg-[#153325]/8 text-[#153325] text-[10px] font-bold rounded-full border border-[#153325]/15">✉ {hsEmail}</span>}
+                    </div>
+                  </div>
+
+                  {/* Review badge */}
+                  <div className="self-start sm:mt-2 flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-[#B88B2A]/10 border border-[#B88B2A]/25 rounded-xl px-4 py-3">
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      <span className="font-bold text-[#153325] text-sm">{receivedReviews.length > 0 ? (receivedReviews.reduce((s,r)=>s+r.rating,0)/receivedReviews.length).toFixed(1) : 'N/A'}</span>
+                      <span className="text-slate-500">/ 5.0</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">({receivedReviews.length} review{receivedReviews.length !== 1 ? 's' : ''})</span>
+                  </div>
+                </div>
+
+                {/* Quick-stat strip */}
+                <div className="grid grid-cols-4 gap-3 mt-5">
+                  {[
+                    { label: 'Sleeping Spaces', value: profile?.rooms?.length ?? 0, icon: '🛏️' },
+                    { label: 'Gallery Photos', value: profile?.images?.length ?? 0, icon: '🖼️' },
+                    { label: 'Inquiries', value: inquiries.length, icon: '💬' },
+                    { label: 'Reviews', value: receivedReviews.length, icon: '⭐' },
+                  ].map(s => (
+                    <div key={s.label} className="bg-[var(--bg-app,#E3ECE4)] rounded-xl p-3 text-center border border-[var(--border-app,#C7D7C9)]">
+                      <div className="text-lg">{s.icon}</div>
+                      <div className="font-bold text-[#153325] text-sm">{s.value}</div>
+                      <div className="text-[10px] text-slate-500">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* MIDDLE: Edit form */}
+            <div className="bg-[var(--bg-card,#F3F8F4)] rounded-2xl border border-[var(--border-app,#C7D7C9)] p-6">
+              <h4 className="font-bold text-[#153325] text-sm mb-4 flex items-center gap-2">
+                <Home className="w-4 h-4" /> Edit Homestay Details
+              </h4>
               <form onSubmit={handleUpdateProfile} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Homestay Public Name</label>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Homestay Public Name</label>
                   <input
                     type="text"
                     required
                     value={hsName}
                     onChange={(e) => setHsName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                    className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Description</label>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Description</label>
                   <textarea
                     rows="4"
                     value={hsDesc}
                     onChange={(e) => setHsDesc(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                    className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 resize-none"
                     placeholder="Describe rooms, local sights, foods, or transportation..."
                   ></textarea>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Complete Address</label>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Complete Address</label>
                   <input
                     type="text"
                     required
                     value={hsAddress}
                     onChange={(e) => setHsAddress(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                    className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-705 mb-1">Contact Phone</label>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Contact Phone</label>
                     <input
                       type="text"
                       required
                       value={hsPhone}
                       onChange={(e) => setHsPhone(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                      className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-705 mb-1">Contact Email</label>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Contact Email</label>
                     <input
                       type="email"
                       required
                       value={hsEmail}
                       onChange={(e) => setHsEmail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                      className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                     />
                   </div>
                 </div>
-                {/* Exact Coordinates (Latitude & Longitude) */}
-                <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200/60 space-y-2">
+                {/* GPS Coordinates */}
+                <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200/60 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Exact GPS Coordinates for Interactive Map</label>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">GPS Coordinates</label>
                     <button
                       type="button"
                       onClick={handleDetectHomestayCoords}
@@ -592,7 +788,7 @@ const OwnerDashboard = () => {
                         step="any"
                         value={hsLat}
                         onChange={(e) => setHsLat(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        className="w-full px-2.5 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                         placeholder="e.g. 17.597123"
                       />
                     </div>
@@ -603,38 +799,40 @@ const OwnerDashboard = () => {
                         step="any"
                         value={hsLng}
                         onChange={(e) => setHsLng(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        className="w-full px-2.5 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                         placeholder="e.g. 120.621234"
                       />
                     </div>
                   </div>
                 </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-emerald-900 text-white font-bold rounded-xl text-xs cursor-pointer hover:bg-emerald-800"
-                >
-                  Save Profile Details
-                </button>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-[#153325] hover:bg-[#1e4a36] text-white font-bold rounded-xl text-xs cursor-pointer transition-colors shadow-sm"
+                  >
+                    Save Profile Details
+                  </button>
+                </div>
               </form>
             </div>
 
-            {/* Photos */}
-            <div>
-              <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2 flex justify-between items-center">
-                <span>Homestay Photo Gallery</span>
-                <label className="px-3.5 py-1.5 bg-emerald-900 text-white text-[11px] font-bold rounded-lg cursor-pointer hover:bg-emerald-850 shadow flex items-center gap-1">
+            {/* BOTTOM: Photo Gallery */}
+            <div className="bg-[var(--bg-card,#F3F8F4)] rounded-2xl border border-[var(--border-app,#C7D7C9)] p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-[#153325] text-sm flex items-center gap-2">
+                  🖼️ Homestay Photo Gallery
+                </h4>
+                <label className="px-3.5 py-1.5 bg-[#153325] text-white text-[11px] font-bold rounded-lg cursor-pointer hover:bg-[#1e4a36] shadow flex items-center gap-1 transition-colors">
                   <Upload className="w-3.5 h-3.5" /> Add Photo
                   <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                 </label>
-              </h3>
-
+              </div>
               {profile?.images && profile.images.length === 0 ? (
-                <p className="text-slate-400 text-xs py-8 text-center bg-slate-50 border border-slate-100 rounded-xl">
+                <p className="text-slate-400 text-xs py-8 text-center bg-[var(--bg-app,#E3ECE4)] border border-[var(--border-app,#C7D7C9)] rounded-xl">
                   No images uploaded yet. Upload homestay pictures for tourists to browse.
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {profile?.images?.map((img) => (
                     <div key={img.id} className="relative rounded-xl overflow-hidden group h-36 bg-slate-100">
                       <SafeImage src={img.image_url} alt="Gallery" className="w-full h-full object-cover" fallback="square" />
@@ -1157,8 +1355,12 @@ const OwnerDashboard = () => {
           </div>
         </div>
       )}
+
+        </div>
+      </main>
     </div>
   );
 };
 
 export default OwnerDashboard;
+

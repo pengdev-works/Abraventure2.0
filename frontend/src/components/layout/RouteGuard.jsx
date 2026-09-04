@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 const RouteGuard = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -14,7 +14,8 @@ const RouteGuard = ({ children, allowedRoles }) => {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    const isOfficialRole = allowedRoles && allowedRoles.some(r => ['PROVINCIAL_DOT', 'MUNICIPAL_DOT', 'HOMESTAY_OWNER', 'TOUR_GUIDE'].includes(r));
+    return <Navigate to={isOfficialRole ? "/portal/login" : "/login"} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {

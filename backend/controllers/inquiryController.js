@@ -85,18 +85,18 @@ export const createInquiry = async (req, res) => {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id=$1', [homestayId]);
       if (ownerRes.rows.length > 0) {
         await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'BOOKING')`,
+          `INSERT INTO notifications (user_id, title, message, type, link) VALUES ($1, $2, $3, 'BOOKING', '/owner-dashboard?tab=inquiries')`,
           [ownerRes.rows[0].owner_id, 'New Booking Inquiry', `A tourist sent a booking inquiry for your homestay${paymentProofUrl ? ' with payment proof attached' : ''}.`]
-        );
+        ).catch(() => {});
       }
     }
     if (guideId) {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id=$1', [guideId]);
       if (guideRes.rows.length > 0) {
         await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'BOOKING')`,
+          `INSERT INTO notifications (user_id, title, message, type, link) VALUES ($1, $2, $3, 'BOOKING', '/guide-dashboard?tab=inquiries')`,
           [guideRes.rows[0].guide_id, 'New Booking Inquiry', 'A tourist sent a booking inquiry for your guide services.']
-        );
+        ).catch(() => {});
       }
     }
 
@@ -231,6 +231,18 @@ export const replyInquiry = async (req, res) => {
       [replyMessage, newStatus, id]
     );
 
+    if (checkRes.rows[0]?.tourist_id) {
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, message, type, link)
+         VALUES ($1, $2, $3, 'BOOKING', '/tourist-dashboard?tab=bookings')`,
+        [
+          checkRes.rows[0].tourist_id,
+          `Booking Update: ${newStatus}`,
+          `Your booking inquiry has been updated to ${newStatus}.`
+        ]
+      ).catch(() => {});
+    }
+
     return res.status(200).json({
       message: 'Reply sent successfully.',
       inquiry: result.rows[0],
@@ -276,20 +288,20 @@ export const uploadPaymentProof = async (req, res) => {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id = $1', [booking.homestay_id]);
       if (ownerRes.rows.length > 0) {
         await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type)
-           VALUES ($1, $2, $3, 'BOOKING')`,
+          `INSERT INTO notifications (user_id, title, message, type, link)
+           VALUES ($1, $2, $3, 'BOOKING', '/owner-dashboard?tab=inquiries')`,
           [ownerRes.rows[0].owner_id, 'Payment Proof Uploaded', `A guest has uploaded proof of payment for your homestay.`]
-        );
+        ).catch(() => {});
       }
     }
     if (booking.guide_id) {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id = $1', [booking.guide_id]);
       if (guideRes.rows.length > 0) {
         await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type)
-           VALUES ($1, $2, $3, 'BOOKING')`,
+          `INSERT INTO notifications (user_id, title, message, type, link)
+           VALUES ($1, $2, $3, 'BOOKING', '/guide-dashboard?tab=inquiries')`,
           [guideRes.rows[0].guide_id, 'Payment Proof Uploaded', `A tourist has uploaded proof of payment for your services.`]
-        );
+        ).catch(() => {});
       }
     }
 

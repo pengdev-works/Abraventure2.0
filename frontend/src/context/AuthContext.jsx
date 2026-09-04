@@ -36,8 +36,12 @@ export const AuthProvider = ({ children }) => {
     fetchCurrentUser();
   }, [token]);
 
-  const login = async (email, password) => {
-    const response = await fetch('/api/auth/login', {
+  const login = async (email, password, scope = null) => {
+    let endpoint = '/api/auth/login';
+    if (scope === 'tourist') endpoint = '/api/auth/tourist/login';
+    if (scope === 'portal')  endpoint = '/api/auth/portal/login';
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -53,6 +57,9 @@ export const AuthProvider = ({ children }) => {
     setUser(data.user);
     return data.user;
   };
+
+  const loginTourist = (email, password) => login(email, password, 'tourist');
+  const loginPortal  = (email, password) => login(email, password, 'portal');
 
   const register = async (fullName, email, password, role, phoneNumber, municipalityId) => {
     const response = await fetch('/api/auth/register', {
@@ -97,7 +104,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginTourist, loginPortal, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

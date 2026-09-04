@@ -132,7 +132,7 @@ export const addItineraryItem = async (req, res) => {
       item: result.rows[0],
     });
   } catch (err) {
-    console.error('Error adding itinerary item:', err);
+    console.error('Error adding itinerary item:', err.message || err);
     return res.status(500).json({ message: 'Internal server error adding itinerary item.' });
   }
 };

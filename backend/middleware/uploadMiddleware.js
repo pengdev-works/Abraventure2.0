@@ -3,6 +3,7 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
@@ -21,6 +22,31 @@ const isCloudinaryConfigured = Boolean(
   process.env.CLOUDINARY_API_KEY &&
   process.env.CLOUDINARY_API_SECRET
 );
+
+// Strict extension & MIME whitelist
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif', '.gif', '.pdf', '.mp4', '.webm', '.mov', '.mkv']);
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif', 'image/gif',
+  'application/pdf',
+  'video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'
+]);
+
+const DANGEROUS_EXTENSIONS = /\.(exe|bat|cmd|sh|php|pl|cgi|js|vbs|html|htm|asp|aspx|jsp|svg|jar|py)$/i;
+
+const secureFileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  // Reject double extension tricks or path traversal attempts
+  if (DANGEROUS_EXTENSIONS.test(file.originalname) || file.originalname.includes('..')) {
+    return cb(new Error('Security error: Executable or prohibited file types are strictly rejected.'), false);
+  }
+
+  if (!ALLOWED_EXTENSIONS.has(ext) || !ALLOWED_MIME_TYPES.has(file.mimetype)) {
+    return cb(new Error(`Invalid file type (${ext}). Only images, PDFs, and standard videos are permitted.`), false);
+  }
+
+  cb(null, true);
+};
 
 let storage;
 
@@ -50,35 +76,33 @@ if (isCloudinaryConfigured) {
       return {
         folder,
         resource_type,
-        allowed_formats: isVideo ? ['mp4', 'webm', 'mov', 'quicktime', 'mkv'] : ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif'],
+        allowed_formats: isVideo ? ['mp4', 'webm', 'mov', 'quicktime', 'mkv'] : ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif', 'pdf'],
         transformation: isVideo ? [] : [{ quality: 'auto', fetch_format: 'auto' }],
       };
     },
   });
 } else {
-  // Fallback to local disk storage if Cloudinary credentials are not set
-  console.log('[UPLOAD MIDDLEWARE] Cloudinary env vars not found. Falling back to local disk storage in /uploads');
+  // Fallback to secure local disk storage
   storage = multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+      const ext = path.extname(file.originalname).toLowerCase();
+      const randomName = crypto.randomBytes(16).toString('hex');
+      cb(null, `${file.fieldname}-${randomName}${ext}`);
     }
   });
 }
 
 const baseUpload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB to allow video clips
+  fileFilter: secureFileFilter,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB max limit for videos
 });
 
-// Helper wrapper to ensure req.file.path is a web-accessible URL in both Cloudinary and Local Disk mode
 const normalizeFilePath = (req) => {
   if (req.file && !isCloudinaryConfigured) {
-    // When using local disk storage, req.file.path is the absolute OS filepath.
-    // Convert it to relative web path '/uploads/filename.ext'
     req.file.path = `/uploads/${req.file.filename}`;
   }
 };
@@ -87,8 +111,8 @@ const upload = {
   single: (fieldname) => (req, res, next) => {
     baseUpload.single(fieldname)(req, res, (err) => {
       if (err) {
-        console.error(`[UPLOAD ERROR] Field '${fieldname}':`, err);
-        return res.status(400).json({ message: err.message || 'File upload failed.' });
+        console.error(`[SECURE UPLOAD ERROR] Field '${fieldname}':`, err.message);
+        return res.status(400).json({ message: err.message || 'File upload failed validation.' });
       }
       normalizeFilePath(req);
       next();
@@ -97,8 +121,8 @@ const upload = {
   array: (fieldname, maxCount) => (req, res, next) => {
     baseUpload.array(fieldname, maxCount)(req, res, (err) => {
       if (err) {
-        console.error(`[UPLOAD ERROR] Field '${fieldname}':`, err);
-        return res.status(400).json({ message: err.message || 'File upload failed.' });
+        console.error(`[SECURE UPLOAD ERROR] Field '${fieldname}':`, err.message);
+        return res.status(400).json({ message: err.message || 'File upload failed validation.' });
       }
       if (req.files && !isCloudinaryConfigured) {
         req.files.forEach(f => f.path = `/uploads/${f.filename}`);

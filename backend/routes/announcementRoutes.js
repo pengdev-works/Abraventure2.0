@@ -3,7 +3,7 @@ import {
   getAnnouncements, getAllAnnouncements, createAnnouncement,
   updateAnnouncement, deleteAnnouncement, getActivityLogs,
   getGuideAvailability, setGuideAvailability,
-  getHeroConfig, updateHeroConfig
+  getHeroConfig, updateHeroConfig, getPublicStats
 } from '../controllers/announcementController.js';
 import { verifyToken, requireRoles } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
@@ -12,6 +12,7 @@ const router = express.Router();
 
 // Homepage Hero Config
 router.get('/hero', getHeroConfig); // public
+router.get('/public-stats', getPublicStats); // public — homepage platform stats
 router.put('/hero', verifyToken, requireRoles(['PROVINCIAL_DOT']), upload.single('media'), updateHeroConfig);
 
 // Announcements

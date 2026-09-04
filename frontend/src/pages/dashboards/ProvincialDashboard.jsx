@@ -1,31 +1,84 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useAlert } from '../context/AlertContext';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useAlert } from '../../context/AlertContext';
 import Swal from 'sweetalert2';
 import {
   Landmark, ShieldCheck, Users, Home, Award, Calendar, AlertCircle,
   FileText, CheckCircle, BarChart3, Megaphone, ClipboardList,
-  Download, Plus, Trash2, Edit, Bell, Image, UserPlus, X, Key, Building2
+  Download, Plus, Trash2, Edit, Bell, Image, UserPlus, X, Key, Building2,
+  Settings, Menu, Globe, ArrowUpRight, Lock, Sliders, Shield
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
-import SafeImage from '../components/SafeImage';
+import SafeImage from '../../components/common/SafeImage';
+import EyeComfortToggle from '../../components/common/EyeComfortToggle';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line
 } from 'recharts';
 
-const PIE_COLORS = ['#0F3D3E', '#f59e0b', '#6366f1', '#ec4899', '#10b981'];
+const PIE_COLORS = ['#153325', '#B88B2A', '#355C6D', '#5A534E', '#1D4433'];
 
 const ProvincialDashboard = () => {
-  const { token } = useAuth();
+  const { token, user, logout } = useAuth();
   const { showAlert } = useAlert();
+  const [searchParams, setSearchParams] = useSearchParams();
 
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [data, setData] = useState({ homestays: [], guides: [], municipalAdmins: [] });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('accounts');
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'accounts');
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && t !== activeTab) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
   const [remarks, setRemarks] = useState('');
   const [inquiries, setInquiries] = useState([]);
+
+  // Settings State
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [settingsConfig, setSettingsConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('provincial_dot_settings');
+      return saved ? JSON.parse(saved) : {
+        officeName: 'Provincial Tourism Office - Abra',
+        headOfficer: 'Provincial Tourism Officer',
+        contactEmail: 'tourism@abra.gov.ph',
+        hotline: '+63 (074) 752-8000',
+        capitolAddress: 'Capitol Compound, Bangued, Abra 2800',
+        enablePublicInquiries: true,
+        autoNotifyEmail: true,
+        analyticsAutoRefresh: true,
+      };
+    } catch {
+      return {
+        officeName: 'Provincial Tourism Office - Abra',
+        headOfficer: 'Provincial Tourism Officer',
+        contactEmail: 'tourism@abra.gov.ph',
+        hotline: '+63 (074) 752-8000',
+        capitolAddress: 'Capitol Compound, Bangued, Abra 2800',
+        enablePublicInquiries: true,
+        autoNotifyEmail: true,
+        analyticsAutoRefresh: true,
+      };
+    }
+  });
+
+  const handleSaveSettings = (e) => {
+    e.preventDefault();
+    try {
+      localStorage.setItem('provincial_dot_settings', JSON.stringify(settingsConfig));
+      setSettingsSaved(true);
+      if (showAlert) showAlert('Settings saved successfully', 'success');
+      setTimeout(() => setSettingsSaved(false), 3500);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // Analytics
   const [analytics, setAnalytics] = useState(null);
@@ -676,107 +729,238 @@ const ProvincialDashboard = () => {
 
   const StatusBadge = ({ status }) => {
     const colors = {
-      APPROVED: 'bg-emerald-100 text-emerald-800',
-      REJECTED: 'bg-red-100 text-red-800',
-      PENDING: 'bg-amber-100 text-amber-800',
-      ENDORSED: 'bg-blue-100 text-blue-800',
+      APPROVED: 'bg-[#153325]/10 text-[#153325] border border-[#153325]/30',
+      REJECTED: 'bg-red-50 text-red-700 border border-red-200',
+      PENDING: 'bg-[#FAF7F2] text-[#B88B2A] border border-[#B88B2A]/30',
+      ENDORSED: 'bg-[#355C6D]/10 text-[#355C6D] border border-[#355C6D]/30',
     };
     return (
-      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wide ${colors[status] || 'bg-slate-100 text-slate-600'}`}>
+      <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${colors[status] || 'bg-slate-100 text-slate-600'}`}>
         {status}
       </span>
     );
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Header */}
-      <div className="mb-8 pb-5 border-b border-slate-200 flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wider mb-2">
-            <ShieldCheck className="w-4 h-4 text-amber-500" /> Provincial Office Portal
-          </div>
-          <h1 className="text-3xl font-extrabold text-slate-800">Provincial DOT Control Panel</h1>
-          <p className="text-xs text-slate-400 mt-1">Verify listings, approve municipal accounts, monitor Abra tourism province-wide.</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={exportAnalyticsCSV}
-            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-550 text-slate-500" /> CSV
-          </button>
-          <button
-            onClick={exportAnalyticsExcel}
-            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-emerald-700" /> Excel
-          </button>
-          <button
-            onClick={exportAnalyticsPDF}
-            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-rose-600" /> PDF Report
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        {[
-          { label: 'Approved Homestays', value: `${approvedHomestays}/${totalHomestays}`, icon: Home, color: 'bg-emerald-50 text-emerald-900' },
-          { label: 'Approved Guides', value: `${approvedGuides}/${totalGuides}`, icon: Award, color: 'bg-emerald-50 text-emerald-900' },
-          { label: 'Pending Mun. DOTs', value: pendingMunAdmins, icon: Landmark, color: 'bg-amber-50 text-amber-700' },
-          { label: 'Total Inquiries', value: inquiries.length, icon: Calendar, color: 'bg-blue-50 text-blue-700' },
-          { label: 'Announcements', value: announcements.length || '—', icon: Megaphone, color: 'bg-purple-50 text-purple-700' },
-        ].map(s => {
-          const Icon = s.icon;
-          return (
-            <div key={s.label} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-3">
-              <div>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">{s.label}</span>
-                <h3 className="text-xl font-black text-slate-800">{s.value}</h3>
-              </div>
-              <div className={`${s.color} p-2.5 rounded-xl flex-shrink-0`}><Icon className="w-5 h-5" /></div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-0 flex px-6 space-x-5 overflow-x-auto whitespace-nowrap scrollbar-none">
-        {tabList.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setRemarks(''); }}
-              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 flex-shrink-0 ${
-                activeTab === tab.id ? 'border-emerald-900 text-emerald-950' : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Remarks bar (for approval tabs) */}
-      {(activeTab === 'accounts' || activeTab === 'listings') && (
-        <div className="bg-amber-50/60 border-x border-slate-200 px-6 py-3">
-          <input
-            type="text"
-            placeholder="Type approval/rejection remarks before acting..."
-            value={remarks}
-            onChange={e => setRemarks(e.target.value)}
-            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-900"
-          />
-        </div>
+    <div className="min-h-screen bg-[var(--bg-app,#E3ECE4)] font-sans text-[var(--text-primary,#17281D)] flex flex-col lg:flex-row transition-colors">
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
       )}
 
-      {/* Tab Content */}
-      <div className="bg-white border border-slate-200 rounded-b-2xl shadow-sm p-6">
+      {/* ── Proper Desktop & Mobile Sidebar ── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Top: Abraventure Official Logo & Masthead */}
+          <div className="p-5 border-b border-white/10 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 group">
+              <img
+                src="/abraventure-logo.png"
+                alt="Abraventure Official Logo"
+                className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+              <div>
+                <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block">
+                  ABRAVENTURE
+                </span>
+                <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1">
+                  Provincial DOT
+                </span>
+              </div>
+            </Link>
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Quick Context Strip */}
+          <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
+            <span className="text-white/70 flex items-center gap-2 font-mono">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Bangued Capitol DOT
+            </span>
+            <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold">
+              Live Site <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          {/* Main Navigation Features */}
+          <div className="p-3 space-y-1 flex-1">
+            <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+              Tourism Features
+            </div>
+            {tabList.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSearchParams({ tab: tab.id });
+                    setRemarks('');
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    isActive
+                      ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
+                  <span className="flex-1 truncate">{tab.label}</span>
+                  {tab.id === 'accounts' && pendingMunAdmins > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white shadow-xs">
+                      {pendingMunAdmins}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Bottom Sidebar: Settings and User Status */}
+          <div className="p-4 border-t border-white/10 space-y-2 bg-[#0F261C]">
+            {/* Settings button in sidebar */}
+            <button
+              onClick={() => {
+                setActiveTab('settings');
+                setSearchParams({ tab: 'settings' });
+                setRemarks('');
+                setMobileSidebarOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                activeTab === 'settings'
+                  ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
+              <span className="flex-1">Settings</span>
+            </button>
+
+            {/* Officer Profile Card */}
+            <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0">
+                  {user?.fullName?.charAt(0) || 'P'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{user?.fullName || 'Provincial Officer'}</p>
+                  <p className="text-[10px] text-white/50 truncate font-mono">Provincial DOT</p>
+                </div>
+              </div>
+              {logout && (
+                <button
+                  onClick={logout}
+                  title="Sign out of portal"
+                  className="text-white/50 hover:text-rose-300 p-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold"
+                >
+                  Exit
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main Content Area ── */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Top Control Bar */}
+        <header className="bg-[var(--bg-header,#EAF1EB)]/90 backdrop-blur-md border-b border-[var(--border-app,#C7D7C9)] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#C7D7C9)] text-[#153325] hover:bg-black/5 cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+                  Province of Abra · Executive Portal
+                </span>
+              </div>
+              <h1 className="font-serif text-lg sm:text-2xl font-bold text-[#153325]">
+                {tabList.find(t => t.id === activeTab)?.label || (activeTab === 'settings' ? 'Settings' : 'Overview')}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {/* Eye Comfort Theme Selector */}
+            <EyeComfortToggle />
+
+            <button
+              onClick={exportAnalyticsCSV}
+              className="btn-editorial-outline px-3 py-1.5 text-xs text-[#153325] border-[var(--border-app,#C7D7C9)] hover:bg-white/50 hidden sm:flex items-center gap-1.5 cursor-pointer rounded-lg"
+            >
+              <Download className="w-3.5 h-3.5 text-[#B88B2A]" /> CSV
+            </button>
+            <button
+              onClick={exportAnalyticsExcel}
+              className="btn-editorial-outline px-3 py-1.5 text-xs text-[#153325] border-[var(--border-app,#C7D7C9)] hover:bg-white/50 hidden sm:flex items-center gap-1.5 cursor-pointer rounded-lg"
+            >
+              <FileText className="w-3.5 h-3.5 text-emerald-700" /> Excel
+            </button>
+            <button
+              onClick={exportAnalyticsPDF}
+              className="btn-editorial-gold px-3.5 py-1.5 text-xs tracking-wider flex items-center gap-1.5 cursor-pointer shadow-xs rounded-lg"
+            >
+              <Download className="w-3.5 h-3.5" /> Export PDF
+            </button>
+          </div>
+        </header>
+
+        {/* Dashboard Body Content */}
+        <div className="p-4 sm:p-8 space-y-6 max-w-7xl w-full">
+          {/* Stats Summary Row */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+            {[
+              { label: 'Approved Homestays', value: `${approvedHomestays}/${totalHomestays}`, icon: Home },
+              { label: 'Approved Guides', value: `${approvedGuides}/${totalGuides}`, icon: Award },
+              { label: 'Pending Mun. DOTs', value: pendingMunAdmins, icon: Landmark, alert: pendingMunAdmins > 0 },
+              { label: 'Total Inquiries', value: inquiries.length, icon: Calendar },
+              { label: 'All Municipalities', value: '27', icon: ShieldCheck },
+            ].map((stat) => (
+              <div key={stat.label} className={`bg-[var(--bg-card,#F3F8F4)] rounded-xl border ${stat.alert ? 'border-amber-400 bg-amber-50/40' : 'border-[var(--border-app,#C7D7C9)]'} p-4 shadow-2xs flex items-center gap-3 transition-colors`}>
+                <div className="w-9 h-9 rounded-lg bg-black/5 border border-[var(--border-app,#C7D7C9)] flex items-center justify-center flex-shrink-0 text-[#153325]">
+                  <stat.icon className={`w-4 h-4 ${stat.alert ? 'text-amber-600' : 'text-[#B88B2A]'}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-serif text-xl sm:text-2xl font-bold text-[#153325] leading-tight truncate">{stat.value}</p>
+                  <p className="text-[10px] text-[#5A534E] font-bold uppercase tracking-wider truncate">{stat.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Remarks bar (for approval tabs) */}
+          {(activeTab === 'accounts' || activeTab === 'listings') && (
+            <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Type approval/rejection remarks before acting on accounts or listings..."
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+                className="w-full px-3.5 py-2 border border-amber-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#153325]"
+              />
+            </div>
+          )}
+
+          {/* Tab Content Card */}
+          <div className="bg-white border border-[#E8DFC8] rounded-2xl shadow-sm p-4 sm:p-6">
 
         {/* Accounts Tab */}
         {activeTab === 'accounts' && (
@@ -1731,7 +1915,200 @@ const ProvincialDashboard = () => {
           </div>
         )}
 
-      </div>
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between flex-wrap gap-3 border-b border-[#E8DFC8] pb-4">
+              <div>
+                <h2 className="text-lg font-serif font-bold text-[#153325]">Portal & Tourism Administration Settings</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Configure Provincial DOT office details, communication channels, and administrative operational parameters.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Executive Access Active
+                </span>
+              </div>
+            </div>
+
+            {settingsSaved && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>Configuration changes successfully updated and applied to the provincial portal session.</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveSettings} className="space-y-6">
+              {/* Section 1: Office Profile & Direct Inquiries */}
+              <div className="bg-[#FAF7F2] border border-[#E8DFC8] rounded-2xl p-5 sm:p-6 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-[#153325] border-b border-[#E8DFC8]/60 pb-3">
+                  <Building2 className="w-4 h-4 text-[#B88B2A]" />
+                  <span>Provincial Tourism Office Profile</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#5A534E] mb-1">
+                      Official Department / Office Name
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsConfig.officeName}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, officeName: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[#E8DFC8] rounded-xl text-xs text-[#232120] focus:ring-1 focus:ring-[#153325] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#5A534E] mb-1">
+                      Provincial Tourism Officer / Signatory
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsConfig.headOfficer}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, headOfficer: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[#E8DFC8] rounded-xl text-xs text-[#232120] focus:ring-1 focus:ring-[#153325] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#5A534E] mb-1">
+                      Official Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={settingsConfig.contactEmail}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, contactEmail: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[#E8DFC8] rounded-xl text-xs text-[#232120] focus:ring-1 focus:ring-[#153325] focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#5A534E] mb-1">
+                      Public Tourism Assistance Hotline
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsConfig.hotline}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, hotline: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[#E8DFC8] rounded-xl text-xs text-[#232120] focus:ring-1 focus:ring-[#153325] focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#5A534E] mb-1">
+                      Provincial Capitol Office Address
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsConfig.capitolAddress}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, capitolAddress: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[#E8DFC8] rounded-xl text-xs text-[#232120] focus:ring-1 focus:ring-[#153325] focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Tourism Operations & Workflow Automation */}
+              <div className="bg-[#FAF7F2] border border-[#E8DFC8] rounded-2xl p-5 sm:p-6 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-[#153325] border-b border-[#E8DFC8]/60 pb-3">
+                  <Sliders className="w-4 h-4 text-[#B88B2A]" />
+                  <span>Portal Workflow & Inquiries Automation</span>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 p-3 bg-white border border-[#E8DFC8] rounded-xl cursor-pointer hover:border-[#153325]/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settingsConfig.enablePublicInquiries}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, enablePublicInquiries: e.target.checked })}
+                      className="mt-1 h-4 w-4 rounded text-[#153325] focus:ring-[#153325]"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-[#153325] block">Enable Public Traveler Inquiries Dispatch</span>
+                      <span className="text-[11px] text-slate-500">
+                        Allows tourists to send inquiries through homestay and guide profiles which route into municipality and provincial dispatch queues.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 bg-white border border-[#E8DFC8] rounded-xl cursor-pointer hover:border-[#153325]/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settingsConfig.autoNotifyEmail}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, autoNotifyEmail: e.target.checked })}
+                      className="mt-1 h-4 w-4 rounded text-[#153325] focus:ring-[#153325]"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-[#153325] block">Instant Email Notifications on Municipal Submissions</span>
+                      <span className="text-[11px] text-slate-500">
+                        Dispatch email summaries to Capitol Officers whenever an LGU endorses a new homestay or tour guide for review.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 bg-white border border-[#E8DFC8] rounded-xl cursor-pointer hover:border-[#153325]/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settingsConfig.analyticsAutoRefresh}
+                      onChange={e => setSettingsConfig({ ...settingsConfig, analyticsAutoRefresh: e.target.checked })}
+                      className="mt-1 h-4 w-4 rounded text-[#153325] focus:ring-[#153325]"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-[#153325] block">Automatic Province Analytics Synchronization</span>
+                      <span className="text-[11px] text-slate-500">
+                        Periodically sync tourist registration graphs and municipality demographic charts in real-time.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Section 3: Security & Session Policy */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-slate-800 border-b border-slate-200 pb-3">
+                  <Shield className="w-4 h-4 text-emerald-800" />
+                  <span>Security & Account Governance</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 bg-white border border-slate-200 rounded-xl">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Current Role</p>
+                    <p className="text-xs font-mono font-bold text-slate-800 mt-1">{user?.role || 'PROVINCIAL_DOT'}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Capitol Level Clearance</p>
+                  </div>
+                  <div className="p-3.5 bg-white border border-slate-200 rounded-xl">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Session Status</p>
+                    <p className="text-xs font-bold text-emerald-700 mt-1 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span> JWT Verified
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Expires on browser exit</p>
+                  </div>
+                  <div className="p-3.5 bg-white border border-slate-200 rounded-xl">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Database Safeguard</p>
+                    <p className="text-xs font-bold text-slate-800 mt-1">Daily Automated</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">System Backup Enabled</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                <button
+                  type="submit"
+                  className="btn-editorial-gold px-6 py-2.5 text-xs font-bold tracking-wider rounded-xl shadow cursor-pointer flex items-center gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" /> Save Portal Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

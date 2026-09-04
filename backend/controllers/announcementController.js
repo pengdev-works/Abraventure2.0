@@ -210,3 +210,24 @@ export const updateHeroConfig = async (req, res) => {
   }
 };
 
+// GET /api/announcements/public-stats — public (no auth needed, used by homepage)
+export const getPublicStats = async (req, res) => {
+  try {
+    const [muniRes, homestayRes, guideRes, attractionRes] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FROM municipalities`),
+      pool.query(`SELECT COUNT(*) FROM homestay_profiles WHERE status = 'APPROVED'`),
+      pool.query(`SELECT COUNT(*) FROM tour_guide_profiles WHERE status = 'APPROVED'`),
+      pool.query(`SELECT COUNT(*) FROM tourist_attractions`),
+    ]);
+    return res.status(200).json({
+      municipalities: parseInt(muniRes.rows[0].count),
+      homestays: parseInt(homestayRes.rows[0].count),
+      guides: parseInt(guideRes.rows[0].count),
+      attractions: parseInt(attractionRes.rows[0].count),
+    });
+  } catch (err) {
+    console.error('getPublicStats error:', err);
+    return res.status(500).json({ message: 'Server error fetching public stats.' });
+  }
+};
+

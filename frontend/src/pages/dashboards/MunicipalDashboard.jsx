@@ -1,18 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useAlert } from '../context/AlertContext';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useAlert } from '../../context/AlertContext';
 import Swal from 'sweetalert2';
-import { Landmark, Compass, FolderClosed, CheckSquare, Plus, Trash2, Edit, AlertCircle, FileCheck, CheckCircle, User, Upload, Mail, Phone, MapPin, X, Calendar, BarChart3, MessageSquare, Star, Download, FileText } from 'lucide-react';
+import {
+  Landmark, Compass, FolderClosed, CheckSquare, Plus, Trash2, Edit,
+  AlertCircle, FileCheck, CheckCircle, User, Upload, Mail, Phone,
+  MapPin, X, Calendar, BarChart3, MessageSquare, Star, Download,
+  FileText, Tag, Send, Package, Menu, ArrowUpRight, ShieldCheck, Settings,
+  Camera, Building2, QrCode, Award, Check, Clock, Shield, Lock, RefreshCw, Sparkles
+} from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
-import SafeImage from '../components/SafeImage';
+import SafeImage from '../../components/common/SafeImage';
+import EyeComfortToggle from '../../components/common/EyeComfortToggle';
 
 const MunicipalDashboard = () => {
-  const { token, user, refreshUser } = useAuth();
+  const { token, user, logout, refreshUser } = useAuth();
   const { showAlert } = useAlert();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState('attractions');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'attractions');
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && t !== activeTab) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
   const [data, setData] = useState({ homestays: [], guides: [] });
   const [requirements, setRequirements] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -82,6 +99,20 @@ const MunicipalDashboard = () => {
   const [resolvingComplaintId, setResolvingComplaintId] = useState(null);
   const [complaintResolution, setComplaintResolution] = useState('');
   const [resolvingStatus, setResolvingStatus] = useState('RESOLVED');
+
+  // Tour Packages State
+  const [packagesList, setPackagesList] = useState([]);
+  const [editingPkgId, setEditingPkgId] = useState(null);
+  const [pkgTitle, setPkgTitle] = useState('');
+  const [pkgDesc, setPkgDesc] = useState('');
+  const [pkgPrice, setPkgPrice] = useState('');
+  const [pkgDuration, setPkgDuration] = useState('2');
+  const [pkgInclusions, setPkgInclusions] = useState('');
+  const [pkgImageUrl, setPkgImageUrl] = useState('');      // existing URL from DB (edit mode)
+  const [pkgImageFile, setPkgImageFile] = useState(null);  // newly selected file
+  const [pkgImagePreview, setPkgImagePreview] = useState(''); // local blob preview
+  const [pkgItems, setPkgItems] = useState([]);
+  const [pkgMsg, setPkgMsg] = useState({ type: '', text: '' });
 
   // Sync profile details when user context loads
   useEffect(() => {
@@ -280,7 +311,151 @@ const MunicipalDashboard = () => {
     fetchDotInquiries();
     fetchAnalytics();
     fetchComplaints();
+    fetchPackages();
   }, [token, user]);
+
+  const fetchPackages = async () => {
+    if (!user?.municipalityId) return;
+    try {
+      const res = await fetch(`/api/packages?municipalityId=${user.municipalityId}`);
+      if (res.ok) setPackagesList(await res.json());
+    } catch (err) {
+      console.error('Error fetching packages:', err);
+    }
+  };
+
+  const handleAddPkgItem = () => {
+    setPkgItems([
+      ...pkgItems,
+      { dayNumber: 1, activityType: 'ATTRACTION', targetId: '', customActivityName: '', notes: '' }
+    ]);
+  };
+
+  const handleRemovePkgItem = (index) => {
+    setPkgItems(pkgItems.filter((_, i) => i !== index));
+  };
+
+  const handlePkgItemChange = (index, field, value) => {
+    const updated = [...pkgItems];
+    updated[index][field] = value;
+    setPkgItems(updated);
+  };
+
+  const handlePkgImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPkgImageFile(file);
+      setPkgImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handlePackageSubmit = async (e) => {
+    e.preventDefault();
+    if (!pkgTitle.trim()) return;
+
+    setPkgMsg({ type: '', text: '' });
+
+    const formattedItems = pkgItems.map(item => ({
+      dayNumber: parseInt(item.dayNumber || 1),
+      activityType: item.activityType,
+      attractionId: item.activityType === 'ATTRACTION' ? item.targetId : null,
+      homestayId: item.activityType === 'HOMESTAY' ? item.targetId : null,
+      guideId: item.activityType === 'GUIDE' ? item.targetId : null,
+      customActivityName: item.activityType === 'CUSTOM' ? item.customActivityName : null,
+      notes: item.notes || '',
+    }));
+
+    const formData = new FormData();
+    formData.append('title', pkgTitle);
+    formData.append('description', pkgDesc);
+    formData.append('price', pkgPrice ? parseFloat(pkgPrice) : 0);
+    formData.append('durationDays', parseInt(pkgDuration || 1));
+    formData.append('inclusions', pkgInclusions);
+    formData.append('items', JSON.stringify(formattedItems));
+    if (pkgImageFile) {
+      formData.append('coverImage', pkgImageFile);
+    } else if (pkgImageUrl) {
+      // Keep existing URL when editing and no new file was chosen
+      formData.append('imageUrl', pkgImageUrl);
+    }
+
+    try {
+      const url = editingPkgId ? `/api/packages/${editingPkgId}` : '/api/packages';
+      const method = editingPkgId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` }, // NO Content-Type header; browser sets multipart boundary
+        body: formData
+      });
+
+      const resData = await response.json();
+      if (response.ok) {
+        showAlert(editingPkgId ? 'Package updated successfully!' : 'Package created successfully!', 'success');
+        setEditingPkgId(null);
+        setPkgTitle('');
+        setPkgDesc('');
+        setPkgPrice('');
+        setPkgDuration('2');
+        setPkgInclusions('');
+        setPkgImageUrl('');
+        setPkgImageFile(null);
+        setPkgImagePreview('');
+        setPkgItems([]);
+        fetchPackages();
+      } else {
+        setPkgMsg({ type: 'error', text: resData.message || 'Failed to save package.' });
+      }
+    } catch (err) {
+      console.error(err);
+      setPkgMsg({ type: 'error', text: 'Server error saving package.' });
+    }
+  };
+
+  const handleEditPackage = async (pkg) => {
+    setEditingPkgId(pkg.id);
+    setPkgTitle(pkg.title);
+    setPkgDesc(pkg.description || '');
+    setPkgPrice(pkg.price || '');
+    setPkgDuration(pkg.duration_days || 1);
+    setPkgInclusions(pkg.inclusions || '');
+    setPkgImageUrl(pkg.image_url || '');
+    setPkgImageFile(null);
+    setPkgImagePreview(pkg.image_url || ''); // show current image as preview
+
+    try {
+      const res = await fetch(`/api/packages/${pkg.id}`);
+      if (res.ok) {
+        const details = await res.json();
+        const mappedItems = details.items.map(i => ({
+          dayNumber: i.day_number,
+          activityType: i.activity_type,
+          targetId: i.activity_type === 'ATTRACTION' ? i.attraction_id : i.activity_type === 'HOMESTAY' ? i.homestay_id : i.guide_id,
+          customActivityName: i.custom_activity_name || '',
+          notes: i.notes || '',
+        }));
+        setPkgItems(mappedItems);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeletePackage = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this municipal package?')) return;
+    try {
+      const response = await fetch(`/api/packages/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        showAlert('Package deleted successfully.', 'success');
+        fetchPackages();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchEvents = async () => {
     if (!user?.municipalityId) return;
@@ -763,50 +938,552 @@ const MunicipalDashboard = () => {
     );
   }
 
+  const municipalTabs = [
+    { id: 'attractions', label: 'Local Attractions', icon: Compass },
+    { id: 'packages', label: 'Tour Packages', icon: Package },
+    { id: 'requirements', label: 'Accreditation Checklist', icon: FolderClosed },
+    { id: 'review', label: 'Review Submissions', icon: CheckSquare },
+    { id: 'stakeholders', label: 'Endorse Operators', icon: FileCheck },
+    { id: 'events', label: 'Festivals & Events', icon: Calendar },
+    { id: 'inquiries', label: 'Tourist Inquiries', icon: MessageSquare },
+    { id: 'complaints', label: 'Grievance Desk', icon: AlertCircle },
+    { id: 'reports', label: 'Official Reports', icon: BarChart3 },
+    { id: 'municipality', label: 'Municipal Guidebook', icon: Landmark },
+    { id: 'profile', label: 'Officer Profile', icon: User },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Header */}
-      <div className="mb-8 pb-5 border-b border-slate-200">
-        <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wider mb-2">
-          <Landmark className="w-4.5 h-4.5 text-amber-500 fill-amber-500" /> Municipal Office Portal
-        </div>
-        <h1 className="text-3xl font-extrabold text-slate-800">{user.municipalityName} DOT Dashboard</h1>
-        <p className="text-xs text-slate-450 mt-1">Manage attractions, enforce accreditation requirements, and endorse local stakeholders.</p>
-      </div>
+    <div className="min-h-screen bg-[var(--bg-app,#E3ECE4)] font-sans text-[var(--text-primary,#17281D)] flex flex-col lg:flex-row transition-colors">
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
 
-      {/* Tabs */}
-      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-6 flex px-6 space-x-6 overflow-x-auto whitespace-nowrap scrollbar-none">
-        {[
-          { id: 'attractions', label: 'Local Attractions', icon: Compass },
-          { id: 'requirements', label: 'Accreditation Requirements', icon: FolderClosed },
-          { id: 'review', label: 'Review Documents', icon: CheckSquare },
-          { id: 'stakeholders', label: 'Stakeholders Endorsements', icon: FileCheck },
-          { id: 'events', label: 'Events & Festivals', icon: Calendar },
-          { id: 'inquiries', label: 'Tourist Inquiries', icon: MessageSquare },
-          { id: 'complaints', label: 'Tourist Complaints', icon: AlertCircle },
-          { id: 'reports', label: 'Reports', icon: BarChart3 },
-          { id: 'municipality', label: 'Manage Municipality', icon: Landmark },
-          { id: 'profile', label: 'My DOT Profile', icon: User },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          return (
+      {/* ── Proper Desktop & Mobile Sidebar ── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Top: Abraventure Official Logo & Masthead */}
+          <div className="p-5 border-b border-white/10 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 group">
+              <img
+                src="/abraventure-logo.png"
+                alt="Abraventure Official Logo"
+                className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+              <div className="min-w-0">
+                <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">
+                  ABRAVENTURE
+                </span>
+                <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">
+                  {user?.municipalityName || 'Municipal'} DOT
+                </span>
+              </div>
+            </Link>
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 flex-shrink-0 ${activeTab === tab.id
-                  ? 'border-emerald-900 text-emerald-950'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
             >
-              <Icon className="w-4.5 h-4.5" />
-              <span>{tab.label}</span>
+              <X className="w-5 h-5" />
             </button>
-          );
-        })}
-      </div>
+          </div>
 
-      {/* Tab Content */}
-      <div className="bg-white border border-slate-200 rounded-b-2xl shadow-sm p-6">
+          {/* Quick Context Strip */}
+          <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
+            <span className="text-white/70 flex items-center gap-2 font-mono truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              {user?.municipalityName || 'LGU'} Tourism Desk
+            </span>
+            <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold flex-shrink-0">
+              Live Site <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          {/* Main Navigation Features */}
+          <div className="p-3 space-y-1 flex-1">
+            <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+              Municipal Features
+            </div>
+            {municipalTabs.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSearchParams({ tab: tab.id });
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    isActive
+                      ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
+                  <span className="flex-1 truncate">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Bottom Sidebar: Officer Profile Card */}
+          <div className="p-4 border-t border-white/10 space-y-2 bg-[#0F261C]">
+            <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
+              <div 
+                onClick={() => { setActiveTab('profile'); setMobileSidebarOpen(false); }}
+                className="flex items-center gap-2.5 min-w-0 cursor-pointer group flex-1"
+                title="View & Edit Officer Profile Dossier"
+              >
+                <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0 overflow-hidden group-hover:border-[#B88B2A] transition-colors">
+                  {user?.profile?.profile_picture_url || profilePicPreview ? (
+                    <img
+                      src={profilePicPreview || user?.profile?.profile_picture_url}
+                      alt="Officer Avatar"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <span>{user?.fullName?.charAt(0) || 'M'}</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white truncate group-hover:text-[#B88B2A] transition-colors">{user?.fullName || 'Municipal Officer'}</p>
+                  <p className="text-[10px] text-white/50 truncate font-mono">{user?.profile?.designation || 'Tourism Officer'}</p>
+                </div>
+              </div>
+              {logout && (
+                <button
+                  onClick={logout}
+                  title="Sign out of portal"
+                  className="text-white/50 hover:text-rose-300 p-1.5 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold flex-shrink-0 ml-1"
+                >
+                  Exit
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main Content Area ── */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Top Header Bar */}
+        <header className="bg-[var(--bg-header,#EAF1EB)]/90 backdrop-blur-md border-b border-[var(--border-app,#C7D7C9)] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#C7D7C9)] text-[#153325] hover:bg-black/5 cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+                  Municipality of {user?.municipalityName || 'Abra'} · Official Desk
+                </span>
+              </div>
+              <h1 className="font-serif text-lg sm:text-2xl font-bold text-[#153325]">
+                {municipalTabs.find(t => t.id === activeTab)?.label || 'Overview'}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {/* Eye Comfort Background Theme Selector */}
+            <EyeComfortToggle />
+
+            {activeTab === 'reports' && (
+              <>
+                <button
+                  onClick={exportCSV}
+                  className="btn-editorial-outline px-3 py-1.5 text-xs text-[#153325] border-[var(--border-app,#C7D7C9)] hover:bg-white/50 hidden sm:flex items-center gap-1.5 cursor-pointer rounded-lg"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#B88B2A]" /> CSV
+                </button>
+                <button
+                  onClick={exportExcel}
+                  className="btn-editorial-outline px-3 py-1.5 text-xs text-[#153325] border-[var(--border-app,#C7D7C9)] hover:bg-white/50 hidden sm:flex items-center gap-1.5 cursor-pointer rounded-lg"
+                >
+                  <FileText className="w-3.5 h-3.5 text-emerald-700" /> Excel
+                </button>
+                <button
+                  onClick={exportPDF}
+                  className="btn-editorial-gold px-3.5 py-1.5 text-xs tracking-wider flex items-center gap-1.5 cursor-pointer shadow-xs rounded-lg"
+                >
+                  <Download className="w-3.5 h-3.5" /> PDF
+                </button>
+              </>
+            )}
+            <div className="px-3 py-1 bg-black/5 border border-[var(--border-app,#C7D7C9)] rounded-lg text-[11px] font-semibold text-[#153325] hidden md:block">
+              {user?.municipalityName} LGU
+            </div>
+          </div>
+        </header>
+
+        {/* Dashboard Body Content */}
+        <div className="p-4 sm:p-8 space-y-6 max-w-7xl w-full">
+          {/* Tab Content Container */}
+          <div className="bg-[var(--bg-card,#F3F8F4)] border border-[var(--border-app,#C7D7C9)] rounded-2xl shadow-sm p-4 sm:p-6 transition-colors">
+
+        {/* Tour Packages Tab */}
+        {activeTab === 'packages' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Col: Create/Edit Form (col-span-5) */}
+            <div className="lg:col-span-5 border border-slate-200 p-6 rounded-2xl bg-slate-50/50 h-fit space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-emerald-800" />
+                  {editingPkgId ? 'Edit Tour Package' : 'Create Municipal Tour Package'}
+                </h3>
+                {editingPkgId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPkgId(null);
+                      setPkgTitle('');
+                      setPkgDesc('');
+                      setPkgPrice('');
+                      setPkgDuration('2');
+                      setPkgInclusions('');
+                      setPkgImageUrl('');
+                      setPkgImageFile(null);
+                      setPkgImagePreview('');
+                      setPkgItems([]);
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-700 underline cursor-pointer"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
+
+              {pkgMsg.text && (
+                <div className={`p-3 rounded-lg text-xs font-semibold ${pkgMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {pkgMsg.text}
+                </div>
+              )}
+
+              <form onSubmit={handlePackageSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Package Title <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 3D2N Tineg Eco-Adventure & Kaparkan Falls"
+                    value={pkgTitle}
+                    onChange={(e) => setPkgTitle(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Price per Person (₱)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g. 3500"
+                      value={pkgPrice}
+                      onChange={(e) => setPkgPrice(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (Days)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="14"
+                      required
+                      value={pkgDuration}
+                      onChange={(e) => setPkgDuration(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Cover Image</label>
+
+                  {/* Image preview */}
+                  {pkgImagePreview && (
+                    <div className="mb-2 relative group w-full h-36 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                      <img src={pkgImagePreview} alt="Cover preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => { setPkgImageFile(null); setPkgImagePreview(''); setPkgImageUrl(''); }}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-80 hover:opacity-100 transition-all cursor-pointer"
+                        title="Remove image"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* File picker */}
+                  <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-slate-300 hover:border-emerald-700 rounded-xl bg-slate-50 hover:bg-emerald-50 cursor-pointer transition-all">
+                    <div className="flex flex-col items-center gap-1">
+                      <Upload className="w-5 h-5 text-slate-400 group-hover:text-emerald-700" />
+                      <span className="text-[11px] text-slate-500">
+                        {pkgImageFile ? pkgImageFile.name : 'Click to upload cover image'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">JPG, PNG, WEBP — max 10MB</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      onChange={handlePkgImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Inclusions Summary</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 2 Nights Homestay, Accredited Guide, Environmental Fees, Transfers"
+                    value={pkgInclusions}
+                    onChange={(e) => setPkgInclusions(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+                  <textarea
+                    rows="3"
+                    placeholder="Overview of what tourists will experience in this municipal package..."
+                    value={pkgDesc}
+                    onChange={(e) => setPkgDesc(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800 resize-none"
+                  />
+                </div>
+
+                {/* Day-by-Day Package Item Builder */}
+                <div className="border-t border-slate-200 pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-amber-600" /> Day Schedule Items ({pkgItems.length})
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={handleAddPkgItem}
+                      className="px-2.5 py-1 bg-emerald-900 text-white rounded text-[11px] font-bold hover:bg-emerald-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" /> Add Stop
+                    </button>
+                  </div>
+
+                  {pkgItems.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 italic text-center py-3 bg-white rounded border border-dashed border-slate-200">
+                      No stops added yet. Click "Add Stop" to include attractions, homestays, or guides in this package schedule.
+                    </p>
+                  ) : (
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                      {pkgItems.map((item, idx) => (
+                        <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 relative shadow-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wide text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded">
+                              Stop #{idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePkgItem(idx)}
+                              className="text-slate-400 hover:text-red-600 p-0.5 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Day #</label>
+                              <select
+                                value={item.dayNumber}
+                                onChange={(e) => handlePkgItemChange(idx, 'dayNumber', e.target.value)}
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                              >
+                                {[...Array(parseInt(pkgDuration || 1)).keys()].map(d => (
+                                  <option key={d + 1} value={d + 1}>Day {d + 1}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Type</label>
+                              <select
+                                value={item.activityType}
+                                onChange={(e) => handlePkgItemChange(idx, 'activityType', e.target.value)}
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                              >
+                                <option value="ATTRACTION">Attraction</option>
+                                <option value="HOMESTAY">Homestay</option>
+                                <option value="GUIDE">Tour Guide</option>
+                                <option value="CUSTOM">Custom Activity</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {item.activityType === 'ATTRACTION' && (
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Select Attraction</label>
+                              <select
+                                value={item.targetId}
+                                onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                              >
+                                <option value="">-- Choose Attraction --</option>
+                                {attractions.map(a => (
+                                  <option key={a.id} value={a.id}>{a.name} ({a.category})</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {item.activityType === 'HOMESTAY' && (
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Select Homestay</label>
+                              <select
+                                value={item.targetId}
+                                onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                              >
+                                <option value="">-- Choose Homestay --</option>
+                                {data.homestays.map(h => (
+                                  <option key={h.id} value={h.id}>{h.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {item.activityType === 'GUIDE' && (
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Select Tour Guide</label>
+                              <select
+                                value={item.targetId}
+                                onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                              >
+                                <option value="">-- Choose Tour Guide --</option>
+                                {data.guides.map(g => (
+                                  <option key={g.id} value={g.id}>{g.full_name} ({g.languages_spoken || 'Guide'})</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {item.activityType === 'CUSTOM' && (
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Custom Title</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Traditional Abra Basi Tasting"
+                                value={item.customActivityName}
+                                onChange={(e) => handlePkgItemChange(idx, 'customActivityName', e.target.value)}
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                >
+                  {editingPkgId ? 'Update Tour Package' : 'Publish Tour Package'}
+                </button>
+              </form>
+            </div>
+
+            {/* Right Col: Package Cards List (col-span-7) */}
+            <div className="lg:col-span-7 space-y-4">
+              <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2 flex items-center justify-between">
+                <span>Published Municipal Packages ({packagesList.length})</span>
+                <span className="text-xs font-normal text-slate-500">Visible to all tourists on municipality page</span>
+              </h3>
+
+              {packagesList.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6">
+                  <Package className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                  <p className="text-slate-600 font-bold text-sm">No packages created yet</p>
+                  <p className="text-slate-400 text-xs mt-1 max-w-sm mx-auto">
+                    Create official municipal packages on the left form so tourists can book them as-is or import them into their trip planner.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {packagesList.map(pkg => (
+                    <div key={pkg.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                      <div>
+                        {pkg.image_url ? (
+                          <div className="h-36 w-full overflow-hidden relative">
+                            <SafeImage src={pkg.image_url} alt={pkg.title} className="w-full h-full object-cover" />
+                            <span className="absolute top-3 right-3 bg-emerald-900/90 backdrop-blur-md text-amber-300 font-black text-xs px-2.5 py-1 rounded-full shadow-md">
+                              ₱{parseFloat(pkg.price).toLocaleString()}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="h-28 bg-emerald-900/10 flex items-center justify-center relative border-b border-slate-100">
+                            <Package className="w-10 h-10 text-emerald-900/40" />
+                            <span className="absolute top-3 right-3 bg-emerald-900 text-amber-300 font-black text-xs px-2.5 py-1 rounded-full shadow-md">
+                              ₱{parseFloat(pkg.price).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="p-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
+                              {pkg.duration_days} Day{pkg.duration_days > 1 ? 's' : ''}
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              {pkg.item_count || 0} scheduled stops
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-slate-800 text-sm line-clamp-1">{pkg.title}</h4>
+                          {pkg.description && (
+                            <p className="text-slate-500 text-xs mt-1 line-clamp-2">{pkg.description}</p>
+                          )}
+                          {pkg.inclusions && (
+                            <p className="text-[11px] text-emerald-900 font-medium mt-2 bg-emerald-50 p-2 rounded-lg border border-emerald-100/60">
+                              Includes: {pkg.inclusions}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="px-4 pb-4 pt-2 border-t border-slate-100 flex justify-end gap-2 bg-slate-50/50">
+                        <button
+                          onClick={() => handleEditPackage(pkg)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit className="w-3.5 h-3.5" /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeletePackage(pkg.id)}
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Attractions Tab */}
         {activeTab === 'attractions' && (
@@ -1329,96 +2006,535 @@ const MunicipalDashboard = () => {
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form */}
-            <div className="lg:col-span-2">
-              <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">DOT Officer Profile</h3>
-
-              {profileMsg.text && (
-                <div className={`p-4 rounded-xl text-xs font-semibold mb-4 ${profileMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-red-50 text-red-800 border border-red-100'
-                  }`}>
-                  {profileMsg.text}
+          <div className="space-y-8">
+            {/* Header Masthead */}
+            <div className="border-b border-[#E8DFC8] pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#153325] text-white">
+                    Official LGU Credentials
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#B88B2A] uppercase tracking-wider">
+                    Republic of the Philippines · DOT CAR
+                  </span>
                 </div>
-              )}
+                <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#153325]">
+                  Municipal Tourism Officer Dossier
+                </h2>
+                <p className="text-xs sm:text-sm text-stone-600 mt-1 max-w-2xl">
+                  Manage your official municipal identity, public contact desk coordinates, and accredited signatory credentials for the Municipality of <strong className="text-[#153325] font-semibold">{user?.municipalityName || 'Abra'}</strong>.
+                </p>
+              </div>
 
-              <form onSubmit={handleUpdateProfile} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={profileName}
-                      onChange={(e) => setProfileName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none"
-                      placeholder="Officer Full Name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
-                    <input
-                      type="text"
-                      value={profilePhone}
-                      onChange={(e) => setProfilePhone(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none"
-                      placeholder="Contact Phone Number"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Official Designation</label>
-                    <input
-                      type="text"
-                      required
-                      value={profileDesignation}
-                      onChange={(e) => setProfileDesignation(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none"
-                      placeholder="e.g. Tourism Officer, Municipal Officer"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Office Address</label>
-                    <input
-                      type="text"
-                      required
-                      value={profileAddress}
-                      onChange={(e) => setProfileAddress(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-none"
-                      placeholder="e.g. Municipal Hall, Tourism Office"
-                    />
-                  </div>
-                </div>
-
+              <div className="flex items-center gap-2">
                 <button
-                  type="submit"
-                  disabled={profileUpdating}
-                  className="px-6 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs cursor-pointer disabled:opacity-55"
+                  type="button"
+                  onClick={async () => {
+                    await refreshUser();
+                    showAlert('Officer credentials synchronized.', 'success');
+                  }}
+                  className="px-3.5 py-2 border border-[#E8DFC8] rounded-xl text-xs font-semibold text-[#153325] hover:bg-stone-50 flex items-center gap-2 cursor-pointer transition-colors shadow-2xs"
+                  title="Synchronize credentials with Capitol DOT server"
                 >
-                  {profileUpdating ? 'Saving Profile...' : 'Save DOT Profile'}
+                  <RefreshCw className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  Sync Credentials
                 </button>
-              </form>
+              </div>
             </div>
 
-            {/* Preview Card */}
-            <div className="lg:col-span-1 border border-slate-150 p-6 rounded-2xl bg-slate-50 flex flex-col items-center text-center">
-              <h3 className="font-bold text-slate-800 text-sm mb-4 border-b border-slate-200 pb-2 w-full">DOT Profile Preview</h3>
-              <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-emerald-900/10 bg-slate-200 flex-shrink-0">
-                <img
-                  src={user?.municipalityFeaturedImage || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200'}
-                  alt="DOT Officer"
-                  className="w-full h-full object-cover"
-                />
+            {/* Alert / Feedback message */}
+            {profileMsg.text && (
+              <div className={`p-4 rounded-xl text-xs font-semibold flex items-center justify-between border ${
+                profileMsg.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+                  : 'bg-rose-50 text-rose-900 border-rose-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {profileMsg.type === 'success' ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-700 flex-shrink-0" />
+                  )}
+                  <span>{profileMsg.text}</span>
+                </div>
+                <button 
+                  onClick={() => setProfileMsg({ type: '', text: '' })}
+                  className="text-stone-400 hover:text-stone-700 text-xs font-bold px-2 py-1 cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
-              <h4 className="font-bold text-slate-805 text-base">{profileName || 'Tourism Officer'}</h4>
-              <p className="text-xs text-slate-450 mt-0.5">{profileDesignation || 'Municipal DOT'}</p>
+            )}
 
-              <div className="w-full text-left space-y-2 mt-6 border-t border-slate-200 pt-4 text-xs text-slate-550">
-                <p><strong>Office:</strong> {profileAddress || 'Municipal Hall'}</p>
-                <p><strong>Email:</strong> {user?.email}</p>
-                <p><strong>Phone:</strong> {profilePhone || 'Not provided'}</p>
-                <p><strong>Municipality:</strong> {user?.municipalityName}</p>
+            {/* Main Layout: 2 Columns */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Column: Official Credential ID Card (col-span-5) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#B88B2A] px-1 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5" /> Official Digital Credential Badge
+                </div>
+
+                {/* Physical Card Simulation */}
+                <div className="bg-gradient-to-b from-[#153325] via-[#1A3D2D] to-[#0F261C] rounded-2xl p-6 text-white shadow-xl border-2 border-[#B88B2A]/40 relative overflow-hidden">
+                  
+                  {/* Decorative Guilloche/Watermark Background */}
+                  <div className="absolute -right-12 -bottom-12 w-48 h-48 rounded-full border-8 border-white/5 pointer-events-none" />
+                  <div className="absolute right-6 top-6 opacity-10 pointer-events-none">
+                    <Landmark className="w-32 h-32" />
+                  </div>
+
+                  {/* Card Header */}
+                  <div className="border-b border-white/15 pb-4 mb-5 text-center relative z-10">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <img
+                        src="/abraventure-logo.png"
+                        alt="Official Abraventure Seal"
+                        className="w-7 h-7 object-contain drop-shadow"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                      <span className="font-serif tracking-wider font-bold text-xs uppercase text-[#FAF7F2]">
+                        ABRAVENTURE · PROVINCIAL DOT
+                      </span>
+                    </div>
+                    <p className="text-[9px] font-mono tracking-[0.25em] uppercase text-[#B88B2A]">
+                      Republic of the Philippines · Cordillera
+                    </p>
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-white/90 mt-0.5">
+                      Municipal Tourism Officer Credential
+                    </p>
+                  </div>
+
+                  {/* Officer Portrait & Photo Actions */}
+                  <div className="flex flex-col items-center relative z-10">
+                    <div className="relative group">
+                      <div className="w-28 h-28 rounded-2xl overflow-hidden border-2 border-[#B88B2A] shadow-lg bg-[#0F261C] flex items-center justify-center">
+                        {profilePicPreview ? (
+                          <img
+                            src={profilePicPreview}
+                            alt={profileName || 'Officer Avatar'}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-center p-2">
+                            <span className="font-serif text-3xl font-black text-[#B88B2A]">
+                              {profileName?.charAt(0) || 'M'}
+                            </span>
+                            <span className="text-[9px] uppercase tracking-wider text-white/40 mt-1 font-mono">
+                              No Portrait
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick Photo Upload Trigger Button */}
+                      <label 
+                        className="absolute -bottom-2 -right-2 bg-[#B88B2A] hover:bg-[#D4A942] text-[#153325] p-2 rounded-xl shadow-md cursor-pointer transition-transform hover:scale-110 flex items-center justify-center"
+                        title="Upload official portrait"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfilePicChange}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {profilePicFile && (
+                      <p className="text-[10px] text-amber-300 mt-2 font-mono flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> New photo staged (click Save below)
+                      </p>
+                    )}
+
+                    {/* Officer Name & Designation */}
+                    <div className="text-center mt-4 w-full">
+                      <h3 className="font-serif text-lg sm:text-xl font-bold text-white tracking-wide">
+                        {profileName || 'Tourism Officer'}
+                      </h3>
+                      <div className="inline-flex items-center gap-1 px-3 py-1 mt-1 rounded-full bg-[#B88B2A]/20 border border-[#B88B2A]/50 text-[#FAF7F2] text-xs font-semibold">
+                        <ShieldCheck className="w-3.5 h-3.5 text-[#B88B2A]" />
+                        <span>{profileDesignation || 'Municipal Tourism Officer'}</span>
+                      </div>
+                      <p className="text-xs font-medium text-emerald-200 mt-1.5">
+                        Municipality of {user?.municipalityName || 'Abra'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Badge Metadata Details */}
+                  <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-xs text-white/80 font-sans relative z-10">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Credential ID</span>
+                      <span className="font-mono font-bold text-white text-[11px] tracking-wider">
+                        ABRA-MTO-{String(user?.municipalityId || '01').padStart(2, '0')}-{String(user?.id || '101').slice(-3)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Accreditation</span>
+                      <span className="inline-flex items-center gap-1.5 text-emerald-300 font-bold text-[11px]">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Active in Good Standing
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Official Desk</span>
+                      <span className="font-semibold text-white truncate max-w-[200px] text-right">
+                        {profileAddress || `${user?.municipalityName || 'LGU'} Municipal Hall`}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Hotline Contact</span>
+                      <span className="font-mono text-white/90">
+                        {profilePhone || 'Desk line not set'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Government Email</span>
+                      <span className="font-mono text-white/90 truncate max-w-[200px]">
+                        {user?.email}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Security QR / Barcode Strip */}
+                  <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between relative z-10 text-[10px] text-white/50 font-mono">
+                    <div className="flex items-center gap-2">
+                      <QrCode className="w-5 h-5 text-[#B88B2A]" />
+                      <span className="tracking-widest">DOT-CAR-MTO-SECURE</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[#B88B2A] font-bold uppercase tracking-wider text-[9px]">
+                      <Shield className="w-3 h-3" /> Certified LGU Signatory
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Officer Powers Summary Box */}
+                <div className="bg-stone-50 border border-[#E8DFC8] rounded-2xl p-4.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#153325] flex items-center gap-1.5 uppercase tracking-wider">
+                      <ShieldCheck className="w-4 h-4 text-[#B88B2A]" /> Delegated Authorities
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
+                      Authorized
+                    </span>
+                  </div>
+                  <ul className="text-xs text-stone-600 space-y-2">
+                    <li className="flex items-start gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span>Endorse local homestays and tour guides for Provincial Capitol accreditation.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span>Curate, verify, and publish municipal attractions, heritage sites, and guided tour packages.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span>Publish town festival calendars and respond to travelers' DOT inquiries and complaints.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Right Column: Full Official Profile Editor Form (col-span-7) */}
+              <div className="lg:col-span-7 space-y-6">
+                <form onSubmit={handleUpdateProfile} className="space-y-6">
+                  
+                  {/* Card 1: Official Identity */}
+                  <div className="bg-white border border-[#E8DFC8] rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xs">
+                    <div className="border-b border-[#E8DFC8] pb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-xl bg-[#153325]/10 text-[#153325]">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-serif text-base font-bold text-[#153325]">
+                            Officer Legal Identity & Title
+                          </h3>
+                          <p className="text-[11px] text-stone-500">
+                            Your full name and official title as authorized by the Local Government Unit.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#B88B2A] bg-[#FAF7F2] border border-[#E8DFC8] px-2.5 py-1 rounded-lg">
+                        Required
+                      </span>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                          Full Legal Name
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required
+                            value={profileName}
+                            onChange={(e) => setProfileName(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-[#E8DFC8] rounded-xl text-xs font-semibold text-stone-800 focus:bg-white focus:border-[#153325] focus:outline-none transition-colors"
+                            placeholder="e.g. Hon. Maria Santos, Tourism Operations Officer"
+                          />
+                          <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                          Official Designation / Title
+                        </label>
+                        <div className="relative mb-2">
+                          <input
+                            type="text"
+                            required
+                            value={profileDesignation}
+                            onChange={(e) => setProfileDesignation(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-[#E8DFC8] rounded-xl text-xs font-semibold text-stone-800 focus:bg-white focus:border-[#153325] focus:outline-none transition-colors"
+                            placeholder="e.g. Municipal Tourism Officer, Tourism Desk Focal Person"
+                          />
+                          <Award className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                        </div>
+
+                        {/* Quick Designation Presets */}
+                        <div className="flex flex-wrap gap-1.5 items-center pt-1">
+                          <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wider">Quick Select:</span>
+                          {[
+                            'Municipal Tourism Officer',
+                            'Tourism Operations Officer II',
+                            'Tourism Desk Focal Person',
+                            'Supervising Tourism Officer'
+                          ].map(title => (
+                            <button
+                              key={title}
+                              type="button"
+                              onClick={() => setProfileDesignation(title)}
+                              className={`text-[10px] px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                                profileDesignation === title
+                                  ? 'bg-[#153325] text-white border-[#153325] font-bold'
+                                  : 'bg-[#FAF7F2] text-stone-600 border-[#E8DFC8] hover:border-[#153325]'
+                              }`}
+                            >
+                              {title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                            Government Email
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              disabled
+                              value={user?.email || ''}
+                              className="w-full pl-10 pr-8 py-2.5 bg-stone-100/70 border border-[#E8DFC8] rounded-xl text-xs font-mono text-stone-500 cursor-not-allowed"
+                            />
+                            <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                            <Lock className="w-3.5 h-3.5 text-stone-400 absolute right-3 top-3.5" />
+                          </div>
+                          <p className="text-[10px] text-stone-400 mt-1 font-sans">
+                            Official login and notification dispatch address (locked).
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                            Municipality Jurisdiction
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              disabled
+                              value={`Municipality of ${user?.municipalityName || 'Abra'}`}
+                              className="w-full pl-10 pr-8 py-2.5 bg-stone-100/70 border border-[#E8DFC8] rounded-xl text-xs font-semibold text-stone-600 cursor-not-allowed"
+                            />
+                            <Landmark className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                            <Lock className="w-3.5 h-3.5 text-stone-400 absolute right-3 top-3.5" />
+                          </div>
+                          <p className="text-[10px] text-stone-400 mt-1 font-sans">
+                            LGU territory assigned by Provincial Tourism Office.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Public Office & Contact Coordinates */}
+                  <div className="bg-white border border-[#E8DFC8] rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xs">
+                    <div className="border-b border-[#E8DFC8] pb-3 flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-[#153325]/10 text-[#153325]">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-serif text-base font-bold text-[#153325]">
+                          Tourism Desk Coordinates & Public Assistance
+                        </h3>
+                        <p className="text-[11px] text-stone-500">
+                          Where stakeholders and visitors can reach your municipal tourism assistance desk.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                          Physical Tourism Office Address
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required
+                            value={profileAddress}
+                            onChange={(e) => setProfileAddress(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-[#E8DFC8] rounded-xl text-xs font-semibold text-stone-800 focus:bg-white focus:border-[#153325] focus:outline-none transition-colors"
+                            placeholder="e.g. Ground Floor, Municipal Hall, Poblacion, Bangued, Abra"
+                          />
+                          <MapPin className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                        </div>
+                        <p className="text-[10px] text-stone-400 mt-1">
+                          Appears on official municipal permits and stakeholder submission receipts.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                            Official Hotline / Phone Number
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={profilePhone}
+                              onChange={(e) => setProfilePhone(e.target.value)}
+                              className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-[#E8DFC8] rounded-xl text-xs font-semibold text-stone-800 focus:bg-white focus:border-[#153325] focus:outline-none transition-colors"
+                              placeholder="e.g. (074) 123-4567 or 0917-123-4567"
+                            />
+                            <Phone className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                          </div>
+                          <p className="text-[10px] text-stone-400 mt-1">
+                            For urgent travel alerts and stakeholder queries.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                            Public Operating Hours
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              disabled
+                              value="Mon - Fri: 8:00 AM - 5:00 PM PST"
+                              className="w-full pl-10 pr-4 py-2.5 bg-stone-100/70 border border-[#E8DFC8] rounded-xl text-xs font-semibold text-stone-500 cursor-not-allowed"
+                            />
+                            <Clock className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+                          </div>
+                          <p className="text-[10px] text-stone-400 mt-1">
+                            Standard Civil Service & LGU operational schedule.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Official Portrait Photo Upload */}
+                  <div className="bg-white border border-[#E8DFC8] rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
+                    <div className="border-b border-[#E8DFC8] pb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-xl bg-[#153325]/10 text-[#153325]">
+                          <Camera className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-serif text-base font-bold text-[#153325]">
+                            Official Portrait Photograph
+                          </h3>
+                          <p className="text-[11px] text-stone-500">
+                            Upload a high-resolution professional ID photograph for your digital accreditation card.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-5 p-4 border border-dashed border-[#E8DFC8] rounded-xl bg-[#FAF7F2]/60">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden border border-[#E8DFC8] bg-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+                        {profilePicPreview ? (
+                          <img
+                            src={profilePicPreview}
+                            alt="Staged Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User className="w-8 h-8 text-stone-300" />
+                        )}
+                      </div>
+
+                      <div className="flex-1 text-center sm:text-left space-y-1.5">
+                        <p className="text-xs font-bold text-[#153325]">
+                          {profilePicFile ? profilePicFile.name : 'Select an official headshot file'}
+                        </p>
+                        <p className="text-[11px] text-stone-500">
+                          Recommended: Formal government attire on white or neutral background. Accepts JPG, PNG, WebP up to 5MB.
+                        </p>
+
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                          <label className="btn-editorial-outline px-3.5 py-1.5 text-xs text-[#153325] border-[#E8DFC8] hover:bg-white flex items-center gap-1.5 cursor-pointer rounded-lg shadow-2xs font-semibold">
+                            <Upload className="w-3.5 h-3.5 text-[#B88B2A]" />
+                            {profilePicPreview ? 'Change Photo' : 'Choose Photo'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleProfilePicChange}
+                              className="hidden"
+                            />
+                          </label>
+
+                          {profilePicFile && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProfilePicFile(null);
+                                setProfilePicPreview(user?.profile?.profile_picture_url || user?.municipalityFeaturedImage || '');
+                              }}
+                              className="px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg cursor-pointer transition-colors"
+                            >
+                              Discard Staged File
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submission Action Bar */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                    <div className="text-xs text-stone-500 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>Updates take effect immediately on municipal receipts and public portal listings.</span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={profileUpdating}
+                      className="w-full sm:w-auto px-8 py-3 bg-[#153325] hover:bg-[#1D4433] text-white font-bold rounded-xl text-xs uppercase tracking-widest cursor-pointer disabled:opacity-55 shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                    >
+                      {profileUpdating ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-[#B88B2A]" />
+                          <span>Saving Officer Dossier...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 text-[#B88B2A]" />
+                          <span>Save & Commit Officer Profile</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
@@ -1896,9 +3012,11 @@ const MunicipalDashboard = () => {
           )}
         </div>
       )}
-
+        </div>
+      </main>
     </div>
   );
 };
 
 export default MunicipalDashboard;
+

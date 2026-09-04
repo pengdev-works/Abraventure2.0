@@ -1,13 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useAlert } from '../context/AlertContext';
-import { Award, FileText, User, MessageSquare, Upload, CheckCircle, AlertTriangle, Trash2, Calendar, Star } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useAlert } from '../../context/AlertContext';
+import {
+  Award, FileText, User, MessageSquare, Upload, CheckCircle,
+  AlertTriangle, Trash2, Calendar, Star, Menu, X, ArrowUpRight, ShieldCheck
+} from 'lucide-react';
+import EyeComfortToggle from '../../components/common/EyeComfortToggle';
 
 const GuideDashboard = () => {
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
   const { showAlert } = useAlert();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  const [activeTab, setActiveTab] = useState('documents');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'documents');
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && t !== activeTab) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
   const [profile, setProfile] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -235,68 +249,180 @@ const GuideDashboard = () => {
 
   const isApproved = profile?.status === 'APPROVED';
 
+  const guideTabs = [
+    { id: 'documents', label: 'Accreditation Docs', icon: FileText },
+    { id: 'profile', label: 'Guide Details & Photo', icon: User },
+    { id: 'inquiries', label: 'Inquiries', icon: MessageSquare, badge: inquiries.length },
+    { id: 'calendar', label: 'Availability Calendar', icon: Calendar },
+    { id: 'reviews', label: 'My Reviews', icon: Star, badge: receivedReviews.length },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Header */}
-      <div className="mb-8 pb-5 border-b border-slate-200 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wider mb-2">
-            <Award className="w-4.5 h-4.5 text-amber-500" /> Stakeholder Dashboard
-          </div>
-          <h1 className="text-3xl font-extrabold text-slate-805">Tour Guide Workspace</h1>
-          <p className="text-xs text-slate-450 mt-1">Manage services, upload accreditation papers, and respond to tourists inquiries.</p>
-        </div>
+    <div className="min-h-screen bg-[var(--bg-app,#E3ECE4)] font-sans text-[var(--text-primary,#17281D)] flex flex-col lg:flex-row transition-colors">
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
 
-        {/* Accreditation Status */}
-        <div className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 text-sm font-bold shadow-sm ${
-          isApproved ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-250 text-amber-800'
-        }`}>
-          {isApproved ? (
-            <>
-              <CheckCircle className="w-5 h-5 text-emerald-900 fill-emerald-900/10" />
-              <span>Accreditation Approved</span>
-            </>
-          ) : (
-            <>
-              <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" />
-              <span>Accreditation Under Review</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-slate-200 bg-white rounded-t-2xl shadow-sm mb-6 flex px-6 space-x-6 overflow-x-auto whitespace-nowrap scrollbar-none">
-        {[
-          { id: 'documents', label: 'Accreditation Docs', icon: FileText },
-          { id: 'profile', label: 'Guide Details & Photo', icon: User },
-          { id: 'inquiries', label: `Inquiries (${inquiries.length})`, icon: MessageSquare },
-          { id: 'calendar', label: 'Availability Calendar', icon: Calendar },
-          { id: 'reviews', label: `My Reviews (${receivedReviews.length})`, icon: Star },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          return (
+      {/* ── Proper Desktop & Mobile Sidebar ── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Top: Abraventure Official Logo & Masthead */}
+          <div className="p-5 border-b border-white/10 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-3 group">
+              <img
+                src="/abraventure-logo.png"
+                alt="Abraventure Official Logo"
+                className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+              <div className="min-w-0">
+                <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">
+                  ABRAVENTURE
+                </span>
+                <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">
+                  Tour Guide Portal
+                </span>
+              </div>
+            </Link>
             <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setSelectedInquiry(null);
-              }}
-              className={`py-4 px-1 border-b-2 font-bold text-sm cursor-pointer transition-all flex items-center gap-2 flex-shrink-0 ${
-                activeTab === tab.id
-                  ? 'border-emerald-900 text-emerald-950'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
             >
-              <Icon className="w-4.5 h-4.5" />
-              <span>{tab.label}</span>
+              <X className="w-5 h-5" />
             </button>
-          );
-        })}
-      </div>
+          </div>
 
-      {/* Tab Content */}
-      <div className="bg-white border border-slate-200 rounded-b-2xl shadow-sm p-6">
+          {/* Quick Context Strip */}
+          <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
+            <span className="text-white/70 flex items-center gap-2 font-mono truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              {user?.municipalityName || 'Abra'} Guide Desk
+            </span>
+            <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold flex-shrink-0">
+              Live Site <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          {/* Main Navigation Features */}
+          <div className="p-3 space-y-1 flex-1">
+            <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+              Guide Features
+            </div>
+            {guideTabs.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSearchParams({ tab: tab.id });
+                    setSelectedInquiry(null);
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    isActive
+                      ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
+                  <span className="flex-1 truncate">{tab.label}</span>
+                  {tab.badge > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-[#153325]">
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Bottom Sidebar: Guide Profile Card */}
+          <div className="p-4 border-t border-white/10 space-y-2 bg-[#0F261C]">
+            <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0">
+                  {user?.fullName?.charAt(0) || 'G'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{user?.fullName || 'Licensed Guide'}</p>
+                  <p className="text-[10px] text-white/50 truncate font-mono">{user?.municipalityName || 'Abra'}</p>
+                </div>
+              </div>
+              {logout && (
+                <button
+                  onClick={logout}
+                  title="Sign out of portal"
+                  className="text-white/50 hover:text-rose-300 p-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold"
+                >
+                  Exit
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main Content Area ── */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Top Header Bar */}
+        <header className="bg-[var(--bg-header,#EAF1EB)]/90 backdrop-blur-md border-b border-[var(--border-app,#C7D7C9)] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#C7D7C9)] text-[#153325] hover:bg-black/5 cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+                  Certified Local Ambassador · {user?.municipalityName || 'Abra'}
+                </span>
+              </div>
+              <h1 className="font-serif text-lg sm:text-2xl font-bold text-[#153325]">
+                {guideTabs.find(t => t.id === activeTab)?.label || 'Overview'}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {/* Eye Comfort Theme Selector */}
+            <EyeComfortToggle />
+
+            <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold ${
+              isApproved
+                ? 'bg-[#153325]/10 border-[#153325]/20 text-[#153325]'
+                : 'bg-[#B88B2A]/10 border-[#B88B2A]/30 text-[#B88B2A]'
+            }`}>
+              {isApproved ? (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5 text-[#153325]" />
+                  <span>Accredited Guide ✓</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  <span>Pending Accreditation</span>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Dashboard Body Content */}
+        <div className="p-4 sm:p-8 space-y-6 max-w-7xl w-full">
+          {/* Tab Content Container */}
+          <div className="bg-[var(--bg-card,#F3F8F4)] border border-[var(--border-app,#C7D7C9)] rounded-2xl shadow-sm p-4 sm:p-6 transition-colors">
         
         {/* Documents Tab */}
         {activeTab === 'documents' && (
@@ -371,109 +497,161 @@ const GuideDashboard = () => {
           </div>
         )}
 
-        {/* Profile Tab */}
+        {/* Profile Tab — Guide Credential Dossier */}
         {activeTab === 'profile' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form */}
-            <div className="lg:col-span-2">
-              <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Profile Information</h3>
+          <div className="space-y-6">
+            {/* TOP: Digital ID Badge */}
+            <div className="relative rounded-2xl overflow-hidden border border-[#153325]/15 shadow-lg">
+              {/* Header band */}
+              <div className="bg-gradient-to-r from-[#153325] via-[#1e4a36] to-[#153325] px-6 pt-6 pb-16 relative">
+                <div className="absolute inset-0 opacity-5" style={{backgroundImage:'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)',backgroundSize:'12px 12px'}} />
+                <div className="flex items-start justify-between relative z-10">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#B88B2A]">🇵🇭 Republic of the Philippines</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 mt-0.5">Department of Tourism · Province of Abra</p>
+                    <h2 className="font-serif text-xl font-bold text-white mt-1">Certified Tour Guide Credential</h2>
+                  </div>
+                  <div className="text-right">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isApproved ? 'bg-emerald-400/20 text-emerald-200 border-emerald-400/30' : 'bg-amber-400/20 text-amber-200 border-amber-400/30'}`}>
+                      {isApproved ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                      {isApproved ? 'Accredited' : 'Pending Review'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Avatar floats over the band */}
+              <div className="bg-[var(--bg-card,#F3F8F4)] px-6 pb-6">
+                <div className="flex flex-col sm:flex-row gap-5 -mt-12 relative">
+                  {/* Avatar + upload */}
+                  <div className="flex-shrink-0">
+                    <div className="w-24 h-24 rounded-2xl border-4 border-[var(--bg-card,#F3F8F4)] overflow-hidden shadow-xl bg-slate-200">
+                      <img
+                        src={profile?.profile_picture_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=153325&color=fff&size=200`}
+                        alt="Guide portrait"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <label className="mt-2 flex items-center justify-center gap-1 text-[10px] font-bold text-[#153325] hover:text-[#B88B2A] cursor-pointer transition-colors">
+                      <Upload className="w-3 h-3" />
+                      Change Photo
+                      <input type="file" accept="image/*" onChange={(e) => setProfilePic(e.target.files[0])} className="hidden" />
+                    </label>
+                  </div>
+
+                  {/* Name & meta */}
+                  <div className="pt-14 sm:pt-2 flex-1">
+                    <h3 className="font-serif text-2xl font-bold text-[#153325]">{user.fullName}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{user.municipalityName} Certified Local Ambassador · Abra, CAR</p>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {languages.split(',').filter(Boolean).map((lang, i) => (
+                        <span key={i} className="px-2.5 py-0.5 bg-[#153325]/8 text-[#153325] text-[10px] font-bold rounded-full border border-[#153325]/15">{lang.trim()}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Rate badge */}
+                  <div className="self-start sm:mt-2 flex flex-col items-end gap-2">
+                    <div className="bg-[#B88B2A]/10 border border-[#B88B2A]/25 rounded-xl px-4 py-3 text-right">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#B88B2A]">Daily Rate</p>
+                      <p className="font-serif text-xl font-bold text-[#153325]">₱{priceRate ? parseFloat(priceRate).toLocaleString() : '—'}</p>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      <span className="font-bold">{receivedReviews.length > 0 ? (receivedReviews.reduce((s,r)=>s+r.rating,0)/receivedReviews.length).toFixed(1) : 'N/A'}</span>
+                      <span>({receivedReviews.length} review{receivedReviews.length !== 1 ? 's' : ''})</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick-stat strip */}
+                <div className="grid grid-cols-3 gap-3 mt-5">
+                  {[
+                    { label: 'Areas Covered', value: areas ? areas.split(',').length : 0, icon: '🗺️' },
+                    { label: 'Services', value: services ? services.split(',').length : 0, icon: '🎒' },
+                    { label: 'Inquiries', value: inquiries.length, icon: '💬' },
+                  ].map(s => (
+                    <div key={s.label} className="bg-[var(--bg-app,#E3ECE4)] rounded-xl p-3 text-center border border-[var(--border-app,#C7D7C9)]">
+                      <div className="text-lg">{s.icon}</div>
+                      <div className="font-bold text-[#153325] text-sm">{s.value}</div>
+                      <div className="text-[10px] text-slate-500">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* BOTTOM: Edit form */}
+            <div className="bg-[var(--bg-card,#F3F8F4)] rounded-2xl border border-[var(--border-app,#C7D7C9)] p-6">
+              <h4 className="font-bold text-[#153325] text-sm mb-4 flex items-center gap-2">
+                <User className="w-4 h-4" /> Edit Guide Profile
+              </h4>
               <form onSubmit={handleUpdateProfile} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Languages Spoken</label>
-                  <input
-                    type="text"
-                    required
-                    value={languages}
-                    onChange={(e) => setLanguages(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                    placeholder="e.g. English, Tagalog, Ilokano"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Languages Spoken</label>
+                    <input
+                      type="text"
+                      required
+                      value={languages}
+                      onChange={(e) => setLanguages(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
+                      placeholder="e.g. English, Tagalog, Ilokano"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Daily Price Rate (₱)</label>
+                    <input
+                      type="number"
+                      required
+                      value={priceRate}
+                      onChange={(e) => setPriceRate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
+                      placeholder="e.g. 1500"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">About Me (Bio)</label>
-                  <textarea
-                    rows="4"
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                    placeholder="Write a brief background about your tour guide experience, credentials..."
-                  ></textarea>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Services Offered</label>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Services Offered</label>
                   <input
                     type="text"
                     required
                     value={services}
                     onChange={(e) => setServices(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                    className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                     placeholder="e.g. Hiking, waterfalls tour, food tasting, historical walking tour"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Areas Covered</label>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">Areas Covered</label>
                   <input
                     type="text"
                     required
                     value={areas}
                     onChange={(e) => setAreas(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
+                    className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20"
                     placeholder="e.g. Kaparkan Falls, Tineg rivers, Bangued city proper"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Daily Price Rate (₱)</label>
-                  <input
-                    type="number"
-                    required
-                    value={priceRate}
-                    onChange={(e) => setPriceRate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs"
-                    placeholder="e.g. 1500"
-                  />
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-[#B88B2A] mb-1.5">About Me (Bio)</label>
+                  <textarea
+                    rows="4"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 resize-none"
+                    placeholder="Write a brief background about your tour guide experience, credentials..."
+                  ></textarea>
                 </div>
-                
-                {/* Photo Upload */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Upload Profile Picture</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setProfilePic(e.target.files[0])}
-                    className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-950 hover:file:bg-emerald-100"
-                  />
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-[#153325] hover:bg-[#1e4a36] text-white font-bold rounded-xl text-xs cursor-pointer transition-colors shadow-sm"
+                  >
+                    Save Guide Details
+                  </button>
                 </div>
-
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-emerald-900 text-white font-bold rounded-xl text-xs cursor-pointer hover:bg-emerald-800"
-                >
-                  Save Guide details
-                </button>
               </form>
-            </div>
-
-            {/* Profile Card Preview */}
-            <div className="lg:col-span-1 border border-slate-150 p-6 rounded-2xl bg-slate-50 flex flex-col items-center text-center">
-              <h3 className="font-bold text-slate-800 text-sm mb-4 border-b border-slate-200 pb-2 w-full">Card Preview</h3>
-              <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-emerald-900/10 bg-slate-200 flex-shrink-0">
-                <img
-                  src={profile?.profile_picture_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
-                  alt="Guide Profile"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <h4 className="font-bold text-slate-800 text-base flex items-center gap-1">
-                {user.fullName}
-                {isApproved && <CheckCircle className="w-4 h-4 text-emerald-900 fill-emerald-900/10" />}
-              </h4>
-              <p className="text-xs text-slate-450 mt-0.5">{user.municipalityName} Tour Guide</p>
-              
-              <div className="w-full text-left space-y-2 mt-6 text-xs text-slate-500 border-t border-slate-200 pt-4">
-                <p><strong>Languages:</strong> {languages || 'Not configured'}</p>
-                <p><strong>Areas:</strong> {areas || 'Not configured'}</p>
-                <p className="text-emerald-950 font-bold">Daily Rate: ₱{priceRate ? parseFloat(priceRate).toLocaleString() : '0.00'}</p>
-              </div>
             </div>
           </div>
         )}
@@ -779,6 +957,9 @@ const GuideDashboard = () => {
           </div>
         </div>
       )}
+
+        </div>
+      </main>
     </div>
   );
 };

@@ -1,0 +1,22 @@
+{
+  "name": "abraventure-workspace",
+  "version": "1.0.0",
+  "description": "Abraventure Integrated Tourism Platform Monorepo Workspace",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "node -c backend/index.js",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:frontend",
+    "test:security": "node backend/tests/securityCheck.js"
+  },
+  "keywords": [
+    "abraventure",
+    "tourism",
+    "abra",
+    "react",
+    "express",
+    "postgresql"
+  ]
+}

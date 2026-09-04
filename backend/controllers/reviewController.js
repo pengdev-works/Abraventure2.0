@@ -55,20 +55,20 @@ export const createReview = async (req, res) => {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id=$1', [homestayId]);
       if (ownerRes.rows.length > 0) {
         await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type)
-           VALUES ($1, $2, $3, 'REVIEW')`,
+          `INSERT INTO notifications (user_id, title, message, type, link)
+           VALUES ($1, $2, $3, 'REVIEW', '/owner-dashboard?tab=reviews')`,
           [ownerRes.rows[0].owner_id, 'New Review Received', `A tourist left a ${rating}-star review on your homestay.`]
-        );
+        ).catch(() => {});
       }
     }
     if (guideId) {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id=$1', [guideId]);
       if (guideRes.rows.length > 0) {
         await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type)
-           VALUES ($1, $2, $3, 'REVIEW')`,
+          `INSERT INTO notifications (user_id, title, message, type, link)
+           VALUES ($1, $2, $3, 'REVIEW', '/guide-dashboard?tab=reviews')`,
           [guideRes.rows[0].guide_id, 'New Review Received', `A tourist left a ${rating}-star review on your guide profile.`]
-        );
+        ).catch(() => {});
       }
     }
 

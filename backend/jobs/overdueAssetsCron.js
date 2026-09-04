@@ -8,8 +8,8 @@ export const checkOverdueAssetsAndNotify = async () => {
     );
     return { success: true, count: result.rows.length, items: result.rows };
   } catch (err) {
-    console.error('Overdue check error:', err);
-    return { success: false, error: err.message };
+    console.error('Overdue check error:', err.message || err);
+    return { success: false, error: err.message || 'Unknown error' };
   }
 };
 

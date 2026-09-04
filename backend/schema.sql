@@ -210,3 +210,36 @@ CREATE TABLE IF NOT EXISTS approval_logs (
     remarks TEXT,
     actioned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 15. MUNICIPAL TOUR PACKAGES
+CREATE TABLE IF NOT EXISTS packages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    municipality_id INT REFERENCES municipalities(id) ON DELETE CASCADE,
+    created_by UUID REFERENCES user_accounts(id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    duration_days INT DEFAULT 1,
+    image_url TEXT,
+    inclusions TEXT,
+    is_published BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 16. PACKAGE ITEMS (Day-by-day activities inside a package)
+CREATE TABLE IF NOT EXISTS package_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    package_id UUID REFERENCES packages(id) ON DELETE CASCADE,
+    day_number INT NOT NULL,
+    time_slot TIME,
+    activity_type activity_type NOT NULL,
+    attraction_id UUID REFERENCES tourist_attractions(id) ON DELETE SET NULL,
+    homestay_id UUID REFERENCES homestay_profiles(id) ON DELETE SET NULL,
+    guide_id UUID REFERENCES tour_guide_profiles(id) ON DELETE SET NULL,
+    custom_activity_name VARCHAR(255),
+    notes TEXT,
+    sequence_order INT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+

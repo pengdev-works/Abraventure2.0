@@ -2,16 +2,73 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!-- Custom SVG Favicon: Compass + Mountain for ABRAVENTURE -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230F3D3E'/%3E%3Ccircle cx='32' cy='30' r='16' stroke='%23D4AF37' stroke-width='2.5' fill='none'/%3E%3Cpolygon points='32,16 35,30 32,26 29,30' fill='%23D4AF37'/%3E%3Cpolygon points='32,44 29,30 32,34 35,30' fill='%23D4AF37' opacity='0.5'/%3E%3Cpath d='M14 54 L22 42 L28 48 L32 38 L36 48 L42 42 L50 54 Z' fill='%23D4AF37' opacity='0.85'/%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ABRAVENTURE | Integrated Tourism & Homestay Management of Abra</title>
-    <!-- Outfit Font for Premium Typography -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Primary SEO -->
+    <title>ABRAVENTURE | Integrated Tourism Platform · Province of Abra, Philippines</title>
+    <meta name="description" content="Discover Abra with verified local stays and accredited guides. Plan trusted trips across Abra with tourism-office-endorsed homestays, local guides, attractions, and itinerary tools. Official platform of the Province of Abra, Cordillera Administrative Region." />
+    <meta name="keywords" content="Abra tourism, Kaparkan Falls, Abra homestay, Abra tour guide, Bangued, Tineg, Tubo, Cordillera tourism, Philippines travel, Itneg culture, accredited guides Abra" />
+    <meta name="author" content="Provincial Tourism Office, Province of Abra" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ABRAVENTURE | Discover Abra with Verified Local Stays & Accredited Guides" />
+    <meta property="og:description" content="Plan trusted trips across Abra — verified homestays, accredited local guides, 100+ attractions, and a smart itinerary planner. Endorsed by the Provincial DOT." />
+    <meta property="og:url" content="https://abraventure.ph" />
+    <meta property="og:site_name" content="ABRAVENTURE" />
+    <meta property="og:locale" content="en_PH" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ABRAVENTURE | Discover Abra, Philippines" />
+    <meta name="twitter:description" content="Plan your Abra trip with verified homestays, accredited guides, and smart itinerary tools." />
+
+    <!-- Theme color for mobile browsers -->
+    <meta name="theme-color" content="#153325" />
+
+    <!-- Google Fonts: Plus Jakarta Sans (UI & Body) + Playfair Display (Editorial Headings) + Cormorant Garamond (Accents) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,600;1,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Dark/Light Mode Pre-Init (Prevents Flash) -->
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('theme') || 'light';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-slate-50 text-slate-900 font-sans min-h-screen antialiased">
-    <div id="root"></div>
+  <body class="bg-[#153325] text-[#232120] font-sans min-h-screen antialiased selection:bg-[#B88B2A]/20 selection:text-[#153325]">
+    <div id="root">
+      <!-- Pre-boot Abraventure Splash Screen before React bundle executes -->
+      <div style="position: fixed; inset: 0; background-color: #153325; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #FAF7F2; font-family: 'Plus Jakarta Sans', sans-serif; text-align: center; padding: 20px;">
+        <div style="width: 80px; height: 80px; margin-bottom: 24px;">
+          <svg viewBox="0 0 100 100" style="width: 100%; height: 100%;" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="42" stroke="#B88B2A" stroke-width="1.5" stroke-opacity="0.5" />
+            <line x1="50" y1="4" x2="50" y2="12" stroke="#D4A942" stroke-width="2" stroke-linecap="round" />
+            <path d="M24 72 L42 46 L52 58 L66 38 L78 72 Z" stroke="#FAF7F2" stroke-width="1.5" stroke-linejoin="round" />
+            <polygon points="42,46 47,53 37,53" fill="#D4A942" />
+            <polygon points="66,38 71,46 61,46" fill="#D4A942" />
+            <path d="M30 76 Q50 68 52 82 Q54 94 72 84" stroke="#355C6D" stroke-width="2.5" stroke-linecap="round" />
+            <polygon points="50,16 54,34 50,30 46,34" fill="#D4A942" />
+          </svg>
+        </div>
+        <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.25em; color: #D4A942; margin-bottom: 8px;">
+          Province of Abra · Cordillera
+        </span>
+        <div style="font-family: 'Playfair Display', Georgia, serif; font-size: 28px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #FAF7F2; margin-bottom: 16px;">
+          ABRAVENTURE
+        </div>
+        <div style="width: 160px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 9999px; overflow: hidden;">
+          <div style="width: 45%; height: 100%; background: linear-gradient(90deg, #B88B2A, #D4A942);"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

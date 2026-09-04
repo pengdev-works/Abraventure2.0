@@ -34,8 +34,8 @@ export const createComplaint = async (req, res) => {
 
     for (const officer of officers.rows) {
       await pool.query(
-        `INSERT INTO notifications (user_id, title, message, type)
-         VALUES ($1, $2, $3, 'COMPLAINT')`,
+        `INSERT INTO notifications (user_id, title, message, type, link)
+         VALUES ($1, $2, $3, 'COMPLAINT', '/municipal-dashboard?tab=complaints')`,
         [
           officer.id,
           'New Complaint Submitted',
@@ -147,8 +147,8 @@ export const resolveComplaint = async (req, res) => {
     // Notify the tourist who submitted the complaint
     if (complaint.tourist_id) {
       await pool.query(
-        `INSERT INTO notifications (user_id, title, message, type)
-         VALUES ($1, $2, $3, 'COMPLAINT')`,
+        `INSERT INTO notifications (user_id, title, message, type, link)
+         VALUES ($1, $2, $3, 'COMPLAINT', '/tourist-dashboard?tab=complaints')`,
         [
           complaint.tourist_id,
           'Complaint Status Updated',
