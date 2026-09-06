@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Sun, Moon } from 'lucide-react';
 
+// Apply saved theme immediately (runs once on import, before React)
+const savedTheme = (() => {
+  try { return localStorage.getItem('theme') || 'light'; } catch { return 'light'; }
+})();
+document.documentElement.setAttribute('data-theme', savedTheme);
+
 const DarkModeToggle = ({ className = '' }) => {
-  const [isDark, setIsDark] = useState(() => {
-    try {
-      return (localStorage.getItem('theme') ?? 'light') === 'dark';
-    } catch (e) {
-      return false;
-    }
-  });
+  const [isDark, setIsDark] = useState(savedTheme === 'dark');
 
   useEffect(() => {
     const theme = isDark ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', theme);
-    try {
-      localStorage.setItem('theme', theme);
-    } catch (e) {}
+    try { localStorage.setItem('theme', theme); } catch {}
   }, [isDark]);
 
   return (

@@ -221,9 +221,9 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#E8DFC8] transition-all">
       {/* Official Government Header Topline */}
-      <div className="bg-[#153325] text-[#FAF7F2] text-[11px] py-1 px-4 sm:px-6 lg:px-8">
+      <div className="bg-[#153325] text-[#FAF7F2] text-[10px] sm:text-[11px] py-1 px-3 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <span className="font-medium tracking-wider uppercase opacity-90 truncate">
+          <span className="font-medium tracking-wider uppercase opacity-90 truncate text-[10px] sm:text-[11px]">
             Provincial Tourism Office · Province of Abra, Philippines
           </span>
           <div className="hidden sm:flex items-center gap-4 text-[11px] opacity-80 flex-shrink-0">
@@ -235,22 +235,22 @@ const Navbar = () => {
       </div>
 
       {/* Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-18 sm:h-20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-16 lg:h-20">
 
           {/* Editorial Brand & Logo */}
-          <Link to="/" className="flex items-center gap-3 group text-left flex-shrink-0">
+          <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group text-left flex-shrink-0">
             <img
               src="/abraventure-logo.png"
               alt="Abraventure Official Logo"
-              className="w-10 h-10 sm:w-11 sm:h-11 object-contain filter drop-shadow-xs group-hover:scale-105 transition-transform flex-shrink-0"
+              className="w-8 h-8 sm:w-10 sm:h-10 lg:w-11 lg:h-11 object-contain filter drop-shadow-xs group-hover:scale-105 transition-transform flex-shrink-0"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
             <div className="flex flex-col">
-              <span className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-[#153325] group-hover:text-[#B88B2A] transition-colors leading-none">
+              <span className="font-serif text-lg sm:text-xl lg:text-2xl font-bold tracking-tight text-[#153325] group-hover:text-[#B88B2A] transition-colors leading-none">
                 ABRAVENTURE
               </span>
-              <span className="text-[9px] font-sans font-bold uppercase tracking-[0.24em] text-[#5A534E] mt-1">
+              <span className="text-[8px] sm:text-[9px] font-sans font-bold uppercase tracking-[0.2em] sm:tracking-[0.24em] text-[#5A534E] mt-0.5 sm:mt-1">
                 Province of Abra · Cordillera
               </span>
             </div>
@@ -313,7 +313,7 @@ const Navbar = () => {
 
                 {/* Rich Notification Dropdown */}
                 {showNotifications && (
-                  <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white border border-[#E8DFC8] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fadeIn">
+                  <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-14 sm:top-full mt-2 w-auto sm:w-96 max-w-sm mx-auto sm:mx-0 bg-white border border-[#E8DFC8] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fadeIn">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3.5 bg-[#FAF7F2] border-b border-[#E8DFC8]">
                       <div className="flex items-center gap-2">
@@ -444,14 +444,22 @@ const Navbar = () => {
         </div>
       </div>
 
+      {/* Mobile Drawer Backdrop Overlay */}
+      {isOpen && (
+        <div
+          className="lg:hidden fixed inset-0 top-[76px] sm:top-[88px] bg-black/40 backdrop-blur-xs z-40 transition-opacity"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
       {/* Mobile Drawer */}
       {isOpen && (
-        <div className="lg:hidden bg-[#FAF7F2] border-b border-[#E8DFC8] px-4 pt-3 pb-6 space-y-1.5 animate-fadeIn">
+        <div className="lg:hidden relative z-50 bg-[#FAF7F2] border-b border-[#E8DFC8] px-4 pt-3 pb-6 space-y-1 shadow-xl animate-fadeIn max-h-[calc(100dvh-5rem)] overflow-y-auto">
           <Link
             to="/"
             onClick={() => setIsOpen(false)}
-            className={`block px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors ${
-              isActive('/') ? 'bg-[#153325] text-white' : 'text-[#153325] hover:bg-[#F3ECE0]'
+            className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
+              isActive('/') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
           >
             Explore
@@ -459,8 +467,8 @@ const Navbar = () => {
           <Link
             to="/municipalities"
             onClick={() => setIsOpen(false)}
-            className={`block px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors ${
-              isActive('/municipalities') ? 'bg-[#153325] text-white' : 'text-[#153325] hover:bg-[#F3ECE0]'
+            className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
+              isActive('/municipalities') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
           >
             Destinations (27 Municipalities)
@@ -468,8 +476,8 @@ const Navbar = () => {
           <Link
             to="/map"
             onClick={() => setIsOpen(false)}
-            className={`block px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors ${
-              isActive('/map') ? 'bg-[#153325] text-white' : 'text-[#153325] hover:bg-[#F3ECE0]'
+            className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
+              isActive('/map') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
           >
             Interactive Map
@@ -477,8 +485,8 @@ const Navbar = () => {
           <Link
             to="/itinerary"
             onClick={() => setIsOpen(false)}
-            className={`block px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors ${
-              isActive('/itinerary') ? 'bg-[#153325] text-white' : 'text-[#153325] hover:bg-[#F3ECE0]'
+            className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
+              isActive('/itinerary') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
           >
             Plan Itinerary
@@ -486,8 +494,8 @@ const Navbar = () => {
           <Link
             to="/events"
             onClick={() => setIsOpen(false)}
-            className={`block px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors ${
-              isActive('/events') ? 'bg-[#153325] text-white' : 'text-[#153325] hover:bg-[#F3ECE0]'
+            className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
+              isActive('/events') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
           >
             Events & Festivals
@@ -495,8 +503,8 @@ const Navbar = () => {
           <Link
             to="/travel-tips"
             onClick={() => setIsOpen(false)}
-            className={`block px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors ${
-              isActive('/travel-tips') ? 'bg-[#153325] text-white' : 'text-[#153325] hover:bg-[#F3ECE0]'
+            className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
+              isActive('/travel-tips') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
           >
             Travel Guide
@@ -512,7 +520,7 @@ const Navbar = () => {
                   </div>
                   <button
                     onClick={handleLogout}
-                    className="text-xs font-semibold text-rose-700 hover:underline cursor-pointer"
+                    className="text-xs font-semibold text-rose-700 hover:underline cursor-pointer p-2"
                   >
                     Sign Out
                   </button>
@@ -520,7 +528,7 @@ const Navbar = () => {
                 <Link
                   to={getDashboardLink()}
                   onClick={() => setIsOpen(false)}
-                  className="block w-full text-center btn-editorial-primary text-xs !py-2.5 rounded-xl shadow-xs"
+                  className="block w-full text-center btn-editorial-primary text-xs !py-3 rounded-xl shadow-xs touch-target"
                 >
                   My Dashboard
                 </Link>
@@ -531,14 +539,14 @@ const Navbar = () => {
                   <Link
                     to="/login"
                     onClick={() => setIsOpen(false)}
-                    className="text-center btn-editorial-outline text-xs !py-2.5 rounded-xl"
+                    className="text-center btn-editorial-outline text-xs !py-3 rounded-xl touch-target flex items-center justify-center"
                   >
                     Sign In
                   </Link>
                   <Link
                     to="/portal/login"
                     onClick={() => setIsOpen(false)}
-                    className="text-center btn-editorial-outline text-xs !py-2.5 rounded-xl border-[#153325] text-[#153325]"
+                    className="text-center btn-editorial-outline text-xs !py-3 rounded-xl border-[#153325] text-[#153325] touch-target flex items-center justify-center"
                   >
                     Official Portal
                   </Link>
@@ -546,7 +554,7 @@ const Navbar = () => {
                 <Link
                   to="/register"
                   onClick={() => setIsOpen(false)}
-                  className="block w-full text-center btn-editorial-gold text-xs !py-2.5 font-bold rounded-xl shadow-xs"
+                  className="block w-full text-center btn-editorial-gold text-xs !py-3 font-bold rounded-xl shadow-xs touch-target flex items-center justify-center"
                 >
                   Register Account
                 </Link>

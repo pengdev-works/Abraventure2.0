@@ -59,6 +59,43 @@ export const getRequirements = async (req, res) => {
   }
 };
 
+// Update requirement (Municipal Admin only)
+export const updateRequirement = async (req, res) => {
+  const { id } = req.params;
+  const { requirementName, description, targetType, isRequired } = req.body;
+  const { municipality_id } = req.user;
+
+  try {
+    const checkRes = await pool.query('SELECT * FROM municipal_requirements WHERE id = $1', [id]);
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Requirement not found.' });
+    }
+
+    if (checkRes.rows[0].municipality_id !== municipality_id) {
+      return res.status(403).json({ message: 'Forbidden. You do not manage requirements for this municipality.' });
+    }
+
+    const result = await pool.query(
+      `UPDATE municipal_requirements 
+       SET requirement_name = COALESCE($1, requirement_name),
+           description = COALESCE($2, description),
+           target_type = COALESCE($3, target_type),
+           is_required = COALESCE($4, is_required)
+       WHERE id = $5
+       RETURNING *`,
+      [requirementName, description, targetType, isRequired, id]
+    );
+
+    return res.status(200).json({
+      message: 'Requirement updated successfully.',
+      requirement: result.rows[0],
+    });
+  } catch (err) {
+    console.error('Error updating requirement:', err);
+    return res.status(500).json({ message: 'Internal server error updating requirement.' });
+  }
+};
+
 // Delete requirement (Municipal Admin only)
 export const deleteRequirement = async (req, res) => {
   const { id } = req.params;

@@ -8,7 +8,8 @@ import {
   AlertCircle, FileCheck, CheckCircle, User, Upload, Mail, Phone,
   MapPin, X, Calendar, BarChart3, MessageSquare, Star, Download,
   FileText, Tag, Send, Package, Menu, ArrowUpRight, ShieldCheck, Settings,
-  Camera, Building2, QrCode, Award, Check, Clock, Shield, Lock, RefreshCw, Sparkles
+  Camera, Building2, QrCode, Award, Check, Clock, Shield, Lock, RefreshCw, Sparkles,
+  Film, Video, Play, Eye, EyeOff, Search, ExternalLink, Navigation, Layers, Globe, Home, ArrowRight
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { jsPDF } from 'jspdf';
@@ -53,6 +54,30 @@ const MunicipalDashboard = () => {
   const [munIsFeatured, setMunIsFeatured] = useState(false);
   const [munMsg, setMunMsg] = useState({ type: '', text: '' });
 
+  // ─── Municipal Video Advertisements State ──────────────────────
+  const [videoAds, setVideoAds] = useState([]);
+  const [videoAdsLoading, setVideoAdsLoading] = useState(false);
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [adModalMode, setAdModalMode] = useState('create'); // 'create' | 'edit'
+  const [editingAdId, setEditingAdId] = useState(null);
+  const [adForm, setAdForm] = useState({
+    title: '',
+    subtitle: '',
+    description: '',
+    category: 'Eco-Tourism & Waterfalls',
+    ctaText: 'Explore Municipality',
+    ctaLink: '/municipalities',
+    badgeLabel: 'Municipal Tourism Spotlight',
+    videoUrl: '',
+    thumbnailUrl: '',
+    displayOrder: 1,
+    isActive: true,
+  });
+  const [adVideoFile, setAdVideoFile] = useState(null);
+  const [adThumbnailFile, setAdThumbnailFile] = useState(null);
+  const [adFormLoading, setAdFormLoading] = useState(false);
+  const [adMsg, setAdMsg] = useState({ type: '', text: '' });
+
   // Forms State
   const [attractions, setAttractions] = useState([]);
   const [editingAttractionId, setEditingAttractionId] = useState(null);
@@ -66,13 +91,27 @@ const MunicipalDashboard = () => {
   const [attractionLng, setAttractionLng] = useState('');
   const [attractionVideoFile, setAttractionVideoFile] = useState(null);
   const [attractionVideoUrl, setAttractionVideoUrl] = useState('');
+  const [attractionVideoInputMode, setAttractionVideoInputMode] = useState('file'); // 'file' | 'url'
+  const [dashAttractionSearch, setDashAttractionSearch] = useState('');
+  const [dashAttractionCatFilter, setDashAttractionCatFilter] = useState('ALL');
+  const [detectingCoords, setDetectingCoords] = useState(false);
+  const [attractionSaving, setAttractionSaving] = useState(false);
+  const [previewAttraction, setPreviewAttraction] = useState(null);
 
   const [reqName, setReqName] = useState('');
   const [reqDesc, setReqDesc] = useState('');
   const [reqTarget, setReqTarget] = useState('HOMESTAY');
   const [reqRequired, setReqRequired] = useState(true);
+  const [editingReqId, setEditingReqId] = useState(null);
+  const [reqSaving, setReqSaving] = useState(false);
+  const [reqSearch, setReqSearch] = useState('');
+  const [reqFilterTarget, setReqFilterTarget] = useState('ALL');
+  const [reqFilterMandatory, setReqFilterMandatory] = useState('ALL');
 
   const [reviewRemarks, setReviewRemarks] = useState('');
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewFilter, setReviewFilter] = useState('ALL');
+  const [inlineRemarks, setInlineRemarks] = useState({});
 
   // Events State
   const [events, setEvents] = useState([]);
@@ -113,6 +152,12 @@ const MunicipalDashboard = () => {
   const [pkgImagePreview, setPkgImagePreview] = useState(''); // local blob preview
   const [pkgItems, setPkgItems] = useState([]);
   const [pkgMsg, setPkgMsg] = useState({ type: '', text: '' });
+  const [dashPkgSearch, setDashPkgSearch] = useState('');
+  const [dashPkgDurationFilter, setDashPkgDurationFilter] = useState('ALL');
+  const [pkgSubmitting, setPkgSubmitting] = useState(false);
+  const [previewPackage, setPreviewPackage] = useState(null);
+  const [previewPackageItems, setPreviewPackageItems] = useState([]);
+  const [previewPkgLoading, setPreviewPkgLoading] = useState(false);
 
   // Sync profile details when user context loads
   useEffect(() => {
@@ -312,7 +357,167 @@ const MunicipalDashboard = () => {
     fetchAnalytics();
     fetchComplaints();
     fetchPackages();
+    fetchVideoAds();
   }, [token, user]);
+
+  const fetchVideoAds = async () => {
+    if (!token) return;
+    setVideoAdsLoading(true);
+    try {
+      const r = await fetch('/api/advertisements/all', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (r.ok) {
+        setVideoAds(await r.json());
+      }
+    } catch (err) {
+      console.error('Error fetching municipal video ads:', err);
+    } finally {
+      setVideoAdsLoading(false);
+    }
+  };
+
+  const openCreateAdModal = () => {
+    setAdModalMode('create');
+    setEditingAdId(null);
+    setAdForm({
+      title: '',
+      subtitle: '',
+      description: '',
+      category: 'Eco-Tourism & Waterfalls',
+      ctaText: `Explore ${user?.municipalityName || 'Municipality'}`,
+      ctaLink: user?.municipalityId ? `/municipalities/${user.municipalityId}` : '/municipalities',
+      badgeLabel: `${user?.municipalityName || 'Municipal'} Tourism Spotlight`,
+      videoUrl: '',
+      thumbnailUrl: '',
+      displayOrder: videoAds.length + 1,
+      isActive: true,
+    });
+    setAdVideoFile(null);
+    setAdThumbnailFile(null);
+    setAdMsg({ type: '', text: '' });
+    setShowAdModal(true);
+  };
+
+  const openEditAdModal = (ad) => {
+    setAdModalMode('edit');
+    setEditingAdId(ad.id);
+    setAdForm({
+      title: ad.title || '',
+      subtitle: ad.subtitle || '',
+      description: ad.description || '',
+      category: ad.category || 'Eco-Tourism & Waterfalls',
+      ctaText: ad.cta_text || `Explore ${user?.municipalityName || 'Municipality'}`,
+      ctaLink: ad.cta_link || (user?.municipalityId ? `/municipalities/${user.municipalityId}` : '/municipalities'),
+      badgeLabel: ad.badge_label || `${user?.municipalityName || 'Municipal'} Tourism Spotlight`,
+      videoUrl: ad.video_url || '',
+      thumbnailUrl: ad.thumbnail_url || '',
+      displayOrder: ad.display_order ?? 1,
+      isActive: Boolean(ad.is_active),
+    });
+    setAdVideoFile(null);
+    setAdThumbnailFile(null);
+    setAdMsg({ type: '', text: '' });
+    setShowAdModal(true);
+  };
+
+  const handleSaveAd = async (e) => {
+    e.preventDefault();
+    setAdFormLoading(true);
+    setAdMsg({ type: '', text: '' });
+
+    try {
+      const formData = new FormData();
+      formData.append('title', adForm.title);
+      formData.append('subtitle', adForm.subtitle);
+      formData.append('description', adForm.description);
+      formData.append('category', adForm.category);
+      formData.append('ctaText', adForm.ctaText);
+      formData.append('ctaLink', adForm.ctaLink);
+      formData.append('badgeLabel', adForm.badgeLabel);
+      formData.append('isActive', String(adForm.isActive));
+      formData.append('displayOrder', String(adForm.displayOrder));
+      if (adForm.videoUrl) formData.append('videoUrl', adForm.videoUrl);
+      if (adForm.thumbnailUrl) formData.append('thumbnailUrl', adForm.thumbnailUrl);
+
+      if (adVideoFile) formData.append('video', adVideoFile);
+      if (adThumbnailFile) formData.append('thumbnail', adThumbnailFile);
+
+      const url = adModalMode === 'create' ? '/api/advertisements' : `/api/advertisements/${editingAdId}`;
+      const method = adModalMode === 'create' ? 'POST' : 'PUT';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setShowAdModal(false);
+        showAlert(data.message || 'Video advertisement saved successfully!', 'success');
+        await fetchVideoAds();
+      } else {
+        setAdMsg({ type: 'error', text: data.message || 'Failed to save advertisement.' });
+      }
+    } catch (err) {
+      console.error('Error saving advertisement:', err);
+      setAdMsg({ type: 'error', text: 'Server error saving advertisement.' });
+    } finally {
+      setAdFormLoading(false);
+    }
+  };
+
+  const handleToggleAdStatus = async (ad) => {
+    try {
+      const res = await fetch(`/api/advertisements/${ad.id}/toggle`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showAlert(data.message, 'success');
+        await fetchVideoAds();
+      } else {
+        showAlert(data.message || 'Failed to toggle status.', 'error');
+      }
+    } catch (err) {
+      console.error('Error toggling ad status:', err);
+      showAlert('Server error toggling status.', 'error');
+    }
+  };
+
+  const handleDeleteAd = async (ad) => {
+    const result = await Swal.fire({
+      title: 'Delete Video Advertisement?',
+      html: `Are you sure you want to delete <strong>"${ad.title}"</strong>?<br/><span class="text-xs text-slate-500">It will immediately be removed from the tourism portal and your municipality page.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0F3D3E',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-3xl' },
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/advertisements/${ad.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showAlert(data.message || 'Advertisement deleted.', 'success');
+        await fetchVideoAds();
+      } else {
+        showAlert(data.message || 'Failed to delete advertisement.', 'error');
+      }
+    } catch (err) {
+      console.error('Error deleting ad:', err);
+      showAlert('Server error deleting advertisement.', 'error');
+    }
+  };
 
   const fetchPackages = async () => {
     if (!user?.municipalityId) return;
@@ -354,6 +559,7 @@ const MunicipalDashboard = () => {
     if (!pkgTitle.trim()) return;
 
     setPkgMsg({ type: '', text: '' });
+    setPkgSubmitting(true);
 
     const formattedItems = pkgItems.map(item => ({
       dayNumber: parseInt(item.dayNumber || 1),
@@ -375,7 +581,6 @@ const MunicipalDashboard = () => {
     if (pkgImageFile) {
       formData.append('coverImage', pkgImageFile);
     } else if (pkgImageUrl) {
-      // Keep existing URL when editing and no new file was chosen
       formData.append('imageUrl', pkgImageUrl);
     }
 
@@ -385,7 +590,7 @@ const MunicipalDashboard = () => {
 
       const response = await fetch(url, {
         method,
-        headers: { 'Authorization': `Bearer ${token}` }, // NO Content-Type header; browser sets multipart boundary
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
 
@@ -409,6 +614,8 @@ const MunicipalDashboard = () => {
     } catch (err) {
       console.error(err);
       setPkgMsg({ type: 'error', text: 'Server error saving package.' });
+    } finally {
+      setPkgSubmitting(false);
     }
   };
 
@@ -421,7 +628,10 @@ const MunicipalDashboard = () => {
     setPkgInclusions(pkg.inclusions || '');
     setPkgImageUrl(pkg.image_url || '');
     setPkgImageFile(null);
-    setPkgImagePreview(pkg.image_url || ''); // show current image as preview
+    setPkgImagePreview(pkg.image_url || '');
+
+    const formEl = document.getElementById('package-form-panel');
+    if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     try {
       const res = await fetch(`/api/packages/${pkg.id}`);
@@ -441,8 +651,36 @@ const MunicipalDashboard = () => {
     }
   };
 
+  const handleOpenPackagePreview = async (pkg) => {
+    setPreviewPackage(pkg);
+    setPreviewPackageItems([]);
+    setPreviewPkgLoading(true);
+    try {
+      const res = await fetch(`/api/packages/${pkg.id}`);
+      if (res.ok) {
+        const details = await res.json();
+        setPreviewPackageItems(details.items || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPreviewPkgLoading(false);
+    }
+  };
+
   const handleDeletePackage = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this municipal package?')) return;
+    const result = await Swal.fire({
+      title: 'Delete Tour Package?',
+      text: 'This municipal tour package will no longer be visible to tourists.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#153325',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete package',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-3xl' }
+    });
+    if (!result.isConfirmed) return;
     try {
       const response = await fetch(`/api/packages/${id}`, {
         method: 'DELETE',
@@ -451,9 +689,13 @@ const MunicipalDashboard = () => {
       if (response.ok) {
         showAlert('Package deleted successfully.', 'success');
         fetchPackages();
+      } else {
+        const resData = await response.json();
+        showAlert(resData.message || 'Failed to delete package.', 'error');
       }
     } catch (err) {
       console.error(err);
+      showAlert('Server error deleting package.', 'error');
     }
   };
 
@@ -702,15 +944,19 @@ const MunicipalDashboard = () => {
       showAlert('Geolocation is not supported by your browser.', 'error');
       return;
     }
+    setDetectingCoords(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setAttractionLat(pos.coords.latitude.toFixed(6));
         setAttractionLng(pos.coords.longitude.toFixed(6));
+        setDetectingCoords(false);
         showAlert('GPS coordinates detected successfully!', 'success');
       },
       (err) => {
-        showAlert('Failed to acquire GPS location. Please type latitude & longitude manually.', 'error');
-      }
+        setDetectingCoords(false);
+        showAlert('Failed to acquire GPS location. Please check device permissions or type coordinates manually.', 'error');
+      },
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
@@ -724,8 +970,13 @@ const MunicipalDashboard = () => {
     setAttractionLng(att.longitude !== null && att.longitude !== undefined ? att.longitude : '');
     setAttractionVideoUrl(att.video_url || '');
     setAttractionVideoFile(null);
+    setAttractionVideoInputMode(att.video_url && (att.video_url.startsWith('http') || att.video_url.includes('youtube')) ? 'url' : 'file');
     setAttractionImageFile(null);
     setAttractionImagePreview(att.image_url || '');
+    
+    // Smooth scroll to form panel
+    const formEl = document.getElementById('attraction-form-panel');
+    if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleCancelAttractionEdit = () => {
@@ -742,11 +993,14 @@ const MunicipalDashboard = () => {
     setAttractionImagePreview('');
     const fileInput = document.getElementById('attraction-file-input');
     if (fileInput) fileInput.value = '';
+    const videoInput = document.getElementById('attraction-video-file-input');
+    if (videoInput) videoInput.value = '';
   };
 
   const handleAttractionSubmit = async (e) => {
     e.preventDefault();
     if (!attractionName || !attractionDesc) return;
+    setAttractionSaving(true);
 
     const formData = new FormData();
     formData.append('name', attractionName);
@@ -786,7 +1040,7 @@ const MunicipalDashboard = () => {
 
       const resData = await response.json();
       if (response.ok) {
-        showAlert(editingAttractionId ? 'Attraction updated successfully.' : 'Attraction added successfully.', 'success');
+        showAlert(editingAttractionId ? 'Attraction updated successfully!' : 'Attraction added successfully!', 'success');
         handleCancelAttractionEdit();
         await fetchMunicipalityData();
       } else {
@@ -795,6 +1049,8 @@ const MunicipalDashboard = () => {
     } catch (err) {
       console.error(err);
       showAlert('Server error saving attraction.', 'error');
+    } finally {
+      setAttractionSaving(false);
     }
   };
 
@@ -833,18 +1089,22 @@ const MunicipalDashboard = () => {
 
   const handleAddRequirement = async (e) => {
     e.preventDefault();
-    if (!reqName) return;
+    if (!reqName.trim()) return;
+    setReqSaving(true);
 
     try {
-      const response = await fetch('/api/requirements', {
-        method: 'POST',
+      const url = editingReqId ? `/api/requirements/${editingReqId}` : '/api/requirements';
+      const method = editingReqId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          requirementName: reqName,
-          description: reqDesc,
+          requirementName: reqName.trim(),
+          description: reqDesc.trim(),
           targetType: reqTarget,
           isRequired: reqRequired
         })
@@ -853,23 +1113,52 @@ const MunicipalDashboard = () => {
       if (response.ok) {
         setReqName('');
         setReqDesc('');
-        showAlert('Accreditation requirement added successfully.', 'success');
+        setEditingReqId(null);
+        setReqTarget('HOMESTAY');
+        setReqRequired(true);
+        showAlert(editingReqId ? 'Accreditation requirement updated successfully.' : 'Accreditation requirement configured successfully.', 'success');
         await fetchData();
+      } else {
+        const errData = await response.json();
+        showAlert(errData.message || 'Failed to save requirement.', 'error');
       }
     } catch (err) {
       console.error(err);
+      showAlert('Server error while saving requirement.', 'error');
+    } finally {
+      setReqSaving(false);
     }
+  };
+
+  const handleEditRequirement = (r) => {
+    setEditingReqId(r.id);
+    setReqName(r.requirement_name || '');
+    setReqDesc(r.description || '');
+    setReqTarget(r.target_type || 'HOMESTAY');
+    setReqRequired(r.is_required !== false);
+    const formPanel = document.getElementById('requirement-form-panel');
+    if (formPanel) {
+      formPanel.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleCancelEditRequirement = () => {
+    setEditingReqId(null);
+    setReqName('');
+    setReqDesc('');
+    setReqTarget('HOMESTAY');
+    setReqRequired(true);
   };
 
   const handleDeleteRequirement = async (reqId) => {
     const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: 'Delete this requirement? Existing documents will be affected.',
+      title: 'Delete Requirement?',
+      text: 'Are you sure you want to remove this accreditation requirement? Stakeholders will no longer be asked for it, and existing submissions will be affected.',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#0F3D3E',
+      confirmButtonColor: '#153325',
       cancelButtonColor: '#94a3b8',
-      confirmButtonText: 'Yes, delete it!',
+      confirmButtonText: 'Yes, delete requirement',
       cancelButtonText: 'Cancel',
       customClass: {
         popup: 'rounded-3xl',
@@ -882,14 +1171,22 @@ const MunicipalDashboard = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
+        showAlert('Accreditation requirement removed.', 'info');
+        if (editingReqId === reqId) {
+          handleCancelEditRequirement();
+        }
         await fetchData();
+      } else {
+        const errData = await response.json();
+        showAlert(errData.message || 'Failed to delete requirement.', 'error');
       }
     } catch (err) {
       console.error(err);
+      showAlert('Server error deleting requirement.', 'error');
     }
   };
 
-  const handleReviewDocument = async (subId, status) => {
+  const handleReviewDocument = async (subId, status, remarks) => {
     try {
       const response = await fetch(`/api/documents/review/${subId}`, {
         method: 'PUT',
@@ -897,7 +1194,7 @@ const MunicipalDashboard = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ status, reviewComments: reviewRemarks || 'Processed' })
+        body: JSON.stringify({ status, reviewComments: remarks || reviewRemarks || 'Processed' })
       });
 
       if (response.ok) {
@@ -941,6 +1238,7 @@ const MunicipalDashboard = () => {
   const municipalTabs = [
     { id: 'attractions', label: 'Local Attractions', icon: Compass },
     { id: 'packages', label: 'Tour Packages', icon: Package },
+    { id: 'videoAds', label: 'Video Advertisements', icon: Film },
     { id: 'requirements', label: 'Accreditation Checklist', icon: FolderClosed },
     { id: 'review', label: 'Review Submissions', icon: CheckSquare },
     { id: 'stakeholders', label: 'Endorse Operators', icon: FileCheck },
@@ -1030,6 +1328,13 @@ const MunicipalDashboard = () => {
                 >
                   <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
                   <span className="flex-1 truncate">{tab.label}</span>
+                  {tab.id === 'videoAds' && videoAds.length > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      isActive ? 'bg-[#153325] text-[#FAF7F2]' : 'bg-[#B88B2A] text-[#153325]'
+                    }`}>
+                      {videoAds.length}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1135,761 +1440,2435 @@ const MunicipalDashboard = () => {
           <div className="bg-[var(--bg-card,#F3F8F4)] border border-[var(--border-app,#C7D7C9)] rounded-2xl shadow-sm p-4 sm:p-6 transition-colors">
 
         {/* Tour Packages Tab */}
-        {activeTab === 'packages' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Left Col: Create/Edit Form (col-span-5) */}
-            <div className="lg:col-span-5 border border-slate-200 p-6 rounded-2xl bg-slate-50/50 h-fit space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                  <Package className="w-4 h-4 text-emerald-800" />
-                  {editingPkgId ? 'Edit Tour Package' : 'Create Municipal Tour Package'}
-                </h3>
-                {editingPkgId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingPkgId(null);
-                      setPkgTitle('');
-                      setPkgDesc('');
-                      setPkgPrice('');
-                      setPkgDuration('2');
-                      setPkgInclusions('');
-                      setPkgImageUrl('');
-                      setPkgImageFile(null);
-                      setPkgImagePreview('');
-                      setPkgItems([]);
-                    }}
-                    className="text-xs text-slate-500 hover:text-slate-700 underline cursor-pointer"
+        {activeTab === 'packages' && (() => {
+          const totalPackages = packagesList.length;
+          const avgDuration = totalPackages > 0
+            ? (packagesList.reduce((sum, p) => sum + (parseInt(p.duration_days) || 1), 0) / totalPackages).toFixed(1)
+            : '0';
+          const totalStops = packagesList.reduce((sum, p) => sum + (parseInt(p.item_count) || 0), 0);
+
+          const durationFilters = [
+            { id: 'ALL', label: 'All Packages', icon: '📦' },
+            { id: '1', label: '1 Day (Day Trips)', icon: '☀️' },
+            { id: '2', label: '2 Days (Weekend)', icon: '🏕️' },
+            { id: '3+', label: '3+ Days (Expedition)', icon: '⛰️' }
+          ];
+
+          const filteredPackages = packagesList.filter(pkg => {
+            const matchesSearch = !dashPkgSearch ||
+              pkg.title?.toLowerCase().includes(dashPkgSearch.toLowerCase()) ||
+              pkg.description?.toLowerCase().includes(dashPkgSearch.toLowerCase()) ||
+              pkg.inclusions?.toLowerCase().includes(dashPkgSearch.toLowerCase());
+
+            if (!matchesSearch) return false;
+
+            const days = parseInt(pkg.duration_days) || 1;
+            if (dashPkgDurationFilter === '1') return days === 1;
+            if (dashPkgDurationFilter === '2') return days === 2;
+            if (dashPkgDurationFilter === '3+') return days >= 3;
+            return true;
+          });
+
+          return (
+            <div className="space-y-6">
+              {/* Top KPI Metrics Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Published Packages</span>
+                    <Package className="w-4 h-4 text-[#153325]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#153325] mt-2">{totalPackages}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Municipal travel packages</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Average Duration</span>
+                    <Calendar className="w-4 h-4 text-[#B88B2A]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#B88B2A] mt-2">{avgDuration} Days</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Trip length across packages</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Scheduled Stops</span>
+                    <MapPin className="w-4 h-4 text-[#355C6D]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#355C6D] mt-2">{totalStops}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Coordinated sight activities</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Tourist Portal</span>
+                      <Globe className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <p className="text-xs font-semibold text-[#153325] mt-1.5">Live Packages Showcase</p>
+                  </div>
+                  <Link
+                    to={`/municipalities/${user?.municipalityId || 1}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-[#153325] text-white font-bold text-xs rounded-xl shadow-xs hover:bg-[#1D4433] transition-all cursor-pointer"
                   >
-                    Cancel Edit
-                  </button>
-                )}
+                    <span>View Public Page</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  </Link>
+                </div>
               </div>
 
-              {pkgMsg.text && (
-                <div className={`p-3 rounded-lg text-xs font-semibold ${pkgMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {pkgMsg.text}
-                </div>
-              )}
-
-              <form onSubmit={handlePackageSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Package Title <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 3D2N Tineg Eco-Adventure & Kaparkan Falls"
-                    value={pkgTitle}
-                    onChange={(e) => setPkgTitle(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Price per Person (₱)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 3500"
-                      value={pkgPrice}
-                      onChange={(e) => setPkgPrice(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (Days)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="14"
-                      required
-                      value={pkgDuration}
-                      onChange={(e) => setPkgDuration(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Cover Image</label>
-
-                  {/* Image preview */}
-                  {pkgImagePreview && (
-                    <div className="mb-2 relative group w-full h-36 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                      <img src={pkgImagePreview} alt="Cover preview" className="w-full h-full object-cover" />
+              {/* Main Tour Packages Workspace: Form (Col-5) & Directory (Col-7) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Form Column */}
+                <div
+                  id="package-form-panel"
+                  className="lg:col-span-5 bg-white border border-[var(--border-app,#C7D7C9)] p-6 rounded-2xl shadow-xs h-fit space-y-4 text-left"
+                >
+                  <div className="flex justify-between items-center border-b border-[var(--border-app,#C7D7C9)] pb-3">
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-[#153325] flex items-center gap-1.5">
+                        <Package className="w-4 h-4 text-[#B88B2A]" />
+                        <span>{editingPkgId ? 'Edit Tour Package' : 'Create Municipal Package'}</span>
+                      </h3>
+                      <p className="text-xs text-[#5A534E] mt-0.5">
+                        {editingPkgId ? `Updating "${pkgTitle}"` : 'Bundle local sights, homestays, and tour guides into curated itineraries.'}
+                      </p>
+                    </div>
+                    {editingPkgId && (
                       <button
                         type="button"
-                        onClick={() => { setPkgImageFile(null); setPkgImagePreview(''); setPkgImageUrl(''); }}
-                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-80 hover:opacity-100 transition-all cursor-pointer"
-                        title="Remove image"
+                        onClick={() => {
+                          setEditingPkgId(null);
+                          setPkgTitle('');
+                          setPkgDesc('');
+                          setPkgPrice('');
+                          setPkgDuration('2');
+                          setPkgInclusions('');
+                          setPkgImageUrl('');
+                          setPkgImageFile(null);
+                          setPkgImagePreview('');
+                          setPkgItems([]);
+                        }}
+                        className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
                       >
-                        <X className="w-3 h-3" />
+                        Cancel Edit
                       </button>
+                    )}
+                  </div>
+
+                  {pkgMsg.text && (
+                    <div className={`p-3 rounded-xl text-xs font-semibold ${pkgMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                      {pkgMsg.text}
                     </div>
                   )}
 
-                  {/* File picker */}
-                  <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-slate-300 hover:border-emerald-700 rounded-xl bg-slate-50 hover:bg-emerald-50 cursor-pointer transition-all">
-                    <div className="flex flex-col items-center gap-1">
-                      <Upload className="w-5 h-5 text-slate-400 group-hover:text-emerald-700" />
-                      <span className="text-[11px] text-slate-500">
-                        {pkgImageFile ? pkgImageFile.name : 'Click to upload cover image'}
-                      </span>
-                      <span className="text-[10px] text-slate-400">JPG, PNG, WEBP — max 10MB</span>
+                  <form onSubmit={handlePackageSubmit} className="space-y-4">
+                    {/* Package Title */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Package Title <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. 3D2N Tineg Eco-Adventure & Kaparkan Falls"
+                          value={pkgTitle}
+                          onChange={(e) => setPkgTitle(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                        />
+                        <Package className="w-4 h-4 text-[#5A534E]/60 absolute left-3 top-2.5 pointer-events-none" />
+                      </div>
                     </div>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/avif"
-                      onChange={handlePkgImageChange}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Inclusions Summary</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2 Nights Homestay, Accredited Guide, Environmental Fees, Transfers"
-                    value={pkgInclusions}
-                    onChange={(e) => setPkgInclusions(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800"
-                  />
-                </div>
+                    {/* Price & Duration */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">
+                          Price per Person (₱)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 3500"
+                          value={pkgPrice}
+                          onChange={(e) => setPkgPrice(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">
+                          Duration (Days) <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={pkgDuration}
+                          onChange={(e) => setPkgDuration(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                        >
+                          {[1, 2, 3, 4, 5, 6, 7, 10, 14].map(d => (
+                            <option key={d} value={d}>
+                              {d} Day{d > 1 ? 's' : ''} {d === 1 ? '(Day Tour)' : d === 2 ? '(Weekend)' : '(Expedition)'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
-                  <textarea
-                    rows="3"
-                    placeholder="Overview of what tourists will experience in this municipal package..."
-                    value={pkgDesc}
-                    onChange={(e) => setPkgDesc(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-emerald-800 resize-none"
-                  />
-                </div>
-
-                {/* Day-by-Day Package Item Builder */}
-                <div className="border-t border-slate-200 pt-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-amber-600" /> Day Schedule Items ({pkgItems.length})
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={handleAddPkgItem}
-                      className="px-2.5 py-1 bg-emerald-900 text-white rounded text-[11px] font-bold hover:bg-emerald-800 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" /> Add Stop
-                    </button>
-                  </div>
-
-                  {pkgItems.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 italic text-center py-3 bg-white rounded border border-dashed border-slate-200">
-                      No stops added yet. Click "Add Stop" to include attractions, homestays, or guides in this package schedule.
-                    </p>
-                  ) : (
-                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                      {pkgItems.map((item, idx) => (
-                        <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 relative shadow-xs">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wide text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded">
-                              Stop #{idx + 1}
-                            </span>
+                    {/* Cover Image Upload Dropzone */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Package Cover Photo
+                      </label>
+                      {pkgImagePreview ? (
+                        <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden border border-[var(--border-app,#C7D7C9)] group bg-[#153325]">
+                          <img
+                            src={pkgImagePreview}
+                            alt="Cover preview"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <label className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-800 text-xs font-bold rounded-lg cursor-pointer transition-colors shadow">
+                              Change Photo
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
+                                onChange={handlePkgImageChange}
+                                className="hidden"
+                              />
+                            </label>
                             <button
                               type="button"
-                              onClick={() => handleRemovePkgItem(idx)}
-                              className="text-slate-400 hover:text-red-600 p-0.5 cursor-pointer"
+                              onClick={() => {
+                                setPkgImageFile(null);
+                                setPkgImagePreview('');
+                                setPkgImageUrl('');
+                              }}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors shadow cursor-pointer"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              Remove
                             </button>
                           </div>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-[var(--border-app,#C7D7C9)] hover:border-[#153325] rounded-xl bg-slate-50 hover:bg-[#FAF7F2] cursor-pointer transition-all">
+                          <div className="flex flex-col items-center gap-1 text-center px-4">
+                            <Upload className="w-6 h-6 text-[#5A534E]/70" />
+                            <span className="text-xs font-semibold text-[#153325]">
+                              Click to select package cover photo
+                            </span>
+                            <span className="text-[10px] text-[#5A534E]">
+                              JPG, PNG, WEBP — Recommended 16:9 landscape
+                            </span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/avif"
+                            onChange={handlePkgImageChange}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Day #</label>
-                              <select
-                                value={item.dayNumber}
-                                onChange={(e) => handlePkgItemChange(idx, 'dayNumber', e.target.value)}
-                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
-                              >
-                                {[...Array(parseInt(pkgDuration || 1)).keys()].map(d => (
-                                  <option key={d + 1} value={d + 1}>Day {d + 1}</option>
-                                ))}
-                              </select>
+                    {/* Inclusions Summary */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Inclusions Summary
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 2 Nights Homestay, Accredited Guide, Environmental Fees, Transfers"
+                        value={pkgInclusions}
+                        onChange={(e) => setPkgInclusions(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Package Overview
+                      </label>
+                      <textarea
+                        rows="3"
+                        placeholder="Highlight what travelers will experience on this curated expedition..."
+                        value={pkgDesc}
+                        onChange={(e) => setPkgDesc(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325] resize-none"
+                      />
+                    </div>
+
+                    {/* Day-by-Day Package Item Builder */}
+                    <div className="border-t border-[var(--border-app,#C7D7C9)] pt-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold text-[#153325] text-xs flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-[#B88B2A]" />
+                            <span>Day Schedule & Stops ({pkgItems.length})</span>
+                          </h4>
+                          <p className="text-[11px] text-[#5A534E]">
+                            Coordinate attractions, homestays, and tour guides.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddPkgItem}
+                          className="px-3 py-1.5 bg-[#153325] text-white rounded-xl text-xs font-bold hover:bg-[#1D4433] flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                        >
+                          <Plus className="w-3 h-3 text-[#B88B2A]" /> Add Stop
+                        </button>
+                      </div>
+
+                      {pkgItems.length === 0 ? (
+                        <div className="p-4 bg-[#FAF7F2] rounded-xl border border-dashed border-[var(--border-app,#C7D7C9)] text-center space-y-1">
+                          <p className="text-xs font-bold text-[#153325]">No stops scheduled yet</p>
+                          <p className="text-[11px] text-[#5A534E]">
+                            Click "Add Stop" above to include local waterfalls, accredited homestays, or tour guides in this package.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                          {pkgItems.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="p-3.5 bg-[#FAF7F2]/80 border border-[var(--border-app,#C7D7C9)] rounded-xl space-y-2 relative shadow-xs"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wide text-white bg-[#153325] px-2 py-0.5 rounded-md">
+                                    Stop #{idx + 1}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-[#B88B2A]">
+                                    Day {item.dayNumber || 1}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePkgItem(idx)}
+                                  className="text-slate-400 hover:text-red-600 p-1 cursor-pointer transition-colors"
+                                  title="Remove stop"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-[#153325] mb-0.5">Day Assignment</label>
+                                  <select
+                                    value={item.dayNumber}
+                                    onChange={(e) => handlePkgItemChange(idx, 'dayNumber', e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120]"
+                                  >
+                                    {[...Array(parseInt(pkgDuration || 1)).keys()].map(d => (
+                                      <option key={d + 1} value={d + 1}>Day {d + 1}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-bold text-[#153325] mb-0.5">Activity Type</label>
+                                  <select
+                                    value={item.activityType}
+                                    onChange={(e) => handlePkgItemChange(idx, 'activityType', e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120]"
+                                  >
+                                    <option value="ATTRACTION">📍 Local Attraction</option>
+                                    <option value="HOMESTAY">🏡 Accredited Homestay</option>
+                                    <option value="GUIDE">🧭 Licensed Tour Guide</option>
+                                    <option value="CUSTOM">✨ Custom Activity</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {item.activityType === 'ATTRACTION' && (
+                                <div>
+                                  <label className="block text-[10px] font-bold text-[#153325] mb-0.5">Select Attraction</label>
+                                  <select
+                                    value={item.targetId}
+                                    onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120]"
+                                  >
+                                    <option value="">-- Choose Attraction --</option>
+                                    {attractions.map(a => (
+                                      <option key={a.id} value={a.id}>{a.name} ({a.category})</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+
+                              {item.activityType === 'HOMESTAY' && (
+                                <div>
+                                  <label className="block text-[10px] font-bold text-[#153325] mb-0.5">Select Homestay</label>
+                                  <select
+                                    value={item.targetId}
+                                    onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120]"
+                                  >
+                                    <option value="">-- Choose Homestay --</option>
+                                    {data.homestays.map(h => (
+                                      <option key={h.id} value={h.id}>{h.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+
+                              {item.activityType === 'GUIDE' && (
+                                <div>
+                                  <label className="block text-[10px] font-bold text-[#153325] mb-0.5">Select Tour Guide</label>
+                                  <select
+                                    value={item.targetId}
+                                    onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120]"
+                                  >
+                                    <option value="">-- Choose Tour Guide --</option>
+                                    {data.guides.map(g => (
+                                      <option key={g.id} value={g.id}>{g.full_name} ({g.languages_spoken || 'Guide'})</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+
+                              {item.activityType === 'CUSTOM' && (
+                                <div>
+                                  <label className="block text-[10px] font-bold text-[#153325] mb-0.5">Custom Stop Name</label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. Traditional Abra Basi Wine Tasting"
+                                    value={item.customActivityName}
+                                    onChange={(e) => handlePkgItemChange(idx, 'customActivityName', e.target.value)}
+                                    className="w-full px-2 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120]"
+                                  />
+                                </div>
+                              )}
+
+                              <div>
+                                <label className="block text-[10px] font-semibold text-[#5A534E] mb-0.5">Activity Notes</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Morning photo walk, bring water shoes"
+                                  value={item.notes}
+                                  onChange={(e) => handlePkgItemChange(idx, 'notes', e.target.value)}
+                                  className="w-full px-2 py-1 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120]"
+                                />
+                              </div>
                             </div>
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Type</label>
-                              <select
-                                value={item.activityType}
-                                onChange={(e) => handlePkgItemChange(idx, 'activityType', e.target.value)}
-                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
-                              >
-                                <option value="ATTRACTION">Attraction</option>
-                                <option value="HOMESTAY">Homestay</option>
-                                <option value="GUIDE">Tour Guide</option>
-                                <option value="CUSTOM">Custom Activity</option>
-                              </select>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={pkgSubmitting}
+                      className="w-full py-3 bg-[#153325] hover:bg-[#1D4433] text-white font-bold rounded-xl text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {pkgSubmitting ? (
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-[#B88B2A]" />
+                          <span>{editingPkgId ? 'Update Tour Package' : 'Publish Tour Package'}</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Directory Column */}
+                <div className="lg:col-span-7 space-y-4 text-left">
+                  {/* Directory Header with Live Search & Duration Chips */}
+                  <div className="bg-white border border-[var(--border-app,#C7D7C9)] p-4 sm:p-5 rounded-2xl shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-serif font-bold text-base text-[#153325] flex items-center gap-2">
+                          <span>Published Packages</span>
+                          <span className="text-xs bg-[#FAF7F2] text-[#153325] px-2 py-0.5 rounded-full font-sans font-bold border border-[#E8DFC8]">
+                            {packagesList.length}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-[#5A534E]">
+                          Tourists can book these packages as-is or import them directly into their travel itinerary planner.
+                        </p>
+                      </div>
+
+                      {/* Search Input */}
+                      <div className="relative w-full sm:w-60">
+                        <input
+                          type="text"
+                          value={dashPkgSearch}
+                          onChange={(e) => setDashPkgSearch(e.target.value)}
+                          placeholder="Search packages..."
+                          className="w-full pl-8 pr-7 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] placeholder:text-[#5A534E]/60 focus:outline-none focus:border-[#153325]"
+                        />
+                        <Search className="w-3.5 h-3.5 text-[#5A534E]/60 absolute left-2.5 top-2 pointer-events-none" />
+                        {dashPkgSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setDashPkgSearch('')}
+                            className="absolute right-2 top-2 text-[#5A534E] hover:text-[#153325] cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Duration Filter Chips */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                      {durationFilters.map(df => {
+                        const count = df.id === 'ALL'
+                          ? packagesList.length
+                          : packagesList.filter(p => {
+                              const d = parseInt(p.duration_days) || 1;
+                              if (df.id === '1') return d === 1;
+                              if (df.id === '2') return d === 2;
+                              if (df.id === '3+') return d >= 3;
+                              return true;
+                            }).length;
+
+                        if (df.id !== 'ALL' && count === 0) return null;
+
+                        const isActive = dashPkgDurationFilter === df.id;
+                        return (
+                          <button
+                            key={df.id}
+                            type="button"
+                            onClick={() => setDashPkgDurationFilter(df.id)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer ${
+                              isActive
+                                ? 'bg-[#153325] text-white font-bold shadow-xs'
+                                : 'bg-[#FAF7F2] text-[#5A534E] hover:text-[#153325] hover:bg-[#F3ECE0] border border-[#E8DFC8]'
+                            }`}
+                          >
+                            <span>{df.icon}</span>
+                            <span>{df.label}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              isActive ? 'bg-white/20 text-white' : 'bg-black/5 text-[#5A534E]'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Packages Grid / Empty State */}
+                  {packagesList.length === 0 ? (
+                    <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-10 text-center shadow-xs">
+                      <div className="w-14 h-14 bg-[#153325]/10 text-[#153325] rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Package className="w-7 h-7 text-[#B88B2A]" />
+                      </div>
+                      <h4 className="font-serif text-lg font-bold text-[#153325]">
+                        No Municipal Packages Created Yet
+                      </h4>
+                      <p className="text-xs text-[#5A534E] max-w-md mx-auto mt-2 leading-relaxed">
+                        Create curated municipal tour packages on the left form by combining local waterfalls, accredited homestays, and tour guides. Packages help tourists plan multi-day adventures in {user?.municipalityName || 'your municipality'}!
+                      </p>
+                    </div>
+                  ) : filteredPackages.length === 0 ? (
+                    <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-8 text-center shadow-xs">
+                      <Package className="w-8 h-8 text-[#B88B2A] mx-auto mb-2 opacity-60" />
+                      <p className="font-serif text-base font-bold text-[#153325]">No packages match your search</p>
+                      <p className="text-xs text-[#5A534E] mt-1">Try clearing your search term or switching duration filters.</p>
+                      <button
+                        type="button"
+                        onClick={() => { setDashPkgSearch(''); setDashPkgDurationFilter('ALL'); }}
+                        className="mt-3 px-3.5 py-1.5 bg-[#153325] text-white text-xs font-bold rounded-xl hover:bg-[#1D4433] transition-colors cursor-pointer"
+                      >
+                        Reset Filter
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredPackages.map(pkg => (
+                        <div
+                          key={pkg.id}
+                          className={`bg-white border rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
+                            editingPkgId === pkg.id
+                              ? 'border-[#B88B2A] ring-2 ring-[#B88B2A]/30'
+                              : 'border-[var(--border-app,#C7D7C9)]'
+                          }`}
+                        >
+                          <div>
+                            {/* Card Hero Photo with Price & Duration Pills */}
+                            <div className="relative aspect-[16/10] bg-[#153325] overflow-hidden">
+                              <SafeImage
+                                src={pkg.image_url}
+                                alt={pkg.title}
+                                className="w-full h-full object-cover"
+                                fallback="landscape"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+
+                              <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                                <span className="bg-[#153325]/90 text-white font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-lg backdrop-blur-md shadow-xs border border-white/10">
+                                  {pkg.duration_days} Day{pkg.duration_days > 1 ? 's' : ''}
+                                </span>
+                              </div>
+
+                              <span className="absolute top-2.5 right-2.5 bg-[#B88B2A] text-white font-extrabold text-xs px-2.5 py-0.5 rounded-lg shadow-sm">
+                                ₱{parseFloat(pkg.price).toLocaleString()}
+                              </span>
+
+                              <div className="absolute bottom-2.5 left-2.5 bg-black/60 backdrop-blur-md text-white/90 text-[10px] px-2 py-0.5 rounded-md border border-white/15 flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-[#B88B2A]" />
+                                <span>{pkg.item_count || 0} coordinated stop{pkg.item_count !== 1 ? 's' : ''}</span>
+                              </div>
+                            </div>
+
+                            {/* Card Details */}
+                            <div className="p-4 space-y-2">
+                              <h4 className="font-serif text-base font-bold text-[#153325] leading-snug line-clamp-1">
+                                {pkg.title}
+                              </h4>
+                              {pkg.description && (
+                                <p className="text-xs text-[#5A534E] line-clamp-2 leading-relaxed">
+                                  {pkg.description}
+                                </p>
+                              )}
+                              {pkg.inclusions && (
+                                <div className="bg-[#FAF7F2] p-2 rounded-lg border border-[var(--border-app,#C7D7C9)] text-[11px] text-[#153325] flex items-start gap-1.5">
+                                  <span className="font-bold text-[#B88B2A] flex-shrink-0">Includes:</span>
+                                  <span className="line-clamp-1 text-[#5A534E]">{pkg.inclusions}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
 
-                          {item.activityType === 'ATTRACTION' && (
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Select Attraction</label>
-                              <select
-                                value={item.targetId}
-                                onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
-                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
-                              >
-                                <option value="">-- Choose Attraction --</option>
-                                {attractions.map(a => (
-                                  <option key={a.id} value={a.id}>{a.name} ({a.category})</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                          {/* Toolbar Footer */}
+                          <div className="p-3 border-t border-[var(--border-app,#C7D7C9)] bg-[#FAF7F2]/50 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPackagePreview(pkg)}
+                              className="px-2.5 py-1.5 text-xs font-bold text-[#153325] hover:bg-white rounded-lg transition-colors border border-transparent hover:border-[#E8DFC8] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View Schedule</span>
+                            </button>
 
-                          {item.activityType === 'HOMESTAY' && (
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Select Homestay</label>
-                              <select
-                                value={item.targetId}
-                                onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
-                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleEditPackage(pkg)}
+                                className="px-3 py-1.5 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                               >
-                                <option value="">-- Choose Homestay --</option>
-                                {data.homestays.map(h => (
-                                  <option key={h.id} value={h.id}>{h.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-
-                          {item.activityType === 'GUIDE' && (
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Select Tour Guide</label>
-                              <select
-                                value={item.targetId}
-                                onChange={(e) => handlePkgItemChange(idx, 'targetId', e.target.value)}
-                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
+                                <Edit className="w-3 h-3 text-[#B88B2A]" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePackage(pkg.id)}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Package"
                               >
-                                <option value="">-- Choose Tour Guide --</option>
-                                {data.guides.map(g => (
-                                  <option key={g.id} value={g.id}>{g.full_name} ({g.languages_spoken || 'Guide'})</option>
-                                ))}
-                              </select>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                          )}
-
-                          {item.activityType === 'CUSTOM' && (
-                            <div>
-                              <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Custom Title</label>
-                              <input
-                                type="text"
-                                placeholder="e.g. Traditional Abra Basi Tasting"
-                                value={item.customActivityName}
-                                onChange={(e) => handlePkgItemChange(idx, 'customActivityName', e.target.value)}
-                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[11px]"
-                              />
-                            </div>
-                          )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
+              </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
-                >
-                  {editingPkgId ? 'Update Tour Package' : 'Publish Tour Package'}
-                </button>
-              </form>
-            </div>
-
-            {/* Right Col: Package Cards List (col-span-7) */}
-            <div className="lg:col-span-7 space-y-4">
-              <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2 flex items-center justify-between">
-                <span>Published Municipal Packages ({packagesList.length})</span>
-                <span className="text-xs font-normal text-slate-500">Visible to all tourists on municipality page</span>
-              </h3>
-
-              {packagesList.length === 0 ? (
-                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6">
-                  <Package className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                  <p className="text-slate-600 font-bold text-sm">No packages created yet</p>
-                  <p className="text-slate-400 text-xs mt-1 max-w-sm mx-auto">
-                    Create official municipal packages on the left form so tourists can book them as-is or import them into their trip planner.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {packagesList.map(pkg => (
-                    <div key={pkg.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                      <div>
-                        {pkg.image_url ? (
-                          <div className="h-36 w-full overflow-hidden relative">
-                            <SafeImage src={pkg.image_url} alt={pkg.title} className="w-full h-full object-cover" />
-                            <span className="absolute top-3 right-3 bg-emerald-900/90 backdrop-blur-md text-amber-300 font-black text-xs px-2.5 py-1 rounded-full shadow-md">
-                              ₱{parseFloat(pkg.price).toLocaleString()}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="h-28 bg-emerald-900/10 flex items-center justify-center relative border-b border-slate-100">
-                            <Package className="w-10 h-10 text-emerald-900/40" />
-                            <span className="absolute top-3 right-3 bg-emerald-900 text-amber-300 font-black text-xs px-2.5 py-1 rounded-full shadow-md">
-                              ₱{parseFloat(pkg.price).toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                        <div className="p-4">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-                              {pkg.duration_days} Day{pkg.duration_days > 1 ? 's' : ''}
-                            </span>
-                            <span className="text-[10px] font-semibold text-slate-400">
-                              {pkg.item_count || 0} scheduled stops
-                            </span>
-                          </div>
-                          <h4 className="font-bold text-slate-800 text-sm line-clamp-1">{pkg.title}</h4>
-                          {pkg.description && (
-                            <p className="text-slate-500 text-xs mt-1 line-clamp-2">{pkg.description}</p>
-                          )}
-                          {pkg.inclusions && (
-                            <p className="text-[11px] text-emerald-900 font-medium mt-2 bg-emerald-50 p-2 rounded-lg border border-emerald-100/60">
-                              Includes: {pkg.inclusions}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="px-4 pb-4 pt-2 border-t border-slate-100 flex justify-end gap-2 bg-slate-50/50">
-                        <button
-                          onClick={() => handleEditPackage(pkg)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit className="w-3.5 h-3.5" /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeletePackage(pkg.id)}
-                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Attractions Tab */}
-        {activeTab === 'attractions' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form */}
-            <div className="lg:col-span-1 border border-slate-150 p-6 rounded-2xl bg-slate-50 h-fit">
-              <h3 className="font-bold text-slate-800 text-sm mb-4 border-b border-slate-200 pb-2">
-                {editingAttractionId ? 'Edit Tourist Attraction' : 'Add Tourist Attraction'}
-              </h3>
-              <form onSubmit={handleAttractionSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Attraction Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={attractionName}
-                    onChange={(e) => setAttractionName(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="e.g. Libtec Crystal Cave"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Description</label>
-                  <textarea
-                    required
-                    rows="3"
-                    value={attractionDesc}
-                    onChange={(e) => setAttractionDesc(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="Provide details about travel safety, hiking, or scenery..."
-                  ></textarea>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Category</label>
-                  <select
-                    value={attractionCategory}
-                    onChange={(e) => setAttractionCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                  >
-                    <option value="Waterfall">Waterfall / Spring</option>
-                    <option value="Cave">Cave / Rock Formation</option>
-                    <option value="Historical">Historical Site</option>
-                    <option value="Mountain">Mountain / Viewpoint</option>
-                    <option value="Cultural">Cultural Landmark</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Upload Photo</label>
-                  <input
-                    id="attraction-file-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAttractionImageChange}
-                    className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-950 hover:file:bg-emerald-100 cursor-pointer"
-                  />
-                  {attractionImagePreview && (
-                    <div className="mt-3 relative rounded-lg overflow-hidden border border-slate-205 aspect-video bg-white">
-                      <img src={attractionImagePreview} alt="Preview" className="w-full h-full object-cover" />
+              {/* Package Preview Modal */}
+              {previewPackage && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto border border-[#E8DFC8] my-auto text-left">
+                    <div className="relative aspect-video bg-[#153325] overflow-hidden rounded-t-2xl">
+                      <SafeImage
+                        src={previewPackage.image_url}
+                        alt={previewPackage.title}
+                        className="w-full h-full object-cover"
+                        fallback="landscape"
+                      />
                       <button
                         type="button"
-                        onClick={() => {
-                          setAttractionImageFile(null);
-                          setAttractionImagePreview('');
-                          const fileInput = document.getElementById('attraction-file-input');
-                          if (fileInput) fileInput.value = '';
-                        }}
-                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 shadow hover:bg-red-750 transition-colors"
+                        onClick={() => setPreviewPackage(null)}
+                        className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md cursor-pointer transition-colors shadow"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Upload Video Clip */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Upload Video Clip (MP4/WebM)</label>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => setAttractionVideoFile(e.target.files[0])}
-                    className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-900 hover:file:bg-amber-100 cursor-pointer"
-                  />
-                  <div className="mt-1">
-                    <input
-                      type="text"
-                      value={attractionVideoUrl}
-                      onChange={(e) => setAttractionVideoUrl(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                      placeholder="Or paste direct video URL (e.g. https://.../spot.mp4)"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Location Details</label>
-                  <input
-                    type="text"
-                    value={attractionLoc}
-                    onChange={(e) => setAttractionLoc(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="Barangay name, landmarks..."
-                  />
-                </div>
-
-                {/* Exact Coordinates (Latitude & Longitude) */}
-                <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200/60 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Exact GPS Coordinates</label>
-                    <button
-                      type="button"
-                      onClick={handleDetectAttractionCoords}
-                      className="text-[10px] font-extrabold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded cursor-pointer transition-colors"
-                    >
-                      📍 Detect Coords
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-500">Latitude</span>
-                      <input
-                        type="number"
-                        step="any"
-                        value={attractionLat}
-                        onChange={(e) => setAttractionLat(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                        placeholder="e.g. 17.765123"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-500">Longitude</span>
-                      <input
-                        type="number"
-                        step="any"
-                        value={attractionLng}
-                        onChange={(e) => setAttractionLng(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                        placeholder="e.g. 120.781234"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {editingAttractionId && (
-                    <button
-                      type="button"
-                      onClick={handleCancelAttractionEdit}
-                      className="w-1/2 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  <button
-                    type="submit"
-                    className={`${editingAttractionId ? 'w-1/2' : 'w-full'} py-2.5 bg-emerald-900 hover:bg-emerald-805 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors`}
-                  >
-                    {editingAttractionId ? 'Update' : 'Save Attraction'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* List of Attractions */}
-            <div className="lg:col-span-2 space-y-4">
-              <h3 className="font-bold text-slate-805 text-base mb-2 border-b border-slate-100 pb-2">Active Attractions in {user.municipalityName}</h3>
-              <p className="text-slate-450 text-xs mb-4">Attractions configured here appear in the public municipality details page for travelers.</p>
-              {attractions.length === 0 ? (
-                <div className="p-8 border border-slate-150 rounded-2xl bg-slate-50 text-center text-slate-450 text-xs">
-                  No tourist attractions configured yet. Use the form on the left to add one!
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {attractions.map((att) => (
-                    <div key={att.id} className="border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-sm flex flex-col">
-                      <div className="h-40 w-full bg-slate-100 relative">
-                        {att.image_url ? (
-                          <SafeImage src={att.image_url} alt={att.name} className="w-full h-full object-cover" fallback="landscape" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400 bg-slate-100">
-                            <Compass className="w-8 h-8" />
-                          </div>
-                        )}
-                        <span className="absolute top-2.5 left-2.5 bg-emerald-900 text-white font-extrabold text-[9px] tracking-wide uppercase px-2 py-0.5 rounded shadow">
-                          {att.category}
+                      <div className="absolute top-3 left-3 flex items-center gap-2">
+                        <span className="bg-[#153325]/90 text-white font-bold text-xs px-2.5 py-1 rounded-lg backdrop-blur-md">
+                          ₱{parseFloat(previewPackage.price).toLocaleString()} / person
+                        </span>
+                        <span className="bg-[#B88B2A] text-white font-bold text-xs px-2 py-1 rounded-lg shadow-sm">
+                          {previewPackage.duration_days} Day{previewPackage.duration_days > 1 ? 's' : ''}
                         </span>
                       </div>
-                      <div className="p-4 flex-1 flex flex-col justify-between">
-                        <div>
-                          <h4 className="font-extrabold text-slate-800 text-sm">{att.name}</h4>
-                          {att.location_details && (
-                            <p className="text-slate-450 text-[10px] mt-1 font-semibold flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" /> {att.location_details}
-                            </p>
-                          )}
-                          <p className="text-slate-550 text-xs mt-2.5 line-clamp-3 leading-relaxed">{att.description}</p>
-                        </div>
-                        <div className="flex gap-2 mt-4 pt-3.5 border-t border-slate-100">
-                          <button
-                            type="button"
-                            onClick={() => handleStartAttractionEdit(att)}
-                            className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1 transition-colors"
-                          >
-                            <Edit className="w-3.5 h-3.5 text-slate-500" /> Edit Details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAttraction(att.id)}
-                            className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-650 text-[10px] font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-red-550" /> Remove
-                          </button>
-                        </div>
+                    </div>
+
+                    <div className="p-6 space-y-4">
+                      <div>
+                        <h3 className="font-serif text-2xl font-bold text-[#153325]">
+                          {previewPackage.title}
+                        </h3>
+                        {previewPackage.inclusions && (
+                          <p className="text-xs text-[#5A534E] mt-1 bg-[#FAF7F2] p-2.5 rounded-lg border border-[#E8DFC8]">
+                            <strong className="text-[#153325]">Inclusions:</strong> {previewPackage.inclusions}
+                          </p>
+                        )}
+                      </div>
+
+                      {previewPackage.description && (
+                        <p className="text-xs text-[#5A534E] leading-relaxed">
+                          {previewPackage.description}
+                        </p>
+                      )}
+
+                      {/* Daily Stops Timeline */}
+                      <div className="border-t border-[#E8DFC8] pt-4 space-y-3">
+                        <h4 className="font-serif font-bold text-sm text-[#153325] flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-[#B88B2A]" />
+                          <span>Daily Schedule Timeline ({previewPackageItems.length} stops)</span>
+                        </h4>
+
+                        {previewPkgLoading ? (
+                          <div className="text-center py-6">
+                            <span className="w-6 h-6 border-2 border-[#153325] border-t-transparent rounded-full animate-spin inline-block" />
+                          </div>
+                        ) : previewPackageItems.length === 0 ? (
+                          <p className="text-xs text-[#5A534E] italic bg-[#FAF7F2] p-3 rounded-lg border border-[#E8DFC8] text-center">
+                            No day schedule items added to this package yet.
+                          </p>
+                        ) : (
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            {previewPackageItems.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E8DFC8] flex items-start gap-3"
+                              >
+                                <span className="bg-[#153325] text-white font-bold text-[10px] px-2 py-1 rounded-md flex-shrink-0">
+                                  Day {item.day_number}
+                                </span>
+                                <div className="text-xs text-left">
+                                  <p className="font-bold text-[#153325]">
+                                    {item.activity_type === 'ATTRACTION' && (item.attraction_name || 'Attraction Visit')}
+                                    {item.activity_type === 'HOMESTAY' && (item.homestay_name || 'Homestay Overnight')}
+                                    {item.activity_type === 'GUIDE' && `Guided by: ${item.guide_name || 'Accredited Guide'}`}
+                                    {item.activity_type === 'CUSTOM' && (item.custom_activity_name || 'Activity')}
+                                  </p>
+                                  {item.notes && (
+                                    <p className="text-[#5A534E] text-[11px] mt-0.5 italic">{item.notes}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-3 border-t border-[var(--border-app,#C7D7C9)] flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewPackage(null)}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                        >
+                          Close Preview
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const p = previewPackage;
+                            setPreviewPackage(null);
+                            handleEditPackage(p);
+                          }}
+                          className="px-4 py-2 bg-[#153325] hover:bg-[#1D4433] text-white font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-[#B88B2A]" />
+                          <span>Edit Package</span>
+                        </button>
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
-        {/* Requirements Tab */}
-        {activeTab === 'requirements' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form */}
-            <div className="lg:col-span-1 border border-slate-150 p-6 rounded-2xl bg-slate-50">
-              <h3 className="font-bold text-slate-800 text-sm mb-4 border-b border-slate-200 pb-2">Add Requirement</h3>
-              <form onSubmit={handleAddRequirement} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Requirement Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={reqName}
-                    onChange={(e) => setReqName(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="e.g. Barangay Clearance"
-                  />
+        {/* Municipal Video Advertisements Tab */}
+        {activeTab === 'videoAds' && (
+          <div className="space-y-6">
+            {/* Header & KPI Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Town Video Campaigns</span>
+                  <Video className="w-4 h-4 text-[#B88B2A]" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-705 mb-1">Description</label>
-                  <textarea
-                    rows="2"
-                    value={reqDesc}
-                    onChange={(e) => setReqDesc(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    placeholder="Instructions for application, formatting..."
-                  ></textarea>
+                <p className="text-2xl font-serif font-bold text-[#153325] mt-2">{videoAds.length}</p>
+                <p className="text-[11px] text-[#5A534E] mt-0.5">{user?.municipalityName || 'Municipal'} video ads</p>
+              </div>
+
+              <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Live &amp; Active</span>
+                  <Eye className="w-4 h-4 text-emerald-600" />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-705 mb-1">Target</label>
-                    <select
-                      value={reqTarget}
-                      onChange={(e) => setReqTarget(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    >
-                      <option value="HOMESTAY">Homestays</option>
-                      <option value="TOUR_GUIDE">Tour Guides</option>
-                    </select>
+                <p className="text-2xl font-serif font-bold text-emerald-800 mt-2">
+                  {videoAds.filter(a => a.is_active).length}
+                </p>
+                <p className="text-[11px] text-[#5A534E] mt-0.5">Visible on Landing Page &amp; Town page</p>
+              </div>
+
+              <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Action</span>
+                    <Film className="w-4 h-4 text-[#355C6D]" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-705 mb-1">Required?</label>
-                    <select
-                      value={reqRequired ? 'true' : 'false'}
-                      onChange={(e) => setReqRequired(e.target.value === 'true')}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    >
-                      <option value="true">Yes</option>
-                      <option value="false">Optional</option>
-                    </select>
-                  </div>
+                  <p className="text-xs font-semibold text-[#153325] mt-2">Promote Local Wonders</p>
                 </div>
                 <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-900 text-white text-xs font-bold rounded-lg cursor-pointer hover:bg-emerald-800"
+                  type="button"
+                  onClick={openCreateAdModal}
+                  className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#153325] text-white font-bold text-xs rounded-xl shadow hover:bg-[#1D4433] transition-all cursor-pointer"
                 >
-                  Configure Requirement
+                  <Plus className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  <span>Post Video Ad</span>
                 </button>
-              </form>
+              </div>
             </div>
 
-            {/* List */}
-            <div className="lg:col-span-2">
-              <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Accreditation Requirements List</h3>
-              {requirements.length === 0 ? (
-                <p className="text-slate-400 text-xs py-8 text-center bg-slate-50 border border-slate-100 rounded-xl">
-                  No municipality requirements defined yet. Homestay owners and guides will register without uploading files.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {requirements.map((r) => (
-                    <div key={r.id} className="p-4 rounded-xl border border-slate-150 bg-white flex justify-between items-center gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-800 text-sm">{r.requirement_name}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase ${r.target_type === 'HOMESTAY' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800'
-                            }`}>
-                            {r.target_type}
-                          </span>
-                          {r.is_required && (
-                            <span className="bg-red-50 text-red-600 border border-red-100 font-bold px-2 py-0.5 rounded text-[8px] tracking-wide uppercase">
-                              Required
-                            </span>
-                          )}
-                        </div>
-                        {r.description && <p className="text-slate-450 text-xs mt-1">{r.description}</p>}
-                      </div>
-                      <button
-                        onClick={() => handleDeleteRequirement(r.id)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+            {/* Content List / Grid */}
+            {videoAdsLoading ? (
+              <div className="flex justify-center items-center py-20 bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl">
+                <div className="w-10 h-10 border-4 border-[#153325] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : videoAds.length === 0 ? (
+              <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-3xl p-12 text-center shadow-xs">
+                <div className="w-16 h-16 bg-[#B88B2A]/15 text-[#B88B2A] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Film className="w-8 h-8" />
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Document Review Tab */}
-        {activeTab === 'review' && (
-          <div>
-            <h3 className="font-bold text-slate-800 text-base mb-4 border-b border-slate-100 pb-2">Digital Document Audit Desk</h3>
-
-            {/* Comments Input */}
-            <div className="bg-amber-50/50 border border-amber-200/50 p-4 rounded-xl mb-6">
-              <label className="block text-xs font-bold text-slate-700 mb-1">Feedback Remarks (Optional)</label>
-              <input
-                type="text"
-                placeholder="Type instructions or reasons before endorsing or rejecting a document..."
-                value={reviewRemarks}
-                onChange={(e) => setReviewRemarks(e.target.value)}
-                className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none"
-              />
-            </div>
-
-            {submissions.length === 0 ? (
-              <p className="text-slate-450 text-xs py-8 text-center">No document submissions awaiting audit.</p>
+                <h3 className="font-serif text-lg font-bold text-[#153325]">
+                  No Video Advertisements Posted for {user?.municipalityName || 'this Municipality'}
+                </h3>
+                <p className="text-xs text-[#5A534E] max-w-md mx-auto mt-2 leading-relaxed">
+                  Post high-definition video advertisements highlighting {user?.municipalityName || 'your town'}'s scenic waterfalls, cultural heritage, trekking trails, and local festivals. Videos are broadcast both on the province-wide Landing Page video showcase and on your official town details page!
+                </p>
+                <button
+                  type="button"
+                  onClick={openCreateAdModal}
+                  className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-[#153325] text-white font-bold text-xs rounded-xl shadow-md hover:bg-[#1D4433] transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-[#B88B2A]" />
+                  <span>Post First Video Advertisement</span>
+                </button>
+              </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-400 text-xs uppercase font-bold bg-slate-50/55">
-                      <th className="py-3 px-4">Applicant</th>
-                      <th className="py-3 px-4">Requirement</th>
-                      <th className="py-3 px-4">Document File</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {submissions.map((sub) => (
-                      <tr key={sub.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-xs text-slate-650">
-                        <td className="py-3.5 px-4 font-semibold text-slate-850">
-                          {sub.applicant_name} <span className="text-[10px] text-slate-450 font-normal">({sub.applicant_role.replace('_', ' ')})</span>
-                        </td>
-                        <td className="py-3.5 px-4">{sub.requirement_name}</td>
-                        <td className="py-3.5 px-4">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDocUrl(sub.document_url)}
-                            className="text-emerald-950 font-bold hover:underline cursor-pointer bg-transparent border-none p-0"
-                          >
-                            View Uploaded File
-                          </button>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] tracking-wide uppercase ${sub.status === 'ENDORSED' ? 'bg-emerald-100 text-emerald-800' :
-                              sub.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                            {sub.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 flex justify-center gap-2">
-                          {sub.status === 'PENDING' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {videoAds.map((ad) => (
+                  <div
+                    key={ad.id}
+                    className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+                  >
+                    {/* Video Player Preview */}
+                    <div className="relative aspect-video bg-black">
+                      <video
+                        controls
+                        preload="metadata"
+                        poster={ad.thumbnail_url}
+                        className="w-full h-full object-cover"
+                        src={ad.video_url}
+                      />
+                      <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
+                        <span className="bg-[#153325]/90 backdrop-blur-sm text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider border border-white/10">
+                          {ad.category || 'Eco-Tourism'}
+                        </span>
+                      </div>
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAdStatus(ad)}
+                          title={ad.is_active ? 'Click to Hide from Portals' : 'Click to Make Live'}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-md transition-all cursor-pointer ${
+                            ad.is_active
+                              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                              : 'bg-slate-700 text-slate-200 hover:bg-slate-800'
+                          }`}
+                        >
+                          {ad.is_active ? (
                             <>
-                              <button
-                                onClick={() => handleReviewDocument(sub.id, 'ENDORSED')}
-                                className="px-3 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded font-bold text-[10px]"
-                              >
-                                Endorse File
-                              </button>
-                              <button
-                                onClick={() => handleReviewDocument(sub.id, 'REJECTED')}
-                                className="px-3 py-1 bg-red-650 hover:bg-red-750 text-white rounded font-bold text-[10px]"
-                              >
-                                Reject File
-                              </button>
+                              <Eye className="w-3 h-3" />
+                              <span>Active</span>
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="w-3 h-3" />
+                              <span>Draft</span>
                             </>
                           )}
-                          {sub.status !== 'PENDING' && (
-                            <span className="text-slate-400 italic text-[10px]">Reviewed</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card Details */}
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] text-[#5A534E] mb-1.5">
+                          <span className="font-semibold text-[#B88B2A]">
+                            📍 {user?.municipalityName || ad.municipality_name || 'Municipality'}, Abra
+                          </span>
+                          <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                            Priority #{ad.display_order ?? 0}
+                          </span>
+                        </div>
+
+                        <h4 className="font-serif text-base font-bold text-[#153325] leading-snug mb-1">
+                          {ad.title}
+                        </h4>
+                        {ad.subtitle && (
+                          <p className="text-xs text-[#B88B2A] font-medium mb-2">
+                            {ad.subtitle}
+                          </p>
+                        )}
+                        <p className="text-xs text-[#5A534E] line-clamp-3 leading-relaxed mb-4">
+                          {ad.description || 'Promotional video advertisement showcasing municipal tourism.'}
+                        </p>
+                      </div>
+
+                      {/* CTA Info & Controls */}
+                      <div className="pt-3 border-t border-slate-100 flex flex-col gap-3">
+                        <div className="flex items-center justify-between text-[11px] bg-[#FAF7F2] p-2 rounded-lg border border-[#E8DFC8]">
+                          <span className="font-bold text-[#153325] truncate">
+                            CTA: {ad.cta_text || 'Explore Now'}
+                          </span>
+                          <span className="text-[10px] text-[#5A534E] font-mono truncate max-w-[120px]">
+                            {ad.cta_link || '/municipalities'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] text-slate-400">
+                            {ad.created_at ? new Date(ad.created_at).toLocaleDateString('en-PH') : ''}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditAdModal(ad)}
+                              className="p-1.5 text-[#153325] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Advertisement"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAd(ad)}
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Advertisement"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
+
+        {/* Attractions Tab */}
+        {activeTab === 'attractions' && (() => {
+          const geoTaggedCount = attractions.filter(a => a.latitude && a.longitude).length;
+          const videoShowcaseCount = attractions.filter(a => a.video_url).length;
+
+          const allCats = [
+            { id: 'ALL', label: 'All Sights', icon: '📍' },
+            { id: 'Waterfall', label: 'Waterfalls & Springs', icon: '🌊' },
+            { id: 'Cave', label: 'Caves & Gorges', icon: '🪨' },
+            { id: 'Mountain', label: 'Peaks & Valleys', icon: '⛰️' },
+            { id: 'Historical', label: 'Historical Landmarks', icon: '🏛️' },
+            { id: 'Cultural', label: 'Cultural & Crafts', icon: '🧵' },
+            { id: 'Nature', label: 'Eco-Parks & Nature', icon: '🌿' }
+          ];
+
+          const filteredAttractions = (attractions || []).filter(a => {
+            const matchesSearch = !dashAttractionSearch ||
+              a.name?.toLowerCase().includes(dashAttractionSearch.toLowerCase()) ||
+              a.description?.toLowerCase().includes(dashAttractionSearch.toLowerCase()) ||
+              a.location_details?.toLowerCase().includes(dashAttractionSearch.toLowerCase());
+            
+            if (!matchesSearch) return false;
+            if (dashAttractionCatFilter === 'ALL') return true;
+            return (a.category || '').toLowerCase().includes(dashAttractionCatFilter.toLowerCase());
+          });
+
+          return (
+            <div className="space-y-6">
+              {/* Top KPI Metrics Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Registered Sights</span>
+                    <Landmark className="w-4 h-4 text-[#153325]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#153325] mt-2">{attractions.length}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Municipal attractions in {user?.municipalityName || 'Town'}</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">GPS Geotagged</span>
+                    <MapPin className="w-4 h-4 text-[#B88B2A]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#B88B2A] mt-2">{geoTaggedCount}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Ready for 3D Map & Navigation</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Video Spotlights</span>
+                    <Video className="w-4 h-4 text-[#355C6D]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#355C6D] mt-2">{videoShowcaseCount}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Showcased with video media</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Public Town Portal</span>
+                      <Globe className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <p className="text-xs font-semibold text-[#153325] mt-1.5">Live Municipality Showcase</p>
+                  </div>
+                  <Link
+                    to={`/municipalities/${user?.municipalityId || 1}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-[#153325] text-white font-bold text-xs rounded-xl shadow-xs hover:bg-[#1D4433] transition-all cursor-pointer"
+                  >
+                    <span>View Public Page</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  </Link>
+                </div>
+              </div>
+
+              {/* Main Attractions Workspace: Form (Col-5) & Directory (Col-7) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Form Column */}
+                <div
+                  id="attraction-form-panel"
+                  className="lg:col-span-5 bg-white border border-[var(--border-app,#C7D7C9)] p-6 rounded-2xl shadow-xs h-fit text-left"
+                >
+                  <div className="flex items-center justify-between mb-4 border-b border-[var(--border-app,#C7D7C9)] pb-3">
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-[#153325]">
+                        {editingAttractionId ? 'Edit Tourist Attraction' : 'Add Tourist Attraction'}
+                      </h3>
+                      <p className="text-xs text-[#5A534E] mt-0.5">
+                        {editingAttractionId ? `Modifying "${attractionName}"` : 'Publish eco-tourism & heritage sites to your town page.'}
+                      </p>
+                    </div>
+                    {editingAttractionId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelAttractionEdit}
+                        className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleAttractionSubmit} className="space-y-4">
+                    {/* Attraction Name */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Attraction Name <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          value={attractionName}
+                          onChange={(e) => setAttractionName(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                          placeholder="e.g. Libtec Crystal Cave"
+                        />
+                        <Landmark className="w-4 h-4 text-[#5A534E]/60 absolute left-3 top-2.5 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Category & Location Details */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">
+                          Category <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={attractionCategory}
+                          onChange={(e) => setAttractionCategory(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                        >
+                          <option value="Waterfall">🌊 Waterfall / Spring</option>
+                          <option value="Cave">🪨 Cave / Rock Formation</option>
+                          <option value="Mountain">⛰️ Mountain / Peak</option>
+                          <option value="Historical">🏛️ Historical Landmark</option>
+                          <option value="Cultural">🧵 Cultural & Heritage</option>
+                          <option value="Nature">🌿 Eco-Park & Nature</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">
+                          Location / Barangay
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={attractionLoc}
+                            onChange={(e) => setAttractionLoc(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                            placeholder="e.g. Brgy. Libtec, 15m from town"
+                          />
+                          <MapPin className="w-4 h-4 text-[#5A534E]/60 absolute left-3 top-2.5 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cover Photo Upload Dropzone */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Cover Photo
+                      </label>
+                      {attractionImagePreview ? (
+                        <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden border border-[var(--border-app,#C7D7C9)] group bg-[#153325]">
+                          <img
+                            src={attractionImagePreview}
+                            alt="Cover Preview"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <label className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-800 text-xs font-bold rounded-lg cursor-pointer transition-colors shadow">
+                              Change Photo
+                              <input
+                                id="attraction-file-input"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/avif"
+                                onChange={handleAttractionImageChange}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAttractionImageFile(null);
+                                setAttractionImagePreview('');
+                                const fileInput = document.getElementById('attraction-file-input');
+                                if (fileInput) fileInput.value = '';
+                              }}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors shadow cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-[var(--border-app,#C7D7C9)] hover:border-[#153325] rounded-xl bg-slate-50 hover:bg-[#FAF7F2] cursor-pointer transition-all">
+                          <div className="flex flex-col items-center gap-1 text-center px-4">
+                            <Camera className="w-6 h-6 text-[#5A534E]/70" />
+                            <span className="text-xs font-semibold text-[#153325]">
+                              Click to select cover photo
+                            </span>
+                            <span className="text-[10px] text-[#5A534E]">
+                              JPG, PNG, WEBP — Recommended 16:9 landscape
+                            </span>
+                          </div>
+                          <input
+                            id="attraction-file-input"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/avif"
+                            onChange={handleAttractionImageChange}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* Video Showcase Media */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-[#153325]">
+                          Video Clip / Showcase (Optional)
+                        </label>
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[10px] font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => setAttractionVideoInputMode('file')}
+                            className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                              attractionVideoInputMode === 'file'
+                                ? 'bg-white text-[#153325] shadow-xs font-bold'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            Upload MP4
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAttractionVideoInputMode('url')}
+                            className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                              attractionVideoInputMode === 'url'
+                                ? 'bg-white text-[#153325] shadow-xs font-bold'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            Paste Link
+                          </button>
+                        </div>
+                      </div>
+
+                      {attractionVideoInputMode === 'file' ? (
+                        <div>
+                          <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-[var(--border-app,#C7D7C9)] hover:border-[#153325] rounded-xl bg-slate-50 hover:bg-[#FAF7F2] cursor-pointer transition-all">
+                            <div className="flex flex-col items-center gap-0.5 text-center px-4">
+                              <Film className="w-5 h-5 text-[#B88B2A]" />
+                              <span className="text-[11px] font-semibold text-[#153325]">
+                                {attractionVideoFile ? attractionVideoFile.name : 'Upload MP4 or WebM video clip'}
+                              </span>
+                              <span className="text-[10px] text-[#5A534E]">High-definition 1080p clips up to 50MB</span>
+                            </div>
+                            <input
+                              id="attraction-video-file-input"
+                              type="file"
+                              accept="video/mp4,video/webm,video/quicktime"
+                              onChange={(e) => setAttractionVideoFile(e.target.files[0])}
+                              className="hidden"
+                            />
+                          </label>
+                          {attractionVideoFile && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAttractionVideoFile(null);
+                                const vInput = document.getElementById('attraction-video-file-input');
+                                if (vInput) vInput.value = '';
+                              }}
+                              className="mt-1 text-[10px] text-red-600 hover:underline cursor-pointer"
+                            >
+                              Clear video selection
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={attractionVideoUrl}
+                            onChange={(e) => setAttractionVideoUrl(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                            placeholder="Direct URL or YouTube video link (e.g. https://...)"
+                          />
+                          <Play className="w-4 h-4 text-[#5A534E]/60 absolute left-3 top-2.5 pointer-events-none" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Exact GPS Coordinates Sub-Card */}
+                    <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[var(--border-app,#C7D7C9)] space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Navigation className="w-3.5 h-3.5 text-[#B88B2A] fill-current" />
+                          <label className="text-xs font-bold text-[#153325]">
+                            Exact GPS Coordinates
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={detectingCoords}
+                          onClick={handleDetectAttractionCoords}
+                          className="text-[10px] font-bold text-[#153325] bg-[#E8DFC8]/60 hover:bg-[#E8DFC8] px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          {detectingCoords ? (
+                            <span className="w-3 h-3 border-2 border-[#153325] border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <span>📍 Detect Current GPS</span>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-semibold text-[#5A534E] block mb-0.5">Latitude</span>
+                          <input
+                            type="number"
+                            step="any"
+                            value={attractionLat}
+                            onChange={(e) => setAttractionLat(e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                            placeholder="e.g. 17.652140"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-[#5A534E] block mb-0.5">Longitude</span>
+                          <input
+                            type="number"
+                            step="any"
+                            value={attractionLng}
+                            onChange={(e) => setAttractionLng(e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-lg text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                            placeholder="e.g. 120.684120"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-[#5A534E] leading-tight">
+                        Enables travelers to navigate directly via Google Maps and pin this sight into their itinerary planner.
+                      </p>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Attraction Description & Travel Notes <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        required
+                        rows="3"
+                        value={attractionDesc}
+                        onChange={(e) => setAttractionDesc(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325] resize-none"
+                        placeholder="Detail the natural features, water depth, trail difficulty, safety reminders, or indigenous folklore..."
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-2 flex gap-2">
+                      {editingAttractionId && (
+                        <button
+                          type="button"
+                          onClick={handleCancelAttractionEdit}
+                          className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-[#5A534E] hover:text-[#153325] text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={attractionSaving}
+                        className={`${editingAttractionId ? 'w-2/3' : 'w-full'} py-3 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50`}
+                      >
+                        {attractionSaving ? (
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 text-[#B88B2A]" />
+                            <span>{editingAttractionId ? 'Update Attraction Details' : 'Publish Tourist Attraction'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Directory Column */}
+                <div className="lg:col-span-7 space-y-4 text-left">
+                  {/* Directory Header with Live Search & Category Chips */}
+                  <div className="bg-white border border-[var(--border-app,#C7D7C9)] p-4 sm:p-5 rounded-2xl shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-serif font-bold text-base text-[#153325] flex items-center gap-2">
+                          <span>Active Attractions in {user?.municipalityName || 'Town'}</span>
+                          <span className="text-xs bg-[#FAF7F2] text-[#153325] px-2 py-0.5 rounded-full font-sans font-bold border border-[#E8DFC8]">
+                            {attractions.length}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-[#5A534E]">
+                          Configured sights appear in the municipal travel guide and are discoverable on the interactive map.
+                        </p>
+                      </div>
+
+                      {/* Search Filter */}
+                      <div className="relative w-full sm:w-60">
+                        <input
+                          type="text"
+                          value={dashAttractionSearch}
+                          onChange={(e) => setDashAttractionSearch(e.target.value)}
+                          placeholder="Search attraction name..."
+                          className="w-full pl-8 pr-7 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] placeholder:text-[#5A534E]/60 focus:outline-none focus:border-[#153325]"
+                        />
+                        <Search className="w-3.5 h-3.5 text-[#5A534E]/60 absolute left-2.5 top-2 pointer-events-none" />
+                        {dashAttractionSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setDashAttractionSearch('')}
+                            className="absolute right-2 top-2 text-[#5A534E] hover:text-[#153325] cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Category Filter Chips */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                      {allCats.map(cat => {
+                        const count = cat.id === 'ALL'
+                          ? attractions.length
+                          : attractions.filter(a => (a.category || '').toLowerCase().includes(cat.id.toLowerCase())).length;
+
+                        if (cat.id !== 'ALL' && count === 0) return null;
+
+                        const isActive = dashAttractionCatFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setDashAttractionCatFilter(cat.id)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer ${
+                              isActive
+                                ? 'bg-[#153325] text-white font-bold shadow-xs'
+                                : 'bg-[#FAF7F2] text-[#5A534E] hover:text-[#153325] hover:bg-[#F3ECE0] border border-[#E8DFC8]'
+                            }`}
+                          >
+                            <span>{cat.icon}</span>
+                            <span>{cat.label}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              isActive ? 'bg-white/20 text-white' : 'bg-black/5 text-[#5A534E]'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Attractions Grid / Empty State */}
+                  {attractions.length === 0 ? (
+                    <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-10 text-center shadow-xs">
+                      <div className="w-14 h-14 bg-[#153325]/10 text-[#153325] rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Compass className="w-7 h-7 text-[#B88B2A]" />
+                      </div>
+                      <h4 className="font-serif text-lg font-bold text-[#153325]">
+                        No Tourist Attractions Registered for {user?.municipalityName || 'this Municipality'}
+                      </h4>
+                      <p className="text-xs text-[#5A534E] max-w-md mx-auto mt-2 leading-relaxed">
+                        Use the form on the left to add your town's natural wonders (waterfalls, crystal caves, scenic peaks) and cultural landmarks. They will be immediately broadcast on your official town page and discoverable by tourists across the province!
+                      </p>
+                    </div>
+                  ) : filteredAttractions.length === 0 ? (
+                    <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-8 text-center shadow-xs">
+                      <Compass className="w-8 h-8 text-[#B88B2A] mx-auto mb-2 opacity-60" />
+                      <p className="font-serif text-base font-bold text-[#153325]">No attractions match your filter</p>
+                      <p className="text-xs text-[#5A534E] mt-1">Try clearing your search keyword or switching categories.</p>
+                      <button
+                        type="button"
+                        onClick={() => { setDashAttractionSearch(''); setDashAttractionCatFilter('ALL'); }}
+                        className="mt-3 px-3.5 py-1.5 bg-[#153325] text-white text-xs font-bold rounded-xl hover:bg-[#1D4433] transition-colors cursor-pointer"
+                      >
+                        Reset Filter
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredAttractions.map(att => {
+                        const hasCoords = att.latitude && att.longitude;
+                        return (
+                          <div
+                            key={att.id}
+                            className={`bg-white border rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
+                              editingAttractionId === att.id
+                                ? 'border-[#B88B2A] ring-2 ring-[#B88B2A]/30'
+                                : 'border-[var(--border-app,#C7D7C9)]'
+                            }`}
+                          >
+                            <div>
+                              {/* Hero Thumbnail with Badges */}
+                              <div className="relative aspect-[16/10] bg-[#153325] overflow-hidden">
+                                <SafeImage
+                                  src={att.image_url}
+                                  alt={att.name}
+                                  className="w-full h-full object-cover"
+                                  fallback="landscape"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+
+                                <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5 items-center">
+                                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider bg-[#153325]/90 text-white backdrop-blur-md shadow-xs border border-white/10">
+                                    {att.category}
+                                  </span>
+                                  {att.video_url && (
+                                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-black/60 backdrop-blur-md text-amber-300 border border-amber-400/40 shadow-xs flex items-center gap-1">
+                                      <Play className="w-2.5 h-2.5 fill-current" /> Video
+                                    </span>
+                                  )}
+                                </div>
+
+                                {hasCoords && (
+                                  <div className="absolute bottom-2.5 left-2.5 bg-black/60 backdrop-blur-md text-white/90 text-[9px] px-2 py-0.5 rounded-md border border-white/15 font-mono flex items-center gap-1">
+                                    <Navigation className="w-2.5 h-2.5 text-[#B88B2A] fill-current" />
+                                    <span>{parseFloat(att.latitude).toFixed(3)}°, {parseFloat(att.longitude).toFixed(3)}°</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Card Content */}
+                              <div className="p-4">
+                                <h4 className="font-serif text-base font-bold text-[#153325] leading-snug mb-1">
+                                  {att.name}
+                                </h4>
+                                {att.location_details && (
+                                  <p className="text-xs text-[#5A534E] mb-2 flex items-center gap-1 truncate">
+                                    <MapPin className="w-3.5 h-3.5 text-[#B88B2A] flex-shrink-0" />
+                                    <span>{att.location_details}</span>
+                                  </p>
+                                )}
+                                <p className="text-xs text-[#5A534E] line-clamp-2 leading-relaxed">
+                                  {att.description || 'Scenic attraction listed in the municipality directory.'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Toolbar Footer */}
+                            <div className="p-3 border-t border-[var(--border-app,#C7D7C9)] bg-[#FAF7F2]/50 flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewAttraction(att)}
+                                className="px-2.5 py-1.5 text-xs font-bold text-[#153325] hover:bg-white rounded-lg transition-colors border border-transparent hover:border-[#E8DFC8] flex items-center gap-1 cursor-pointer"
+                                title="Preview Details"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Preview</span>
+                              </button>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartAttractionEdit(att)}
+                                  className="px-3 py-1.5 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                                >
+                                  <Edit className="w-3 h-3 text-[#B88B2A]" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttraction(att.id)}
+                                  className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete Attraction"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Preview Modal for Municipal Officer */}
+              {previewAttraction && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto border border-[#E8DFC8] my-auto text-left">
+                    <div className="relative aspect-video bg-[#153325] overflow-hidden rounded-t-2xl">
+                      {previewAttraction.video_url ? (
+                        previewAttraction.video_url.includes('youtube.com') || previewAttraction.video_url.includes('youtu.be') ? (
+                          <iframe
+                            src={previewAttraction.video_url.replace('watch?v=', 'embed/')}
+                            title={previewAttraction.name}
+                            className="w-full h-full object-cover"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <video
+                            src={previewAttraction.video_url}
+                            controls
+                            className="w-full h-full object-cover"
+                            poster={previewAttraction.image_url}
+                          />
+                        )
+                      ) : (
+                        <SafeImage
+                          src={previewAttraction.image_url}
+                          alt={previewAttraction.name}
+                          className="w-full h-full object-cover"
+                          fallback="landscape"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewAttraction(null)}
+                        className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md cursor-pointer transition-colors shadow"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="p-6 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-xs font-bold uppercase tracking-wider text-[#B88B2A]">
+                            {previewAttraction.category}
+                          </span>
+                          {previewAttraction.latitude && previewAttraction.longitude && (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${previewAttraction.latitude},${previewAttraction.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-bold text-[#153325] hover:underline inline-flex items-center gap-1"
+                            >
+                              <Navigation className="w-3 h-3 text-[#B88B2A] fill-current" />
+                              <span>{parseFloat(previewAttraction.latitude).toFixed(4)}°, {parseFloat(previewAttraction.longitude).toFixed(4)}°</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                        <h3 className="font-serif text-2xl font-bold text-[#153325]">
+                          {previewAttraction.name}
+                        </h3>
+                        {previewAttraction.location_details && (
+                          <p className="text-xs text-[#5A534E] flex items-center gap-1 mt-1">
+                            <MapPin className="w-3.5 h-3.5 text-[#B88B2A]" />
+                            <span>{previewAttraction.location_details}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="prose prose-sm text-xs text-[#5A534E] leading-relaxed">
+                        <p className="whitespace-pre-line">{previewAttraction.description}</p>
+                      </div>
+
+                      <div className="pt-3 border-t border-[var(--border-app,#C7D7C9)] flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewAttraction(null)}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                        >
+                          Close Preview
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const att = previewAttraction;
+                            setPreviewAttraction(null);
+                            handleStartAttractionEdit(att);
+                          }}
+                          className="px-4 py-2 bg-[#153325] hover:bg-[#1D4433] text-white font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-[#B88B2A]" />
+                          <span>Edit This Attraction</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Requirements Tab */}
+        {activeTab === 'requirements' && (() => {
+          const homestayReqs = requirements.filter(r => r.target_type === 'HOMESTAY');
+          const guideReqs = requirements.filter(r => r.target_type === 'TOUR_GUIDE');
+          const mandatoryCount = requirements.filter(r => r.is_required !== false).length;
+          const optionalCount = requirements.filter(r => r.is_required === false).length;
+          const pendingSubmissionsCount = submissions.filter(s => s.status === 'PENDING').length;
+
+          const STANDARD_PRESETS = [
+            {
+              name: "Barangay Business Clearance",
+              target: "HOMESTAY",
+              required: true,
+              desc: "Clearance certificate issued by the Punong Barangay certifying local operation within jurisdiction."
+            },
+            {
+              name: "Mayor's / Municipal Business Permit",
+              target: "HOMESTAY",
+              required: true,
+              desc: "Official municipal permit and business license authorizing tourist lodging operations."
+            },
+            {
+              name: "Sanitary & Health Inspection Clearance",
+              target: "HOMESTAY",
+              required: true,
+              desc: "Certification from the Municipal Health Office ensuring potable water and guest hygiene safety."
+            },
+            {
+              name: "Fire Safety Inspection Certificate (FSIC)",
+              target: "HOMESTAY",
+              required: true,
+              desc: "Bureau of Fire Protection (BFP) clearance verifying operational smoke alarms, fire extinguishers, and marked exits."
+            },
+            {
+              name: "DOT / LGU Eco-Guide Accreditation Certificate",
+              target: "TOUR_GUIDE",
+              required: true,
+              desc: "Official certification proving completion of accredited Cordillera eco-tourism training curriculum."
+            },
+            {
+              name: "First Aid & Basic Life Support (BLS) ID",
+              target: "TOUR_GUIDE",
+              required: true,
+              desc: "Current Red Cross or MDRRMO emergency responder certification card."
+            },
+            {
+              name: "Barangay Residency Clearance",
+              target: "TOUR_GUIDE",
+              required: true,
+              desc: "Proof of residency validating that the guide belongs to the local ancestral domain community."
+            },
+            {
+              name: "Medical Certificate of Fitness for Mountain Guiding",
+              target: "TOUR_GUIDE",
+              required: false,
+              desc: "Annual physician's clearance certifying cardiovascular and physical stamina for rugged trek navigation."
+            }
+          ];
+
+          const applyPreset = (preset) => {
+            setReqName(preset.name);
+            setReqTarget(preset.target);
+            setReqRequired(preset.required);
+            setReqDesc(preset.desc);
+            showAlert(`Preset "${preset.name}" loaded into form.`, 'info');
+            const formPanel = document.getElementById('requirement-form-panel');
+            if (formPanel) {
+              formPanel.scrollIntoView({ behavior: 'smooth' });
+            }
+          };
+
+          const filteredRequirements = requirements.filter(r => {
+            const matchesSearch = !reqSearch ||
+              r.requirement_name?.toLowerCase().includes(reqSearch.toLowerCase()) ||
+              r.description?.toLowerCase().includes(reqSearch.toLowerCase());
+
+            if (!matchesSearch) return false;
+
+            if (reqFilterTarget !== 'ALL' && r.target_type !== reqFilterTarget) {
+              return false;
+            }
+
+            if (reqFilterMandatory === 'REQUIRED' && r.is_required === false) return false;
+            if (reqFilterMandatory === 'OPTIONAL' && r.is_required !== false) return false;
+
+            return true;
+          });
+
+          return (
+            <div className="space-y-6">
+              {/* Top KPI Metrics Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Total Requirements</span>
+                    <FolderClosed className="w-4 h-4 text-[#153325]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#153325] mt-2">{requirements.length}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">
+                    {mandatoryCount} Mandatory · {optionalCount} Optional
+                  </p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Homestay Checklist</span>
+                    <Home className="w-4 h-4 text-[#B88B2A]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#B88B2A] mt-2">{homestayReqs.length}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Required documents for lodging</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Guide Checklist</span>
+                    <Compass className="w-4 h-4 text-[#355C6D]" />
+                  </div>
+                  <p className="text-2xl font-serif font-bold text-[#355C6D] mt-2">{guideReqs.length}</p>
+                  <p className="text-[11px] text-[#5A534E] mt-0.5">Required credentials for guides</p>
+                </div>
+
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Audit Queue</span>
+                      <FileCheck className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-1.5">
+                      <p className="text-2xl font-serif font-bold text-emerald-800">{pendingSubmissionsCount}</p>
+                      <span className="text-xs text-[#5A534E]">pending review</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('review')}
+                    className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#153325] text-white font-bold text-xs rounded-xl shadow-xs hover:bg-[#1D4433] transition-all cursor-pointer"
+                  >
+                    <span>Go to Audit Desk</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  </button>
+                </div>
+              </div>
+
+              {/* LGU Standard Presets Strip */}
+              <div className="bg-gradient-to-r from-[#153325]/5 via-[#B88B2A]/10 to-[#153325]/5 border border-[var(--border-app,#C7D7C9)] p-4 rounded-2xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#B88B2A]" />
+                    <span className="text-xs font-bold text-[#153325] uppercase tracking-wider">
+                      Cordillera Standard Presets: 1-Click Quick-Fill Templates
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-[#5A534E]">Click any preset to pre-fill the form</span>
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {STANDARD_PRESETS.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      className="px-3 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] hover:border-[#153325] rounded-xl text-xs font-medium text-[#232120] hover:text-[#153325] shadow-2xs hover:shadow-xs transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+                      title={preset.desc}
+                    >
+                      <span className="text-xs">{preset.target === 'HOMESTAY' ? '🏡' : '🧭'}</span>
+                      <span className="font-semibold">{preset.name}</span>
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                        preset.required ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {preset.required ? 'Req' : 'Opt'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Main Workspace: Form (Col-5) & Directory (Col-7) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Form Column */}
+                <div
+                  id="requirement-form-panel"
+                  className="lg:col-span-5 bg-white border border-[var(--border-app,#C7D7C9)] p-6 rounded-2xl shadow-xs h-fit space-y-4 text-left"
+                >
+                  <div className="flex justify-between items-center border-b border-[var(--border-app,#C7D7C9)] pb-3">
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-[#153325] flex items-center gap-1.5">
+                        <FolderClosed className="w-4 h-4 text-[#B88B2A]" />
+                        <span>{editingReqId ? 'Edit Requirement' : 'Add Accreditation Requirement'}</span>
+                      </h3>
+                      <p className="text-xs text-[#5A534E] mt-0.5">
+                        {editingReqId ? 'Update requirement instructions or target.' : 'Define criteria for municipal homestays or tour guides.'}
+                      </p>
+                    </div>
+                    {editingReqId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEditRequirement}
+                        className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleAddRequirement} className="space-y-4">
+                    {/* Target Applicant Switch */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1.5">
+                        Target Applicant Category <span className="text-red-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setReqTarget('HOMESTAY')}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                            reqTarget === 'HOMESTAY'
+                              ? 'bg-amber-500/10 border-amber-500/50 shadow-xs'
+                              : 'bg-white border-[var(--border-app,#C7D7C9)] hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 font-bold text-xs text-[#153325]">
+                            <Home className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Homestays</span>
+                          </div>
+                          <span className="text-[10px] text-[#5A534E]">Lodging & Accommodations</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setReqTarget('TOUR_GUIDE')}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                            reqTarget === 'TOUR_GUIDE'
+                              ? 'bg-sky-500/10 border-sky-500/50 shadow-xs'
+                              : 'bg-white border-[var(--border-app,#C7D7C9)] hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 font-bold text-xs text-[#153325]">
+                            <Compass className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Tour Guides</span>
+                          </div>
+                          <span className="text-[10px] text-[#5A534E]">Trek & Mountain Guides</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Requirement Name */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Requirement Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={reqName}
+                        onChange={(e) => setReqName(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] placeholder-[#5A534E]/60 focus:outline-none focus:border-[#153325]"
+                        placeholder="e.g. Barangay Business Clearance"
+                      />
+                    </div>
+
+                    {/* Mandatory / Optional Status */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1.5">
+                        Accreditation Obligation
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setReqRequired(true)}
+                          className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
+                            reqRequired
+                              ? 'bg-red-500/10 border-red-500/40 text-red-800 shadow-2xs'
+                              : 'bg-white border-[var(--border-app,#C7D7C9)] text-[#5A534E]'
+                          }`}
+                        >
+                          🚨 Mandatory (Required)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReqRequired(false)}
+                          className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
+                            !reqRequired
+                              ? 'bg-slate-100 border-slate-300 text-slate-800 shadow-2xs'
+                              : 'bg-white border-[var(--border-app,#C7D7C9)] text-[#5A534E]'
+                          }`}
+                        >
+                          ℹ️ Optional (Supplementary)
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-[#5A534E] mt-1 italic">
+                        {reqRequired
+                          ? 'Mandatory documents must be endorsed before the applicant receives official municipal endorsement.'
+                          : 'Optional documents provide supplementary credentials but will not block accreditation.'}
+                      </p>
+                    </div>
+
+                    {/* Description & Guidelines */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">
+                        Instructions & Formatting Guidelines
+                      </label>
+                      <textarea
+                        rows="3"
+                        value={reqDesc}
+                        onChange={(e) => setReqDesc(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] placeholder-[#5A534E]/60 focus:outline-none focus:border-[#153325]"
+                        placeholder="Specify issuing department, validity timeline, required stamp, or file formats (PDF, JPG, PNG)..."
+                      />
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      disabled={reqSaving}
+                      className="w-full py-2.5 bg-[#153325] hover:bg-[#1D4433] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {reqSaving ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Saving Requirement...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-[#B88B2A]" />
+                          <span>{editingReqId ? 'Update Requirement' : 'Save Requirement to Checklist'}</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Directory Column */}
+                <div className="lg:col-span-7 space-y-4 text-left">
+                  {/* Search and Filters Header */}
+                  <div className="bg-white border border-[var(--border-app,#C7D7C9)] p-4 rounded-2xl space-y-3 shadow-xs">
+                    <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
+                      {/* Search */}
+                      <div className="relative w-full sm:max-w-xs">
+                        <Search className="w-3.5 h-3.5 text-[#5A534E] absolute left-3 top-2.5 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={reqSearch}
+                          onChange={(e) => setReqSearch(e.target.value)}
+                          placeholder="Search requirements..."
+                          className="w-full pl-8 pr-7 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs text-[#232120] focus:outline-none focus:border-[#153325]"
+                        />
+                        {reqSearch && (
+                          <button
+                            onClick={() => setReqSearch('')}
+                            className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Mandatory Filter */}
+                      <select
+                        value={reqFilterMandatory}
+                        onChange={(e) => setReqFilterMandatory(e.target.value)}
+                        className="w-full sm:w-auto px-2.5 py-1.5 bg-white border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs font-semibold text-[#153325] focus:outline-none"
+                      >
+                        <option value="ALL">All Statuses</option>
+                        <option value="REQUIRED">Mandatory Only</option>
+                        <option value="OPTIONAL">Optional Only</option>
+                      </select>
+                    </div>
+
+                    {/* Target Filter Tabs */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                      {[
+                        { id: 'ALL', label: 'All Requirements', count: requirements.length },
+                        { id: 'HOMESTAY', label: 'Homestays', count: homestayReqs.length, icon: '🏡' },
+                        { id: 'TOUR_GUIDE', label: 'Tour Guides', count: guideReqs.length, icon: '🧭' }
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setReqFilterTarget(tab.id)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                            reqFilterTarget === tab.id
+                              ? 'bg-[#153325] text-white shadow-2xs'
+                              : 'bg-slate-100 text-[#5A534E] hover:bg-slate-200'
+                          }`}
+                        >
+                          {tab.icon && <span>{tab.icon}</span>}
+                          <span>{tab.label}</span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                            reqFilterTarget === tab.id ? 'bg-white/20 text-white' : 'bg-white text-slate-700'
+                          }`}>
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Requirements List */}
+                  {filteredRequirements.length === 0 ? (
+                    <div className="text-center py-12 bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-6 space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-[#153325]/10 text-[#153325] flex items-center justify-center mx-auto">
+                        <FolderClosed className="w-6 h-6 opacity-70" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-serif font-bold text-sm text-[#153325]">
+                          {reqSearch || reqFilterTarget !== 'ALL' || reqFilterMandatory !== 'ALL'
+                            ? 'No requirements match your filters'
+                            : 'No accreditation requirements defined yet'}
+                        </p>
+                        <p className="text-xs text-[#5A534E] max-w-sm mx-auto">
+                          {reqSearch || reqFilterTarget !== 'ALL' || reqFilterMandatory !== 'ALL'
+                            ? 'Try clearing your search keyword or switching category tabs.'
+                            : 'Homestay owners and guides will be able to register without uploading files until requirements are configured.'}
+                        </p>
+                      </div>
+                      {reqSearch || reqFilterTarget !== 'ALL' || reqFilterMandatory !== 'ALL' ? (
+                        <button
+                          onClick={() => {
+                            setReqSearch('');
+                            setReqFilterTarget('ALL');
+                            setReqFilterMandatory('ALL');
+                          }}
+                          className="px-3.5 py-1.5 bg-[#153325] text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                        >
+                          Reset Filters
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => applyPreset(STANDARD_PRESETS[0])}
+                          className="px-4 py-2 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-[#B88B2A]" />
+                          <span>Load Standard Barangay Clearance Template</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredRequirements.map((r) => {
+                        const relatedSubs = submissions.filter(s => s.requirement_id === r.id);
+                        const pendingCount = relatedSubs.filter(s => s.status === 'PENDING').length;
+                        const endorsedCount = relatedSubs.filter(s => s.status === 'ENDORSED').length;
+
+                        return (
+                          <div
+                            key={r.id}
+                            className={`p-4 sm:p-5 rounded-2xl border transition-all shadow-2xs bg-white ${
+                              editingReqId === r.id
+                                ? 'border-[#153325] ring-2 ring-[#153325]/10'
+                                : 'border-[var(--border-app,#C7D7C9)] hover:border-[#153325]'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                              <div className="space-y-1.5 flex-grow">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase flex items-center gap-1 ${
+                                    r.target_type === 'HOMESTAY'
+                                      ? 'bg-amber-500/10 text-amber-800 border border-amber-500/30'
+                                      : 'bg-sky-500/10 text-sky-800 border border-sky-500/30'
+                                  }`}>
+                                    <span>{r.target_type === 'HOMESTAY' ? '🏡' : '🧭'}</span>
+                                    <span>{r.target_type === 'HOMESTAY' ? 'Homestay' : 'Tour Guide'}</span>
+                                  </span>
+
+                                  {r.is_required !== false ? (
+                                    <span className="bg-red-500/10 text-red-700 border border-red-500/30 font-bold px-2 py-0.5 rounded-md text-[9px] tracking-wide uppercase">
+                                      Mandatory
+                                    </span>
+                                  ) : (
+                                    <span className="bg-slate-100 text-slate-600 border border-slate-200 font-bold px-2 py-0.5 rounded-md text-[9px] tracking-wide uppercase">
+                                      Optional
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h4 className="font-serif font-bold text-slate-800 text-base leading-snug">
+                                  {r.requirement_name}
+                                </h4>
+
+                                {r.description && (
+                                  <p className="text-xs text-[#5A534E] leading-relaxed">
+                                    {r.description}
+                                  </p>
+                                )}
+
+                                {/* Submissions Intelligence Strip */}
+                                <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-[#5A534E]">
+                                  <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>{relatedSubs.length} Total Submissions</span>
+                                  </span>
+                                  {pendingCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveTab('review')}
+                                      className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-bold hover:bg-amber-100 transition-colors cursor-pointer"
+                                    >
+                                      {pendingCount} Pending Audit →
+                                    </button>
+                                  )}
+                                  {endorsedCount > 0 && (
+                                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-medium">
+                                      {endorsedCount} Endorsed
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Card Actions */}
+                              <div className="flex items-center gap-1 sm:self-start flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditRequirement(r)}
+                                  className="p-2 text-slate-500 hover:text-[#153325] hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                                  title="Edit requirement details"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRequirement(r.id)}
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                                  title="Delete requirement"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Document Review Tab */}
+        {activeTab === 'review' && (() => {
+          const pendingSubs = submissions.filter(s => s.status === 'PENDING');
+          const endorsedSubs = submissions.filter(s => s.status === 'ENDORSED');
+          const rejectedSubs = submissions.filter(s => s.status === 'REJECTED');
+
+
+          const filteredSubs = submissions.filter(s => {
+            const matchSearch =
+              s.applicant_name?.toLowerCase().includes(reviewSearch.toLowerCase()) ||
+              s.requirement_name?.toLowerCase().includes(reviewSearch.toLowerCase()) ||
+              s.applicant_role?.toLowerCase().includes(reviewSearch.toLowerCase());
+            const matchFilter =
+              reviewFilter === 'ALL' ||
+              reviewFilter === s.status ||
+              (reviewFilter === 'HOMESTAY' && s.applicant_role === 'HOMESTAY_OWNER') ||
+              (reviewFilter === 'GUIDE' && s.applicant_role === 'TOUR_GUIDE');
+            return matchSearch && matchFilter;
+          });
+
+          const handleReview = (subId, status) => {
+            const remark = inlineRemarks[subId] || reviewRemarks || 'Processed';
+            handleReviewDocument(subId, status, remark);
+            setInlineRemarks(prev => { const n = {...prev}; delete n[subId]; return n; });
+          };
+
+          const roleColor = (role) => {
+            if (role === 'HOMESTAY_OWNER') return 'bg-blue-100 text-blue-800';
+            if (role === 'TOUR_GUIDE') return 'bg-violet-100 text-violet-800';
+            return 'bg-slate-100 text-slate-600';
+          };
+
+          const roleLabel = (role) => role?.replace(/_/g, ' ') || 'Unknown';
+
+          const statusConfig = {
+            PENDING: { color: 'bg-amber-100 text-amber-800', dot: 'bg-amber-400', label: 'Pending' },
+            ENDORSED: { color: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500', label: 'Endorsed' },
+            REJECTED: { color: 'bg-red-100 text-red-700', dot: 'bg-red-400', label: 'Rejected' },
+          };
+
+          return (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 className="font-extrabold text-[#153325] text-lg flex items-center gap-2">
+                    <FileCheck className="w-5 h-5 text-emerald-700" />
+                    Document Audit Desk
+                  </h3>
+                  <p className="text-xs text-[#5A534E] mt-0.5">Review accreditation documents submitted by homestay owners and tour guides.</p>
+                </div>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Submissions', value: submissions.length, icon: FileText, color: 'from-slate-50 to-slate-100', iconBg: 'bg-slate-200', iconColor: 'text-slate-600' },
+                  { label: 'Pending Review', value: pendingSubs.length, icon: Clock, color: 'from-amber-50 to-amber-100', iconBg: 'bg-amber-200', iconColor: 'text-amber-700' },
+                  { label: 'Endorsed', value: endorsedSubs.length, icon: CheckCircle, color: 'from-emerald-50 to-emerald-100', iconBg: 'bg-emerald-200', iconColor: 'text-emerald-700' },
+                  { label: 'Rejected', value: rejectedSubs.length, icon: X, color: 'from-red-50 to-red-100', iconBg: 'bg-red-200', iconColor: 'text-red-600' },
+                ].map(({ label, value, icon: Icon, color, iconBg, iconColor }) => (
+                  <div key={label} className={`bg-gradient-to-br ${color} rounded-xl p-4 border border-white/80 shadow-sm`}>
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <span className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                        <Icon className={`w-3.5 h-3.5 ${iconColor}`} />
+                      </span>
+                      <span className="text-[10px] font-bold text-[#5A534E] uppercase tracking-wider leading-tight">{label}</span>
+                    </div>
+                    <p className="text-2xl font-serif font-bold text-[#153325]">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by applicant name, requirement, or role..."
+                    value={reviewSearch}
+                    onChange={e => setReviewSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { id: 'ALL', label: 'All' },
+                    { id: 'PENDING', label: '⏳ Pending' },
+                    { id: 'ENDORSED', label: '✅ Endorsed' },
+                    { id: 'REJECTED', label: '❌ Rejected' },
+                    { id: 'HOMESTAY', label: '🏠 Homestay' },
+                    { id: 'GUIDE', label: '🧭 Guide' },
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setReviewFilter(f.id)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                        reviewFilter === f.id
+                          ? 'bg-[#153325] text-white border-[#153325]'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Global Remarks Banner */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide mb-1">Global Remark (applied if no per-card remark is set)</p>
+                  <input
+                    type="text"
+                    placeholder="e.g. Document appears invalid — please re-submit with notarized copy..."
+                    value={reviewRemarks}
+                    onChange={e => setReviewRemarks(e.target.value)}
+                    className="w-full px-3 py-2 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  />
+                </div>
+              </div>
+
+              {/* Submission Cards */}
+              {filteredSubs.length === 0 ? (
+                <div className="py-14 flex flex-col items-center gap-3 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                    <FileCheck className="w-7 h-7 text-slate-300" />
+                  </div>
+                  <p className="font-bold text-slate-600 text-sm">
+                    {reviewSearch || reviewFilter !== 'ALL' ? 'No submissions match your filters' : 'No document submissions awaiting audit'}
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-xs">
+                    {reviewSearch || reviewFilter !== 'ALL'
+                      ? 'Try clearing your search or selecting a different filter.'
+                      : 'When homestay owners or tour guides submit accreditation documents, they will appear here for your review.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredSubs.map(sub => {
+                    const sc = statusConfig[sub.status] || statusConfig.PENDING;
+                    const initials = (sub.applicant_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                    const isHomestay = sub.applicant_role === 'HOMESTAY_OWNER';
+                    return (
+                      <div
+                        key={sub.id}
+                        className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${
+                          sub.status === 'PENDING' ? 'border-amber-200' :
+                          sub.status === 'ENDORSED' ? 'border-emerald-200' : 'border-red-100'
+                        }`}
+                      >
+                        {/* Status stripe */}
+                        <div className={`h-1 w-full ${sub.status === 'PENDING' ? 'bg-amber-400' : sub.status === 'ENDORSED' ? 'bg-emerald-500' : 'bg-red-400'}`} />
+
+                        <div className="p-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                            {/* Avatar + Info */}
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-extrabold text-sm ${isHomestay ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>
+                                {initials}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                                  <span className="font-extrabold text-[#153325] text-sm truncate">{sub.applicant_name}</span>
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${roleColor(sub.applicant_role)}`}>
+                                    {roleLabel(sub.applicant_role)}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 truncate">
+                                  <span className="font-semibold text-slate-700">Requirement:</span> {sub.requirement_name}
+                                </p>
+                                {sub.submitted_at && (
+                                  <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    Submitted {new Date(sub.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </p>
+                                )}
+                                {sub.review_comments && sub.review_comments !== 'Processed' && (
+                                  <div className="mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Review Note: </span>
+                                    <span className="text-[10px] text-slate-600">{sub.review_comments}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Status Badge + Doc Button */}
+                            <div className="flex sm:flex-col items-center sm:items-end gap-2 flex-shrink-0">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase ${sc.color}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                                {sc.label}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDocUrl(sub.document_url)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#153325]/5 hover:bg-[#153325]/10 border border-[#153325]/20 text-[#153325] rounded-lg text-[10px] font-bold transition-all"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View Doc
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Action Row — only for PENDING */}
+                          {sub.status === 'PENDING' && (
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+                              <input
+                                type="text"
+                                placeholder="Add specific remark for this document (optional)..."
+                                value={inlineRemarks[sub.id] || ''}
+                                onChange={e => setInlineRemarks(prev => ({ ...prev, [sub.id]: e.target.value }))}
+                                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleReview(sub.id, 'ENDORSED')}
+                                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-bold text-xs transition-all shadow-sm"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Endorse
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleReview(sub.id, 'REJECTED')}
+                                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold text-xs transition-all shadow-sm"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  Reject
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Reviewed state */}
+                          {sub.status !== 'PENDING' && (
+                            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
+                              {sub.status === 'ENDORSED' ? (
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                              ) : (
+                                <X className="w-3.5 h-3.5 text-red-400" />
+                              )}
+                              <span className={`text-xs font-semibold italic ${sub.status === 'ENDORSED' ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {sub.status === 'ENDORSED' ? 'Document endorsed — forwarded for Provincial review' : 'Document rejected — applicant notified to resubmit'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Stakeholders Tab */}
         {activeTab === 'stakeholders' && (
@@ -3014,6 +4993,252 @@ const MunicipalDashboard = () => {
       )}
         </div>
       </main>
+
+      {/* ── Modal: Create / Edit Municipal Video Advertisement ── */}
+      {showAdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-150 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-[#B88B2A]/15 text-[#B88B2A] rounded-xl">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#153325]">
+                    {adModalMode === 'create' ? 'Post Municipal Video Advertisement' : 'Edit Municipal Video Advertisement'}
+                  </h3>
+                  <p className="text-xs text-[#5A534E]">
+                    Campaign for <strong>{user?.municipalityName || 'your Municipality'}</strong> featured on Landing Page &amp; Town details page.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAd} className="space-y-4">
+              {/* Title & Subtitle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">
+                    Campaign Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={adForm.title}
+                    onChange={e => setAdForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder={`e.g. Discover ${user?.municipalityName || 'Town'} Natural Treasures`}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">
+                    Subtitle / Catchphrase
+                  </label>
+                  <input
+                    type="text"
+                    value={adForm.subtitle}
+                    onChange={e => setAdForm(f => ({ ...f, subtitle: e.target.value }))}
+                    placeholder="e.g. Hidden waterfalls & pristine highlands"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                  />
+                </div>
+              </div>
+
+              {/* Category & Municipality Badge */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">Category</label>
+                  <select
+                    value={adForm.category}
+                    onChange={e => setAdForm(f => ({ ...f, category: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                  >
+                    <option value="Eco-Tourism & Waterfalls">Eco-Tourism &amp; Waterfalls</option>
+                    <option value="Cultural Heritage & Crafts">Cultural Heritage &amp; Crafts</option>
+                    <option value="Mountain Adventure & Treks">Mountain Adventure &amp; Treks</option>
+                    <option value="Festivals & Cultural Events">Festivals &amp; Cultural Events</option>
+                    <option value="Local Gastronomy & Markets">Local Gastronomy &amp; Markets</option>
+                    <option value="Municipal Tourism Spotlight">Municipal Tourism Spotlight</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">
+                    Designated Municipality
+                  </label>
+                  <div className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold flex items-center gap-2">
+                    <Landmark className="w-3.5 h-3.5 text-[#B88B2A]" />
+                    <span>{user?.municipalityName || 'Your Municipality'}</span>
+                    <span className="text-[10px] text-slate-500 font-normal ml-auto">(Assigned LGU)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold text-[#153325] mb-1">Description</label>
+                <textarea
+                  rows="3"
+                  value={adForm.description}
+                  onChange={e => setAdForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Detailed promotional description of this municipal attraction, local culture, or adventure..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325] resize-none"
+                />
+              </div>
+
+              {/* Video Source: Upload File OR Direct URL */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <Video className="w-4 h-4 text-[#B88B2A]" />
+                  <span className="text-xs font-bold text-[#153325]">Video Media Source</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                      Upload Video File (MP4, WebM, MOV)
+                    </label>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={e => setAdVideoFile(e.target.files[0])}
+                      className="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#153325] file:text-white hover:file:bg-[#1D4433] cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                      Or Direct Video URL
+                    </label>
+                    <input
+                      type="text"
+                      value={adForm.videoUrl}
+                      onChange={e => setAdForm(f => ({ ...f, videoUrl: e.target.value }))}
+                      placeholder="https://.../video.mp4"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                    />
+                  </div>
+                </div>
+                {adForm.videoUrl && !adVideoFile && (
+                  <p className="text-[11px] text-slate-500 font-mono truncate">
+                    Current Video: {adForm.videoUrl}
+                  </p>
+                )}
+              </div>
+
+              {/* Thumbnail Image: Upload File OR Direct URL */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-[#B88B2A]" />
+                  <span className="text-xs font-bold text-[#153325]">Poster / Thumbnail Image</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                      Upload Poster Image
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => setAdThumbnailFile(e.target.files[0])}
+                      className="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#153325] file:text-white hover:file:bg-[#1D4433] cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                      Or Thumbnail Image URL
+                    </label>
+                    <input
+                      type="text"
+                      value={adForm.thumbnailUrl}
+                      onChange={e => setAdForm(f => ({ ...f, thumbnailUrl: e.target.value }))}
+                      placeholder="https://.../cover.jpg"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CTA Details & Display Priority */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">CTA Button Text</label>
+                  <input
+                    type="text"
+                    value={adForm.ctaText}
+                    onChange={e => setAdForm(f => ({ ...f, ctaText: e.target.value }))}
+                    placeholder={`Explore ${user?.municipalityName || 'Municipality'}`}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">CTA Destination Link</label>
+                  <input
+                    type="text"
+                    value={adForm.ctaLink}
+                    onChange={e => setAdForm(f => ({ ...f, ctaLink: e.target.value }))}
+                    placeholder={user?.municipalityId ? `/municipalities/${user.municipalityId}` : '/municipalities'}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">Display Priority Order</label>
+                  <input
+                    type="number"
+                    value={adForm.displayOrder}
+                    onChange={e => setAdForm(f => ({ ...f, displayOrder: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                  />
+                </div>
+              </div>
+
+              {/* Live Status Checkbox */}
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="adIsActiveMun"
+                  checked={adForm.isActive}
+                  onChange={e => setAdForm(f => ({ ...f, isActive: e.target.checked }))}
+                  className="w-4 h-4 text-[#153325] rounded focus:ring-0 cursor-pointer"
+                />
+                <label htmlFor="adIsActiveMun" className="text-xs font-semibold text-[#153325] cursor-pointer">
+                  Publish Immediately (Active on Landing Page and {user?.municipalityName || 'Town'} details page)
+                </label>
+              </div>
+
+              {adMsg.text && (
+                <div className={`p-3 rounded-xl text-xs font-semibold ${adMsg.type === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                  {adMsg.text}
+                </div>
+              )}
+
+              {/* Submit Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-150">
+                <button
+                  type="button"
+                  onClick={() => setShowAdModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={adFormLoading}
+                  className="px-6 py-2 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {adFormLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  <span>{adModalMode === 'create' ? 'Publish Advertisement' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -20,6 +20,7 @@ import announcementRoutes from './routes/announcementRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
 import packageRoutes from './routes/packageRoutes.js';
+import advertisementRoutes from './routes/advertisementRoutes.js';
 import { initOverdueCronJob, checkOverdueAssetsAndNotify } from './jobs/overdueAssetsCron.js';
 import { setSecurityHeaders, sanitizeInput, globalApiRateLimiter } from './middleware/securityMiddleware.js';
 
@@ -177,6 +178,57 @@ pool.query(`
     sequence_order INT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
+
+  -- Provincial Video Advertisements (Promotional Campaigns)
+  CREATE TABLE IF NOT EXISTS video_advertisements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255) NOT NULL,
+    subtitle VARCHAR(255),
+    description TEXT,
+    video_url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    category VARCHAR(100) DEFAULT 'Eco-Tourism',
+    municipality_id INT REFERENCES municipalities(id) ON DELETE SET NULL,
+    cta_text VARCHAR(100) DEFAULT 'Explore Now',
+    cta_link VARCHAR(255) DEFAULT '/municipalities',
+    badge_label VARCHAR(100) DEFAULT 'Featured Campaign',
+    is_active BOOLEAN DEFAULT true,
+    display_order INT DEFAULT 0,
+    created_by UUID REFERENCES user_accounts(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Initial Seed for Video Advertisements
+  INSERT INTO video_advertisements (title, subtitle, description, video_url, thumbnail_url, category, cta_text, cta_link, badge_label, is_active, display_order)
+  SELECT 
+    'Discover Kaparkan: The Emerald Terraces of Tineg',
+    'Travertine waterfalls deep in the Cordillera forest',
+    'Experience the untouched natural majesty of Kaparkan Falls in Tineg, Abra. Journey through emerald cascades, natural spring pools, and pristine river gorges accompanied by accredited local mountain guides.',
+    'https://assets.mixkit.co/videos/preview/mixkit-waterfall-in-forest-2213-large.mp4',
+    '/uploads/images (4).jpg',
+    'Eco-Tourism & Waterfalls',
+    'Explore Kaparkan Falls',
+    '/municipalities',
+    'Official Provincial DOT Spotlight',
+    true,
+    1
+  WHERE NOT EXISTS (SELECT 1 FROM video_advertisements);
+
+  INSERT INTO video_advertisements (title, subtitle, description, video_url, thumbnail_url, category, cta_text, cta_link, badge_label, is_active, display_order)
+  SELECT 
+    'Heritage & Hands: The Living Traditions of Tayum & Peñarrubia',
+    'Ancestral Tingguian indigo weaving and Spanish Baroque architecture',
+    'Witness centuries-old natural dyeing, intricate loom weaving, and timeless heritage churches across the heartland of Abra. Connect with authentic artisans keeping indigenous Cordilleran culture alive.',
+    'https://assets.mixkit.co/videos/preview/mixkit-hands-of-a-potter-working-with-clay-41718-large.mp4',
+    '/uploads/images (5).jpg',
+    'Cultural Heritage & Crafts',
+    'Discover Heritage Towns',
+    '/municipalities',
+    'Provincial Cultural Campaign',
+    true,
+    2
+  WHERE (SELECT COUNT(*) FROM video_advertisements) < 2;
 `)
   .then(async () => {
     try {
@@ -236,6 +288,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/packages', packageRoutes);
+app.use('/api/advertisements', advertisementRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

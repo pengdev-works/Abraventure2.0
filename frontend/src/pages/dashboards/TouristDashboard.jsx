@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   Calendar, MessageSquare, AlertCircle, Star, CreditCard, 
-  Upload, FileText, CheckCircle, Clock, ChevronRight, HelpCircle,
+  Upload, FileText, CheckCircle, Clock, ChevronRight, ChevronLeft, HelpCircle,
   Megaphone, Plus, Info, ShieldCheck, MapPin, Compass, ArrowRight, Check
 } from 'lucide-react';
 import DarkModeToggle from '../../components/common/DarkModeToggle';
@@ -293,22 +293,22 @@ const TouristDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {[
             { label: 'Total Inquiries', value: bookings.length, icon: FileText },
-            { label: 'Confirmed Stays/Tours', value: activeBookingsCount, icon: CheckCircle },
-            { label: 'Awaiting Payment Proof', value: pendingPaymentsCount, icon: CreditCard },
-            { label: 'Grievance / Reports', value: complaints.length, icon: AlertCircle }
+            { label: 'Confirmed Stays', value: activeBookingsCount, icon: CheckCircle },
+            { label: 'Pending Payment', value: pendingPaymentsCount, icon: CreditCard },
+            { label: 'Reports Filed', value: complaints.length, icon: AlertCircle }
           ].map((s, index) => {
             const Icon = s.icon;
             return (
-              <div key={index} className="bg-white p-5 rounded-2xl border border-[#E8DFC8] shadow-2xs flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-bold text-[#5A534E] uppercase tracking-wider block mb-0.5">{s.label}</span>
-                  <h3 className="font-serif text-2xl font-bold text-[#153325]">{s.value}</h3>
+              <div key={index} className="bg-white p-3.5 sm:p-5 rounded-2xl border border-[#E8DFC8] shadow-2xs flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-[9px] sm:text-[10px] font-bold text-[#5A534E] uppercase tracking-wider block mb-0.5 truncate">{s.label}</span>
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#153325]">{s.value}</h3>
                 </div>
-                <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] text-[#153325] flex-shrink-0">
-                  <Icon className="w-5 h-5" />
+                <div className="p-2 sm:p-3 rounded-xl bg-[#FAF7F2] border border-[#E8DFC8] text-[#153325] flex-shrink-0">
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
               </div>
             );
@@ -316,7 +316,7 @@ const TouristDashboard = () => {
         </div>
 
         {/* Tab Selectors */}
-        <div className="border-b border-[#E8DFC8] bg-white rounded-t-2xl shadow-2xs flex px-6 space-x-6 overflow-x-auto whitespace-nowrap">
+        <div className="border-b border-[#E8DFC8] bg-white rounded-t-2xl shadow-2xs flex px-4 sm:px-6 space-x-4 sm:space-x-6 overflow-x-auto whitespace-nowrap scrollbar-none">
           {[
             { id: 'bookings', label: 'Bookings & Direct Chat', icon: CreditCard },
             { id: 'complaints', label: 'Municipal Feedback & Grievance Desk', icon: Megaphone }
@@ -330,13 +330,13 @@ const TouristDashboard = () => {
                   setActiveTab(tab.id);
                   setSearchParams({ tab: tab.id });
                 }}
-                className={`py-4 px-1 border-b-2 font-serif text-sm font-bold cursor-pointer transition-all flex items-center gap-2 flex-shrink-0 ${
+                className={`py-3.5 sm:py-4 border-b-2 font-bold text-xs uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all flex-shrink-0 touch-target ${
                   isActive
                     ? 'border-[#153325] text-[#153325]'
-                    : 'border-transparent text-[#5A534E] hover:text-[#232120]'
+                    : 'border-transparent text-[#5A534E] hover:text-[#153325]'
                 }`}
               >
-                <Icon className="w-4 h-4 text-[#B88B2A]" />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-[#B88B2A]' : ''}`} />
                 <span>{tab.label}</span>
               </button>
             );
@@ -344,16 +344,18 @@ const TouristDashboard = () => {
         </div>
 
         {/* Main Tab Content */}
-        <div className="bg-white border border-t-0 border-[#E8DFC8] rounded-b-2xl shadow-2xs p-6 min-h-[420px]">
+        <div className="bg-white border border-t-0 border-[#E8DFC8] rounded-b-2xl shadow-2xs p-3 sm:p-6 min-h-[420px]">
           
           {/* Bookings & Payments Tab */}
           {activeTab === 'bookings' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border border-[#E8DFC8] rounded-2xl overflow-hidden" style={{minHeight: '520px'}}>
               {/* Booking List */}
-              <div className="lg:col-span-1 border-r border-[#E8DFC8] bg-[#FAF7F2] flex flex-col">
-                <div className="px-5 py-3.5 border-b border-[#E8DFC8] bg-white">
-                  <h2 className="font-serif font-bold text-[#153325] text-sm">Active Inquiries</h2>
-                  <p className="text-[10px] text-[#5A534E] mt-0.5">{bookings.length} total recorded inquiry</p>
+              <div className={`lg:col-span-1 border-r border-[#E8DFC8] bg-[#FAF7F2] flex flex-col ${selectedBooking ? 'hidden lg:flex' : 'flex'}`}>
+                <div className="px-4 sm:px-5 py-3.5 border-b border-[#E8DFC8] bg-white flex items-center justify-between">
+                  <div>
+                    <h2 className="font-serif font-bold text-[#153325] text-sm">Active Inquiries</h2>
+                    <p className="text-[10px] text-[#5A534E] mt-0.5">{bookings.length} total recorded inquiry</p>
+                  </div>
                 </div>
                 {bookings.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
@@ -363,7 +365,7 @@ const TouristDashboard = () => {
                     <Link to="/municipalities" className="mt-3 btn-editorial-primary text-[10px] px-3.5 py-1.5">Browse Directory</Link>
                   </div>
                 ) : (
-                  <div className="flex-1 overflow-y-auto divide-y divide-[#E8DFC8]/60">
+                  <div className="flex-1 overflow-y-auto divide-y divide-[#E8DFC8]/60 max-h-[500px]">
                     {bookings.map((booking) => {
                       const isHomestay = !!booking.homestay_id;
                       const targetName = isHomestay ? booking.homestay_name : booking.guide_name;
@@ -372,7 +374,7 @@ const TouristDashboard = () => {
                         <div
                           key={booking.id}
                           onClick={() => setSelectedBooking(booking)}
-                          className={`px-4 py-3.5 cursor-pointer transition-colors ${
+                          className={`px-4 py-3.5 cursor-pointer transition-colors touch-target ${
                             isSelected
                               ? 'bg-white border-l-4 border-[#153325] shadow-2xs'
                               : 'hover:bg-white/60 border-l-4 border-transparent'
@@ -401,7 +403,7 @@ const TouristDashboard = () => {
               </div>
 
               {/* Conversation View */}
-              <div className="lg:col-span-2 flex flex-col bg-white">
+              <div className={`lg:col-span-2 flex flex-col bg-white ${!selectedBooking ? 'hidden lg:flex' : 'flex'}`}>
                 {selectedBooking ? (
                   (() => {
                     const isHomestay = !!selectedBooking.homestay_id;
@@ -412,16 +414,26 @@ const TouristDashboard = () => {
                     return (
                       <>
                         {/* Chat Header */}
-                        <div className="px-6 py-4 border-b border-[#E8DFC8] bg-[#FAF7F2] flex items-center justify-between gap-3 flex-shrink-0">
-                          <div>
-                            <span className="text-[9px] uppercase tracking-wider font-bold text-[#B88B2A] block">
-                              {isHomestay ? 'Homestay Direct Communication' : 'Guide Direct Communication'}
-                            </span>
-                            <h3 className="font-serif font-bold text-[#153325] text-base">{targetName}</h3>
-                            <div className="flex flex-wrap gap-3 text-[11px] text-[#5A534E] mt-1">
-                              {dateString && <span>📅 {dateString}</span>}
-                              {selectedBooking.number_of_guests && <span>👥 {selectedBooking.number_of_guests} guest(s)</span>}
-                              {selectedBooking.total_amount && <span className="font-bold text-[#153325]">💰 ₱{parseFloat(selectedBooking.total_amount).toLocaleString()}</span>}
+                        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[#E8DFC8] bg-[#FAF7F2] flex items-center justify-between gap-3 flex-shrink-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <button
+                              onClick={() => setSelectedBooking(null)}
+                              className="lg:hidden p-1.5 rounded-lg border border-[#E8DFC8] text-[#153325] hover:bg-[#F3ECE0] flex items-center gap-0.5 text-xs font-bold cursor-pointer touch-target"
+                              title="Back to inquiries"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                              <span className="hidden xs:inline">Back</span>
+                            </button>
+                            <div className="min-w-0">
+                              <span className="text-[9px] uppercase tracking-wider font-bold text-[#B88B2A] block truncate">
+                                {isHomestay ? 'Homestay Direct Inquiry' : 'Guide Direct Inquiry'}
+                              </span>
+                              <h3 className="font-serif font-bold text-[#153325] text-sm sm:text-base truncate">{targetName}</h3>
+                              <div className="flex flex-wrap gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-[#5A534E] mt-0.5">
+                                {dateString && <span>📅 {dateString}</span>}
+                                {selectedBooking.number_of_guests && <span>👥 {selectedBooking.number_of_guests} guest(s)</span>}
+                                {selectedBooking.total_amount && <span className="font-bold text-[#153325]">💰 ₱{parseFloat(selectedBooking.total_amount).toLocaleString()}</span>}
+                              </div>
                             </div>
                           </div>
                           {getStatusBadge(selectedBooking.status)}

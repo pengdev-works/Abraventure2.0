@@ -40,6 +40,7 @@ const ItineraryPlanner = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [mobileTab, setMobileTab] = useState('timeline'); // 'library' or 'timeline'
 
   // Form State for adding item
   const [selectedDay, setSelectedDay] = useState(1);
@@ -435,10 +436,38 @@ const ItineraryPlanner = () => {
         </div>
       </div>
 
+      {/* Mobile Tab Switcher (Visible on small screens) */}
+      <div className="lg:hidden flex bg-[#FAF7F2] p-1 rounded-xl border border-[#E8DFC8] mb-6">
+        <button
+          type="button"
+          onClick={() => setMobileTab('library')}
+          className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 touch-target ${
+            mobileTab === 'library'
+              ? 'bg-[#153325] text-white shadow-xs'
+              : 'text-[#5A534E] hover:text-[#153325]'
+          }`}
+        >
+          <ListTodo className="w-3.5 h-3.5" />
+          <span>My Expeditions ({itineraries.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('timeline')}
+          className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 touch-target ${
+            mobileTab === 'timeline'
+              ? 'bg-[#153325] text-white shadow-xs'
+              : 'text-[#5A534E] hover:text-[#153325]'
+          }`}
+        >
+          <Compass className="w-3.5 h-3.5" />
+          <span>Active Timeline</span>
+        </button>
+      </div>
+
       {/* Grid Container */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Itinerary Library & Create Form */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className={`lg:col-span-4 space-y-6 ${mobileTab === 'library' ? 'block' : 'hidden lg:block'}`}>
           {/* Create Itinerary Form */}
           {showCreateForm && (
             <div className="bg-[#FAF7F2] p-6 rounded-2xl border border-[#DCD5C9] shadow-sm animate-fadeIn">
@@ -527,7 +556,10 @@ const ItineraryPlanner = () => {
                   return (
                     <div
                       key={itin.id}
-                      onClick={() => setSelectedItinerary(itin)}
+                      onClick={() => {
+                        setSelectedItinerary(itin);
+                        setMobileTab('timeline');
+                      }}
                       className={`p-4 rounded-xl border cursor-pointer transition-all ${
                         isSelected
                           ? 'border-[#153325] bg-[#FAF7F2] shadow-xs ring-1 ring-[#153325]/15'
@@ -540,7 +572,7 @@ const ItineraryPlanner = () => {
                             {itin.title}
                           </h4>
                           {itin.description && (
-                            <p className="text-[#5A534E] text-xs mt-1 line-clamp-1">{itin.description}</p>
+                            <p className="text-[11px] text-[#5A534E] line-clamp-1 mt-0.5">{itin.description}</p>
                           )}
                         </div>
                         <button
@@ -575,7 +607,7 @@ const ItineraryPlanner = () => {
         </div>
 
         {/* Right Column: Active Expedition Timeline & Activity Builder */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className={`lg:col-span-8 space-y-6 ${mobileTab === 'timeline' ? 'block' : 'hidden lg:block'}`}>
           {selectedItinerary ? (
             <div className="space-y-6">
               {/* Trip Header Banner */}

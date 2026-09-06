@@ -129,6 +129,22 @@ const upload = {
       }
       next();
     });
+  },
+  fields: (fieldsArray) => (req, res, next) => {
+    baseUpload.fields(fieldsArray)(req, res, (err) => {
+      if (err) {
+        console.error(`[SECURE UPLOAD ERROR] Multi-fields:`, err.message);
+        return res.status(400).json({ message: err.message || 'File upload failed validation.' });
+      }
+      if (req.files && !isCloudinaryConfigured) {
+        Object.keys(req.files).forEach((key) => {
+          req.files[key].forEach(f => {
+            f.path = `/uploads/${f.filename}`;
+          });
+        });
+      }
+      next();
+    });
   }
 };
 

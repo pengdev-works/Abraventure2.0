@@ -551,7 +551,7 @@ const InteractiveMap = () => {
   const filteredItems = getFilteredItems();
 
   return (
-    <div className="relative flex h-[calc(100vh-64px)] w-full overflow-hidden bg-[#FAF7F2]">
+    <div className="relative flex h-[calc(100dvh-56px)] sm:h-[calc(100dvh-64px)] lg:h-[calc(100vh-80px)] w-full overflow-hidden bg-[#FAF7F2]">
 
       {/* Mobile Backdrop Overlay */}
       {isSidebarOpen && (
@@ -965,9 +965,9 @@ const InteractiveMap = () => {
           <Menu className="w-5 h-5 text-[#153325]" />
         </button>
 
-        {/* Routing overlay floating card */}
+        {/* Routing overlay floating card (Visible on mobile & desktop) */}
         {routeSummary && (
-          <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-sm shadow-lg rounded-xl border border-[#E8DFC8] p-3 max-w-[280px] hidden md:block animate-fadeIn">
+          <div className="absolute top-16 md:top-4 left-4 right-4 md:right-auto z-[1000] bg-white/95 backdrop-blur-sm shadow-xl rounded-xl border border-[#E8DFC8] p-3 max-w-sm animate-fadeIn">
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-full bg-[#153325] text-white flex items-center justify-center flex-shrink-0">
                 <Navigation2 className="w-4 h-4 fill-current text-[#B88B2A]" />
@@ -983,19 +983,20 @@ const InteractiveMap = () => {
               </div>
               <button
                 onClick={handleClearRoute}
-                className="text-[#9E978E] hover:text-[#232120] p-0.5 rounded cursor-pointer"
+                className="text-[#9E978E] hover:text-[#232120] p-1.5 rounded cursor-pointer touch-target flex items-center justify-center"
+                title="Clear route"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Map Controls */}
-        <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
+        {/* Map Controls - Positioned above mobile bottom navigation */}
+        <div className="absolute bottom-20 sm:bottom-6 right-4 sm:right-6 z-[1000] flex flex-col gap-2">
           <button
             onClick={handleAcquireLocation}
-            className="w-10 h-10 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer"
+            className="w-11 h-11 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer touch-target"
             title="Locate My Position"
           >
             <Navigation className="w-4 h-4 text-[#153325]" />
@@ -1007,7 +1008,7 @@ const InteractiveMap = () => {
               setMapZoom(10);
               setMapBounds(null);
             }}
-            className="w-10 h-10 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer"
+            className="w-11 h-11 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer touch-target"
             title="Reset Map Scope"
           >
             <MapIcon className="w-4 h-4 text-[#153325]" />
@@ -1071,11 +1072,11 @@ const InteractiveMap = () => {
 
       {/* ─── LISTING DETAILS MODAL ─── */}
       {activeDetailItem && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-[#232120]/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-[#E8DFC8] max-w-lg w-full max-h-[85vh] flex flex-col animate-scaleUp">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-4 bg-[#232120]/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-[#E8DFC8] max-w-lg w-full max-h-[90dvh] flex flex-col animate-scaleUp">
 
             {/* Image Header */}
-            <div className="relative h-56 bg-[#153325]">
+            <div className="relative h-44 sm:h-56 bg-[#153325]">
               {activeDetailItem.image_url || (activeDetailItem.images && activeDetailItem.images[0]?.image_url) ? (
                 <img
                   src={activeDetailItem.image_url || (activeDetailItem.images && activeDetailItem.images[0]?.image_url)}

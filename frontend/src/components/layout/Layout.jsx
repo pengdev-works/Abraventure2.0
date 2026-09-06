@@ -1,5 +1,6 @@
 import React from 'react';
 import Navbar from './Navbar';
+import MobileBottomNav from './MobileBottomNav';
 import { Link, useLocation } from 'react-router-dom';
 import { Mail, Phone, MapPin, ShieldCheck, Award } from 'lucide-react';
 
@@ -20,9 +21,10 @@ const Layout = ({ children }) => {
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-app,#E3ECE4)] text-[var(--text-primary,#17281D)] transition-colors">
       <Navbar />
-      <main className="flex-grow">
+      <main className="flex-grow pb-16 lg:pb-0">
         {children}
       </main>
+      <MobileBottomNav />
 
       {/* ── Official Provincial Tourism Office Footer ── */}
       <footer className="bg-[#153325] text-[#FAF7F2] border-t-2 border-[#B88B2A]">

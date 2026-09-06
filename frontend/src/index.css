@@ -39,12 +39,12 @@
    Light Mode (default) — Cordillera Sage
 ─────────────────────────────────────────── */
 :root, [data-theme="light"] {
-  --bg-app:          #E3ECE4;   /* Mountain Sage Mist */
-  --bg-card:         #F3F8F4;   /* Pale Sage Card */
-  --bg-card-subtle:  #E8F0EA;   /* Inner Section */
-  --bg-header:       #EAF1EB;   /* Header Surface */
-  --border-app:      #C7D7C9;   /* Herbal Border */
-  --text-primary:    #17281D;   /* Deep Forest Text */
+  --bg-app:          #E3ECE4;
+  --bg-card:         #F3F8F4;
+  --bg-card-subtle:  #E8F0EA;
+  --bg-header:       #EAF1EB;
+  --border-app:      #C7D7C9;
+  --text-primary:    #17281D;
   --text-secondary:  #45594C;
 }
 
@@ -52,61 +52,283 @@
    Dark Mode — Highland Pine Shadow
 ─────────────────────────────────────────── */
 [data-theme="dark"] {
-  --bg-app:          #0D1C15;   /* Deep Pine Shadow */
-  --bg-card:         #152B20;   /* Forest Card */
-  --bg-card-subtle:  #1C3629;   /* Inner Dark Section */
-  --bg-header:       #0F2018;   /* Dark Header */
-  --border-app:      #2A4338;   /* Dark Forest Border */
-  --text-primary:    #E2EDE5;   /* Soft White-Green Text */
+  --bg-app:          #0D1C15;
+  --bg-card:         #152B20;
+  --bg-card-subtle:  #1C3629;
+  --bg-header:       #0F2018;
+  --border-app:      #2A4338;
+  --text-primary:    #E2EDE5;
   --text-secondary:  #8FADA0;
 }
 
-/* Dark Mode Surface & Component Adaptations */
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — BODY & BASE
+───────────────────────────────────────────────────────────── */
 [data-theme="dark"] body {
   background-color: var(--bg-app);
   color: var(--text-primary);
 }
 
-[data-theme="dark"] .bg-white,
-[data-theme="dark"] .bg-\[\#FAF7F2\],
-[data-theme="dark"] .bg-\[\#FAF7F2\]\/95,
-[data-theme="dark"] .bg-\[\#FAF7F2\]\/90,
-[data-theme="dark"] .bg-\[\#FAF7F2\]\/80,
-[data-theme="dark"] .bg-\[\#FAF7F2\]\/50 {
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — BACKGROUND SURFACES
+───────────────────────────────────────────────────────────── */
+
+/* White / near-white → dark card */
+[data-theme="dark"] .bg-white {
   background-color: var(--bg-card) !important;
 }
 
-[data-theme="dark"] .bg-\[\#F3ECE0\],
-[data-theme="dark"] .bg-\[\#E8F0EA\],
+/* Slate surfaces */
 [data-theme="dark"] .bg-slate-50,
 [data-theme="dark"] .bg-slate-100 {
   background-color: var(--bg-card-subtle) !important;
 }
-
-[data-theme="dark"] .border-\[\#E8DFC8\],
-[data-theme="dark"] .border-\[\#DCD0B8\],
-[data-theme="dark"] .border-slate-200,
-[data-theme="dark"] .border-slate-100,
-[data-theme="dark"] .divide-\[\#E8DFC8\],
-[data-theme="dark"] .divide-\[\#F3ECE0\] {
-  border-color: var(--border-app) !important;
+[data-theme="dark"] .bg-slate-200 {
+  background-color: #253f30 !important;
+}
+[data-theme="dark"] .bg-slate-700,
+[data-theme="dark"] .bg-slate-800,
+[data-theme="dark"] .bg-slate-900 {
+  background-color: #0a1710 !important;
 }
 
+/* Custom hex bg values used in the codebase */
+[data-theme="dark"] .bg-\[\#FAF7F2\],
+[data-theme="dark"] .bg-\[\#FAF7F2\]\/95,
+[data-theme="dark"] .bg-\[\#FAF7F2\]\/90,
+[data-theme="dark"] .bg-\[\#FAF7F2\]\/80,
+[data-theme="dark"] .bg-\[\#FAF7F2\]\/50,
+[data-theme="dark"] .bg-\[\#F3ECE0\],
+[data-theme="dark"] .bg-\[\#E8F0EA\],
+[data-theme="dark"] .bg-\[\#EAF1EB\],
+[data-theme="dark"] .bg-\[\#F5FAF6\] {
+  background-color: var(--bg-card) !important;
+}
+
+/* Amber tinted */
+[data-theme="dark"] .bg-amber-50,
+[data-theme="dark"] .bg-amber-50\/50,
+[data-theme="dark"] .bg-amber-50\/30 {
+  background-color: rgba(120, 80, 10, 0.18) !important;
+}
+[data-theme="dark"] .bg-amber-100,
+[data-theme="dark"] .bg-amber-100\/50 {
+  background-color: rgba(120, 80, 10, 0.28) !important;
+}
+[data-theme="dark"] .bg-amber-200 {
+  background-color: rgba(140, 95, 12, 0.4) !important;
+}
+
+/* Emerald tinted */
+[data-theme="dark"] .bg-emerald-50,
+[data-theme="dark"] .bg-emerald-50\/50 {
+  background-color: rgba(21, 65, 40, 0.35) !important;
+}
+[data-theme="dark"] .bg-emerald-100,
+[data-theme="dark"] .bg-emerald-100\/50 {
+  background-color: rgba(21, 65, 40, 0.45) !important;
+}
+[data-theme="dark"] .bg-emerald-200 {
+  background-color: rgba(21, 80, 48, 0.55) !important;
+}
+
+/* Red tinted */
+[data-theme="dark"] .bg-red-50,
+[data-theme="dark"] .bg-red-50\/50 {
+  background-color: rgba(100, 20, 20, 0.22) !important;
+}
+[data-theme="dark"] .bg-red-100,
+[data-theme="dark"] .bg-red-100\/50 {
+  background-color: rgba(100, 20, 20, 0.35) !important;
+}
+[data-theme="dark"] .bg-red-200 {
+  background-color: rgba(120, 25, 25, 0.48) !important;
+}
+
+/* Blue tinted */
+[data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-blue-100 {
+  background-color: rgba(20, 50, 90, 0.35) !important;
+}
+[data-theme="dark"] .bg-blue-200 {
+  background-color: rgba(25, 60, 110, 0.48) !important;
+}
+
+/* Violet tinted */
+[data-theme="dark"] .bg-violet-50,
+[data-theme="dark"] .bg-violet-100 {
+  background-color: rgba(60, 20, 100, 0.28) !important;
+}
+[data-theme="dark"] .bg-violet-200 {
+  background-color: rgba(75, 25, 125, 0.42) !important;
+}
+
+/* Gradient from/to overrides (KPI cards, section gradients) */
+[data-theme="dark"] [class*="from-slate-50"],
+[data-theme="dark"] [class*="from-slate-100"] {
+  --tw-gradient-from: #1C3629 !important;
+}
+[data-theme="dark"] [class*="to-slate-100"],
+[data-theme="dark"] [class*="to-slate-200"] {
+  --tw-gradient-to: #253f30 !important;
+}
+[data-theme="dark"] [class*="from-amber-50"],
+[data-theme="dark"] [class*="from-amber-100"] {
+  --tw-gradient-from: rgba(80, 55, 10, 0.4) !important;
+}
+[data-theme="dark"] [class*="to-amber-100"],
+[data-theme="dark"] [class*="to-amber-200"] {
+  --tw-gradient-to: rgba(100, 70, 15, 0.48) !important;
+}
+[data-theme="dark"] [class*="from-emerald-50"],
+[data-theme="dark"] [class*="from-emerald-100"] {
+  --tw-gradient-from: rgba(15, 55, 35, 0.48) !important;
+}
+[data-theme="dark"] [class*="to-emerald-100"],
+[data-theme="dark"] [class*="to-emerald-200"] {
+  --tw-gradient-to: rgba(20, 70, 45, 0.58) !important;
+}
+[data-theme="dark"] [class*="from-red-50"],
+[data-theme="dark"] [class*="from-red-100"] {
+  --tw-gradient-from: rgba(80, 15, 15, 0.38) !important;
+}
+[data-theme="dark"] [class*="to-red-100"],
+[data-theme="dark"] [class*="to-red-200"] {
+  --tw-gradient-to: rgba(100, 20, 20, 0.48) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — TEXT COLORS
+───────────────────────────────────────────────────────────── */
+
+/* Deep greens / near-black → white-green */
 [data-theme="dark"] .text-\[\#153325\],
 [data-theme="dark"] .text-\[\#17281D\],
 [data-theme="dark"] .text-\[\#232120\],
+[data-theme="dark"] .text-\[\#0C1E16\],
 [data-theme="dark"] .text-slate-900,
 [data-theme="dark"] .text-slate-800 {
   color: var(--text-primary) !important;
 }
 
+/* Mid greens / forest → secondary */
 [data-theme="dark"] .text-\[\#5A534E\],
 [data-theme="dark"] .text-\[\#45594C\],
-[data-theme="dark"] .text-slate-600,
-[data-theme="dark"] .text-slate-500 {
+[data-theme="dark"] .text-\[\#4B5E52\],
+[data-theme="dark"] .text-slate-700,
+[data-theme="dark"] .text-slate-600 {
   color: var(--text-secondary) !important;
 }
 
+/* Muted */
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-slate-450 {
+  color: #6C8B7B !important;
+}
+[data-theme="dark"] .text-slate-400 {
+  color: #4f7062 !important;
+}
+[data-theme="dark"] .text-slate-300 {
+  color: #3a5549 !important;
+}
+
+/* Emerald — lightened for dark bg readability */
+[data-theme="dark"] .text-emerald-950,
+[data-theme="dark"] .text-emerald-900 {
+  color: #6EC99A !important;
+}
+[data-theme="dark"] .text-emerald-800 {
+  color: #5BAE82 !important;
+}
+[data-theme="dark"] .text-emerald-700 {
+  color: #4E9A72 !important;
+}
+[data-theme="dark"] .text-emerald-600 {
+  color: #44875F !important;
+}
+[data-theme="dark"] .text-emerald-500 {
+  color: #3A7450 !important;
+}
+
+/* Amber */
+[data-theme="dark"] .text-amber-900,
+[data-theme="dark"] .text-amber-800,
+[data-theme="dark"] .text-amber-700,
+[data-theme="dark"] .text-amber-600 {
+  color: #D4A942 !important;
+}
+
+/* Red */
+[data-theme="dark"] .text-red-800,
+[data-theme="dark"] .text-red-700,
+[data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-red-500 {
+  color: #F08080 !important;
+}
+
+/* Blue */
+[data-theme="dark"] .text-blue-800,
+[data-theme="dark"] .text-blue-700,
+[data-theme="dark"] .text-blue-600 {
+  color: #90BAEE !important;
+}
+
+/* Violet */
+[data-theme="dark"] .text-violet-800,
+[data-theme="dark"] .text-violet-700 {
+  color: #C3A7F0 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — BORDERS
+───────────────────────────────────────────────────────────── */
+[data-theme="dark"] .border-slate-100,
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .divide-slate-100,
+[data-theme="dark"] .divide-slate-200,
+[data-theme="dark"] .border-\[\#E8DFC8\],
+[data-theme="dark"] .border-\[\#DCD0B8\],
+[data-theme="dark"] .border-\[\#C7D7C9\],
+[data-theme="dark"] .border-\[\#E8DFC8\],
+[data-theme="dark"] .divide-\[\#E8DFC8\],
+[data-theme="dark"] .divide-\[\#F3ECE0\] {
+  border-color: var(--border-app) !important;
+}
+
+[data-theme="dark"] .border-amber-200,
+[data-theme="dark"] .border-amber-200\/50 {
+  border-color: rgba(120, 80, 10, 0.5) !important;
+}
+
+[data-theme="dark"] .border-emerald-200,
+[data-theme="dark"] .border-emerald-100 {
+  border-color: rgba(30, 90, 55, 0.5) !important;
+}
+
+[data-theme="dark"] .border-red-100,
+[data-theme="dark"] .border-red-200 {
+  border-color: rgba(120, 30, 30, 0.42) !important;
+}
+
+[data-theme="dark"] .border-blue-100,
+[data-theme="dark"] .border-blue-200 {
+  border-color: rgba(25, 60, 110, 0.42) !important;
+}
+
+[data-theme="dark"] .border-slate-300 {
+  border-color: #2f4f3d !important;
+}
+
+[data-theme="dark"] .border-white\/80,
+[data-theme="dark"] .border-white\/60,
+[data-theme="dark"] .border-white\/40,
+[data-theme="dark"] .border-white\/20 {
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — FORM INPUTS
+───────────────────────────────────────────────────────────── */
 [data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
@@ -120,6 +342,43 @@
   color: #6C8B7B !important;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — TABLE & STRUCTURAL
+───────────────────────────────────────────────────────────── */
+[data-theme="dark"] th {
+  background-color: #0F2018 !important;
+  color: #8FADA0 !important;
+  border-color: #2A4338 !important;
+}
+
+[data-theme="dark"] td {
+  border-color: #2A4338 !important;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] tr:hover td {
+  background-color: rgba(255, 255, 255, 0.025) !important;
+}
+
+[data-theme="dark"] header {
+  background-color: rgba(15, 32, 24, 0.97) !important;
+  border-color: #2A4338 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — HOVER STATES
+───────────────────────────────────────────────────────────── */
+[data-theme="dark"] .hover\:bg-slate-50:hover,
+[data-theme="dark"] .hover\:bg-slate-100:hover {
+  background-color: var(--bg-card-subtle) !important;
+}
+[data-theme="dark"] .hover\:bg-white:hover {
+  background-color: var(--bg-card) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — MODALS, DIALOGS & OVERLAYS
+───────────────────────────────────────────────────────────── */
 [data-theme="dark"] [role="dialog"],
 [data-theme="dark"] .swal2-popup {
   background-color: #152B20 !important;
@@ -135,40 +394,65 @@
   color: #8FADA0 !important;
 }
 
-[data-theme="dark"] th {
-  background-color: #0F2018 !important;
-  color: #E2EDE5 !important;
-  border-color: #2A4338 !important;
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — SHADOWS
+───────────────────────────────────────────────────────────── */
+[data-theme="dark"] .shadow-sm {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
 }
-
-[data-theme="dark"] td {
-  border-color: #2A4338 !important;
+[data-theme="dark"] .shadow-md {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45) !important;
 }
-
-[data-theme="dark"] tr:hover td {
-  background-color: rgba(255, 255, 255, 0.03) !important;
-}
-
-[data-theme="dark"] header {
-  background-color: rgba(15, 32, 24, 0.95) !important;
-  border-color: #2A4338 !important;
-}
-
-[data-theme="dark"] .shadow-sm,
-[data-theme="dark"] .shadow-md,
 [data-theme="dark"] .shadow-lg,
 [data-theme="dark"] .shadow-xl {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — HR DIVIDERS
+───────────────────────────────────────────────────────────── */
+[data-theme="dark"] hr {
+  border-color: #2A4338 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DARK MODE — SCROLLBAR
+───────────────────────────────────────────────────────────── */
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #0F2018;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #2A4338;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #B88B2A;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LIGHT MODE — ANTI-GLARE REFINEMENTS
+   Replaces pure white with a soft sage-tinted surface
+───────────────────────────────────────────────────────────── */
+[data-theme="light"] .bg-white {
+  background-color: #F5FAF6 !important;
+}
+[data-theme="light"] .bg-slate-50 {
+  background-color: #EEF5EF !important;
+}
+[data-theme="light"] .bg-slate-100 {
+  background-color: #E3ECE4 !important;
 }
 
 
 /* ───────────────────────────────────────────
-   Base & Typography Defaults
+   Base & Typography Defaults (Mobile-Optimized)
 ─────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -177,8 +461,34 @@ body {
   font-family: var(--font-sans);
   line-height: 1.6;
   transition: background-color 0.25s ease, color 0.25s ease;
+  max-width: 100%;
+  overflow-x: clip;
+  -webkit-overflow-scrolling: touch;
 }
 
+/* iOS Safari form auto-zoom prevention (inputs must be at least 16px font-size on mobile) */
+@media screen and (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe area insets for mobile devices with notches & home indicators */
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+.safe-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+
+/* Minimum touch target utility (44px) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
 
 h1, h2, h3, .font-serif {
   font-family: var(--font-serif);
@@ -391,10 +701,10 @@ h1, h2, h3, .font-serif {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #FAF7F2;
+  background: #E3ECE4;
 }
 ::-webkit-scrollbar-thumb {
-  background: #DCD0B8;
+  background: #C2D4C4;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {

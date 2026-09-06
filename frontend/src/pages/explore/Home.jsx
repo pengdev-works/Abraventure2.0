@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Search, ArrowRight, MapPin, Calendar, Users, Star,
-  Compass, ShieldCheck, Map, ArrowUpRight, Check
+  Compass, ShieldCheck, Map, ArrowUpRight, Check,
+  Play, Pause, Volume2, VolumeX, Film, Video, Sparkles
 } from 'lucide-react';
 import SafeImage, { formatMediaUrl } from '../../components/common/SafeImage';
 
@@ -174,6 +175,41 @@ const Home = () => {
   const [selectedStyle, setSelectedStyle] = useState('nature');
   const [selectedDays, setSelectedDays] = useState(3);
 
+  /* ─── Video Advertisements Showcase State ─── */
+  const [videoAds, setVideoAds] = useState([]);
+  const [activeAdIndex, setActiveAdIndex] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const adVideoRef = useRef(null);
+
+  useEffect(() => {
+    fetch('/api/advertisements/public')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => {
+        if (Array.isArray(d) && d.length > 0) {
+          setVideoAds(d);
+        }
+      })
+      .catch(err => console.error('Error fetching public video ads:', err));
+  }, []);
+
+  const togglePlay = () => {
+    if (!adVideoRef.current) return;
+    if (adVideoRef.current.paused) {
+      adVideoRef.current.play();
+      setIsPlaying(true);
+    } else {
+      adVideoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const toggleMute = () => {
+    if (!adVideoRef.current) return;
+    adVideoRef.current.muted = !adVideoRef.current.muted;
+    setIsMuted(adVideoRef.current.muted);
+  };
+
   /* ─── Data Fetching ─── */
   useEffect(() => {
     fetch('/api/announcements/hero')
@@ -281,41 +317,41 @@ const Home = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-[#153325] via-[#153325]/40 to-[#153325]/60" />
 
         {/* Hero Content */}
-        <div className="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-32 lg:pt-40 pb-16 flex flex-col justify-end">
+        <div className="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-24 sm:pt-32 lg:pt-40 pb-12 sm:pb-16 flex flex-col justify-end">
           <div className="max-w-3xl">
 
             {/* Editorial Category Tag */}
-            <div className="inline-flex items-center gap-2 mb-6">
-              <span className="text-[11px] font-sans font-bold uppercase tracking-[0.25em] text-[#D4A942]">
+            <div className="inline-flex items-center gap-2 mb-4 sm:mb-6">
+              <span className="text-[10px] sm:text-[11px] font-sans font-bold uppercase tracking-[0.25em] text-[#D4A942]">
                 Discover Abra, Philippines
               </span>
               <span className="w-8 h-px bg-[#D4A942]/60" />
             </div>
 
             {/* Confident Large Headline */}
-            <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-white leading-[1.05] mb-6">
+            <h1 className="font-serif text-3xl sm:text-5xl lg:text-7xl font-bold tracking-tight text-white leading-[1.1] mb-4 sm:mb-6">
               Where adventure <br className="hidden sm:inline" />
               <span className="italic font-normal text-[#F3ECE0]">feels authentic.</span>
             </h1>
 
             {/* Understated Description */}
-            <p className="text-base sm:text-lg text-white/85 leading-relaxed max-w-2xl mb-10 font-sans font-normal">
+            <p className="text-sm sm:text-lg text-white/85 leading-relaxed max-w-2xl mb-8 sm:mb-10 font-sans font-normal">
               Explore travertine waterfalls, rushing rivers, living Itneg weaving traditions, Spanish-era heritage towns, and warm accredited homestays across 27 municipalities.
             </p>
 
-            {/* Intentional, Non-Pill CTAs */}
-            <div className="flex flex-wrap items-center gap-4 mb-12">
-              <Link to="/municipalities" className="btn-editorial-gold">
+            {/* Intentional, Responsive CTAs */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mb-8 sm:mb-12">
+              <Link to="/municipalities" className="btn-editorial-gold text-center touch-target flex items-center justify-center">
                 Explore Abra
               </Link>
-              <Link to="/itinerary" className="btn-editorial-secondary">
+              <Link to="/itinerary" className="btn-editorial-secondary text-center touch-target flex items-center justify-center">
                 Plan Your Trip
               </Link>
             </div>
           </div>
 
           {/* Streamlined Search Bar (Clean, Quiet, High Utility) */}
-          <div className="w-full max-w-4xl bg-[#FAF7F2] text-[#232120] p-4 sm:p-5 rounded-lg shadow-xl border border-[#E8DFC8]">
+          <div className="w-full max-w-4xl bg-[#FAF7F2] text-[#232120] p-4 sm:p-5 rounded-xl shadow-xl border border-[#E8DFC8]">
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 items-center">
 
               {/* Municipality Select */}
@@ -326,7 +362,7 @@ const Home = () => {
                 <select
                   value={searchMuni}
                   onChange={(e) => setSearchMuni(e.target.value)}
-                  className="w-full bg-[#F3ECE0] border border-[#E8DFC8] rounded-md py-2.5 px-3 text-xs font-semibold text-[#232120] focus:outline-none focus:border-[#153325]"
+                  className="w-full bg-[#F3ECE0] border border-[#E8DFC8] rounded-lg py-2.5 px-3 text-xs font-semibold text-[#232120] focus:outline-none focus:border-[#153325] touch-target"
                 >
                   <option value="">All 27 Municipalities</option>
                   {muniNames.map(name => (
@@ -343,7 +379,7 @@ const Home = () => {
                 <select
                   value={searchType}
                   onChange={(e) => setSearchType(e.target.value)}
-                  className="w-full bg-[#F3ECE0] border border-[#E8DFC8] rounded-md py-2.5 px-3 text-xs font-semibold text-[#232120] focus:outline-none focus:border-[#153325]"
+                  className="w-full bg-[#F3ECE0] border border-[#E8DFC8] rounded-lg py-2.5 px-3 text-xs font-semibold text-[#232120] focus:outline-none focus:border-[#153325] touch-target"
                 >
                   <option value="all">Stays & Experiences</option>
                   <option value="homestay">Verified Homestays</option>
@@ -360,7 +396,7 @@ const Home = () => {
                 <select
                   value={travelers}
                   onChange={(e) => setTravelers(Number(e.target.value))}
-                  className="w-full bg-[#F3ECE0] border border-[#E8DFC8] rounded-md py-2.5 px-3 text-xs font-semibold text-[#232120] focus:outline-none focus:border-[#153325]"
+                  className="w-full bg-[#F3ECE0] border border-[#E8DFC8] rounded-lg py-2.5 px-3 text-xs font-semibold text-[#232120] focus:outline-none focus:border-[#153325] touch-target"
                 >
                   {[1, 2, 3, 4, 5, 6, 8, 10].map(n => (
                     <option key={n} value={n}>{n} {n === 1 ? 'Guest' : 'Guests'}</option>
@@ -369,15 +405,15 @@ const Home = () => {
               </div>
 
               {/* Submit Search */}
-              <div className="flex flex-col sm:col-span-3 lg:col-span-1 pt-2 sm:pt-0">
+              <div className="flex flex-col sm:col-span-3 lg:col-span-1 pt-1 sm:pt-0">
                 <label className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-transparent mb-1">
                   Action
                 </label>
                 <button
                   onClick={handleSearch}
-                  className="btn-editorial-primary w-full !py-2.5 !px-4 text-xs font-bold"
+                  className="btn-editorial-primary w-full !py-3 !px-4 text-xs font-bold touch-target flex items-center justify-center gap-2 rounded-lg"
                 >
-                  <Search className="w-3.5 h-3.5" />
+                  <Search className="w-4 h-4" />
                   <span>Search Abra</span>
                 </button>
               </div>
@@ -388,37 +424,37 @@ const Home = () => {
       </section>
 
       {/* ══════════════════════════════════════════════════════
-          2. OFFICIAL VERIFICATION & TRUST STRIP
+          2. OFFICIAL VERIFICATION & TRUST STRIP (Mobile Optimized 2x2)
       ══════════════════════════════════════════════════════ */}
-      <section className="bg-[#F3ECE0] border-y border-[#E8DFC8] py-6">
+      <section className="bg-[#F3ECE0] border-y border-[#E8DFC8] py-5 sm:py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center md:text-left">
-            <div className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-[#153325] flex-shrink-0" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 text-left">
+            <div className="flex items-start gap-2.5 sm:gap-3 p-2.5 sm:p-0 rounded-xl bg-white/50 sm:bg-transparent border border-[#E8DFC8]/60 sm:border-0">
+              <span className="w-2 h-2 rounded-full bg-[#153325] flex-shrink-0 mt-1.5" />
               <div>
-                <p className="font-semibold text-xs text-[#153325]">Official DOT Endorsement</p>
-                <p className="text-[11px] text-[#5A534E]">Managed by Provincial Tourism Office</p>
+                <p className="font-semibold text-xs text-[#153325] leading-snug">Official DOT Endorsement</p>
+                <p className="text-[10px] sm:text-[11px] text-[#5A534E] mt-0.5">Provincial Tourism Office</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-[#B88B2A] flex-shrink-0" />
+            <div className="flex items-start gap-2.5 sm:gap-3 p-2.5 sm:p-0 rounded-xl bg-white/50 sm:bg-transparent border border-[#E8DFC8]/60 sm:border-0">
+              <span className="w-2 h-2 rounded-full bg-[#B88B2A] flex-shrink-0 mt-1.5" />
               <div>
-                <p className="font-semibold text-xs text-[#153325]">27 Municipal Tourism Desks</p>
-                <p className="text-[11px] text-[#5A534E]">Direct municipal verification</p>
+                <p className="font-semibold text-xs text-[#153325] leading-snug">27 Municipal Desks</p>
+                <p className="text-[10px] sm:text-[11px] text-[#5A534E] mt-0.5">Direct LGU verification</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-[#355C6D] flex-shrink-0" />
+            <div className="flex items-start gap-2.5 sm:gap-3 p-2.5 sm:p-0 rounded-xl bg-white/50 sm:bg-transparent border border-[#E8DFC8]/60 sm:border-0">
+              <span className="w-2 h-2 rounded-full bg-[#355C6D] flex-shrink-0 mt-1.5" />
               <div>
-                <p className="font-semibold text-xs text-[#153325]">Accredited Local Guides</p>
-                <p className="text-[11px] text-[#5A534E]">Certified mountain & cultural guides</p>
+                <p className="font-semibold text-xs text-[#153325] leading-snug">Accredited Guides</p>
+                <p className="text-[10px] sm:text-[11px] text-[#5A534E] mt-0.5">Certified mountain & culture</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-[#2D5D46] flex-shrink-0" />
+            <div className="flex items-start gap-2.5 sm:gap-3 p-2.5 sm:p-0 rounded-xl bg-white/50 sm:bg-transparent border border-[#E8DFC8]/60 sm:border-0">
+              <span className="w-2 h-2 rounded-full bg-[#2D5D46] flex-shrink-0 mt-1.5" />
               <div>
-                <p className="font-semibold text-xs text-[#153325]">Verified Homestays</p>
-                <p className="text-[11px] text-[#5A534E]">Compliant with safety standards</p>
+                <p className="font-semibold text-xs text-[#153325] leading-snug">Verified Homestays</p>
+                <p className="text-[10px] sm:text-[11px] text-[#5A534E] mt-0.5">Compliant with safety rules</p>
               </div>
             </div>
           </div>
@@ -471,6 +507,214 @@ const Home = () => {
           </div>
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════════
+          2C. ABRA IN MOTION: OFFICIAL PROVINCIAL VIDEO SPOTLIGHT & ADVERTISEMENT SHOWCASE
+      ══════════════════════════════════════════════════════ */}
+      {videoAds.length > 0 && (
+        <section className="py-20 sm:py-28 bg-[#0D241A] text-white border-y border-[#2D5D46] relative overflow-hidden">
+          {/* Subtle Ambient Background Gradients */}
+          <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#B88B2A]/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-[#355C6D]/20 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            {/* Section Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 pb-6 border-b border-white/10">
+              <div className="text-left">
+                <div className="inline-flex items-center gap-2 mb-3">
+                  <span className="w-2 h-2 rounded-full bg-[#B88B2A] animate-pulse" />
+                  <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#D4A942]">
+                    Provincial Tourism Campaign · Official Spotlight
+                  </span>
+                </div>
+                <h2 className="font-serif text-3xl sm:text-5xl font-bold text-white tracking-tight">
+                  Abra in Motion.
+                </h2>
+              </div>
+              <p className="text-sm text-white/70 max-w-md leading-relaxed text-left">
+                Experience the living rhythm of the Cordillera — from thunderous emerald cascades to indigenous backstrap weaving and highland celebrations.
+              </p>
+            </div>
+
+            {/* Main Stage: Cinema Video Player + Campaign Panel */}
+            {(() => {
+              const currentAd = videoAds[activeAdIndex] || videoAds[0];
+              if (!currentAd) return null;
+
+              return (
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                    {/* Left: Cinematic Video Showcase (7 Columns) */}
+                    <div className="lg:col-span-7">
+                      <div className="relative aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl border border-[#B88B2A]/30 group">
+                        <video
+                          ref={adVideoRef}
+                          key={currentAd.id}
+                          autoPlay
+                          loop
+                          muted={isMuted}
+                          playsInline
+                          poster={currentAd.thumbnail_url ? formatMediaUrl(currentAd.thumbnail_url) : undefined}
+                          className="w-full h-full object-cover"
+                          src={formatMediaUrl(currentAd.video_url)}
+                          onPlay={() => setIsPlaying(true)}
+                          onPause={() => setIsPlaying(false)}
+                        />
+
+                        {/* Top-Left Category & Municipality Badges */}
+                        <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2 pointer-events-none">
+                          <span className="bg-[#153325]/90 backdrop-blur-md text-[#FAF7F2] text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-md border border-white/10 shadow-sm">
+                            {currentAd.category || 'Eco-Tourism'}
+                          </span>
+                          {currentAd.municipality_name && (
+                            <span className="bg-[#B88B2A]/90 backdrop-blur-md text-[#153325] text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-md shadow-sm">
+                              📍 {currentAd.municipality_name}, Abra
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Bottom Video Quick Controls */}
+                        <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-black/60 backdrop-blur-md p-1.5 rounded-xl border border-white/15">
+                          <button
+                            type="button"
+                            onClick={togglePlay}
+                            className="p-2 text-white hover:text-[#B88B2A] transition-colors cursor-pointer rounded-lg hover:bg-white/10"
+                            title={isPlaying ? 'Pause Video' : 'Play Video'}
+                          >
+                            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={toggleMute}
+                            className="p-2 text-white hover:text-[#B88B2A] transition-colors cursor-pointer rounded-lg hover:bg-white/10 flex items-center gap-1 text-xs"
+                            title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+                          >
+                            {isMuted ? (
+                              <>
+                                <VolumeX className="w-4 h-4" />
+                                <span className="text-[10px] font-semibold pr-1">Muted</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-4 h-4 text-emerald-400" />
+                                <span className="text-[10px] font-semibold pr-1 text-emerald-400">Audio On</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Editorial Campaign Information (5 Columns) */}
+                    <div className="lg:col-span-5 text-left flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-[10px] font-mono tracking-widest uppercase text-[#B88B2A] bg-[#B88B2A]/15 px-2.5 py-0.5 rounded-full border border-[#B88B2A]/30">
+                            {currentAd.badge_label || 'Official Provincial DOT Spotlight'}
+                          </span>
+                        </div>
+
+                        <h3 className="font-serif text-2xl sm:text-4xl font-bold text-white leading-tight mb-3">
+                          {currentAd.title}
+                        </h3>
+
+                        {currentAd.subtitle && (
+                          <p className="font-serif italic text-base sm:text-lg text-[#F3ECE0]/90 mb-4">
+                            “{currentAd.subtitle}”
+                          </p>
+                        )}
+
+                        <p className="text-xs sm:text-sm text-white/80 leading-relaxed mb-8">
+                          {currentAd.description || 'Discover verified homestays, accredited tour guides, and breathtaking natural wonders through official tourism campaigns.'}
+                        </p>
+                      </div>
+
+                      <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <Link
+                          to={currentAd.cta_link || '/municipalities'}
+                          className="btn-editorial-gold inline-flex items-center justify-center gap-2 text-xs font-bold py-3 px-6 shadow-lg"
+                        >
+                          <span>{currentAd.cta_text || 'Explore Destination'}</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </Link>
+                        <div className="flex items-center gap-2 text-[11px] text-white/60">
+                          <ShieldCheck className="w-4 h-4 text-[#B88B2A] flex-shrink-0" />
+                          <span>Endorsed by Provincial Tourism Office</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Playlist / Selector Strip if more than 1 ad */}
+                  {videoAds.length > 1 && (
+                    <div className="pt-6 border-t border-white/10">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-bold uppercase tracking-wider text-white/70">
+                          More Provincial Video Campaigns ({videoAds.length})
+                        </span>
+                        <span className="text-[11px] text-[#B88B2A]">
+                          Click any feature to watch
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {videoAds.map((ad, idx) => {
+                          const isActive = idx === activeAdIndex;
+                          return (
+                            <button
+                              key={ad.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveAdIndex(idx);
+                                setIsPlaying(true);
+                              }}
+                              className={`group text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+                                isActive
+                                  ? 'bg-[#153325] border-[#B88B2A] shadow-md ring-1 ring-[#B88B2A]'
+                                  : 'bg-black/30 border-white/10 hover:border-white/30 hover:bg-black/50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-16 h-12 rounded-lg bg-black/60 overflow-hidden flex-shrink-0 relative border border-white/10">
+                                  {ad.thumbnail_url ? (
+                                    <SafeImage
+                                      src={formatMediaUrl(ad.thumbnail_url)}
+                                      alt={ad.title}
+                                      className="w-full h-full object-cover"
+                                      fallback="landscape"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-[#153325]">
+                                      <Film className="w-5 h-5 text-[#B88B2A]" />
+                                    </div>
+                                  )}
+                                  <div className={`absolute inset-0 flex items-center justify-center ${
+                                    isActive ? 'bg-[#B88B2A]/30' : 'bg-black/40 group-hover:bg-black/20'
+                                  }`}>
+                                    <Play className={`w-3.5 h-3.5 ${isActive ? 'text-[#B88B2A] fill-[#B88B2A]' : 'text-white'}`} />
+                                  </div>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-bold text-[#B88B2A] truncate">
+                                    {ad.municipality_name ? `${ad.municipality_name}, Abra` : ad.category}
+                                  </p>
+                                  <p className={`text-xs font-semibold truncate ${isActive ? 'text-white font-bold' : 'text-white/80 group-hover:text-white'}`}>
+                                    {ad.title}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+      )}
 
       {/* ══════════════════════════════════════════════════════
           3. DESTINATIONS: EDITORIAL PHOTO-DRIVEN SHOWCASE

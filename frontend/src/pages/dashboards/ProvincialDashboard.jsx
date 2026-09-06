@@ -7,7 +7,8 @@ import {
   Landmark, ShieldCheck, Users, Home, Award, Calendar, AlertCircle,
   FileText, CheckCircle, BarChart3, Megaphone, ClipboardList,
   Download, Plus, Trash2, Edit, Bell, Image, UserPlus, X, Key, Building2,
-  Settings, Menu, Globe, ArrowUpRight, Lock, Sliders, Shield
+  Settings, Menu, Globe, ArrowUpRight, Lock, Sliders, Shield,
+  Video, Film, Play, Eye, EyeOff, Sparkles, ExternalLink, RefreshCw
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -113,6 +114,32 @@ const ProvincialDashboard = () => {
   const [newMunImageFile, setNewMunImageFile] = useState(null);
   const [newMunImageFeatured, setNewMunImageFeatured] = useState(false);
   const [contentMsg, setContentMsg] = useState({ type: '', text: '' });
+  const [contentSubTab, setContentSubTab] = useState('advertisements'); // 'advertisements' | 'hero' | 'municipalities'
+
+  // ─── Video Advertisements State ────────────────────────────────
+  const [videoAds, setVideoAds] = useState([]);
+  const [videoAdsLoading, setVideoAdsLoading] = useState(false);
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [adModalMode, setAdModalMode] = useState('create'); // 'create' | 'edit'
+  const [editingAdId, setEditingAdId] = useState(null);
+  const [adForm, setAdForm] = useState({
+    title: '',
+    subtitle: '',
+    description: '',
+    category: 'Eco-Tourism & Waterfalls',
+    municipalityId: '',
+    ctaText: 'Explore Now',
+    ctaLink: '/municipalities',
+    badgeLabel: 'Official Provincial DOT Spotlight',
+    videoUrl: '',
+    thumbnailUrl: '',
+    displayOrder: 1,
+    isActive: true,
+  });
+  const [adVideoFile, setAdVideoFile] = useState(null);
+  const [adThumbnailFile, setAdThumbnailFile] = useState(null);
+  const [adFormLoading, setAdFormLoading] = useState(false);
+  const [adMsg, setAdMsg] = useState({ type: '', text: '' });
 
   // ─── Homepage Hero Banner & Video State ───────────────────────
   const [heroForm, setHeroForm] = useState({
@@ -266,6 +293,166 @@ const ProvincialDashboard = () => {
     }
   };
 
+  const fetchVideoAds = async () => {
+    if (!token) return;
+    setVideoAdsLoading(true);
+    try {
+      const r = await fetch('/api/advertisements/all', { headers });
+      if (r.ok) {
+        setVideoAds(await r.json());
+      }
+    } catch (err) {
+      console.error('Error fetching video ads:', err);
+    } finally {
+      setVideoAdsLoading(false);
+    }
+  };
+
+  const openCreateAdModal = () => {
+    setAdModalMode('create');
+    setEditingAdId(null);
+    setAdForm({
+      title: '',
+      subtitle: '',
+      description: '',
+      category: 'Eco-Tourism & Waterfalls',
+      municipalityId: '',
+      ctaText: 'Explore Now',
+      ctaLink: '/municipalities',
+      badgeLabel: 'Official Provincial DOT Spotlight',
+      videoUrl: '',
+      thumbnailUrl: '',
+      displayOrder: videoAds.length + 1,
+      isActive: true,
+    });
+    setAdVideoFile(null);
+    setAdThumbnailFile(null);
+    setAdMsg({ type: '', text: '' });
+    setShowAdModal(true);
+  };
+
+  const openEditAdModal = (ad) => {
+    setAdModalMode('edit');
+    setEditingAdId(ad.id);
+    setAdForm({
+      title: ad.title || '',
+      subtitle: ad.subtitle || '',
+      description: ad.description || '',
+      category: ad.category || 'Eco-Tourism & Waterfalls',
+      municipalityId: ad.municipality_id ? String(ad.municipality_id) : '',
+      ctaText: ad.cta_text || 'Explore Now',
+      ctaLink: ad.cta_link || '/municipalities',
+      badgeLabel: ad.badge_label || 'Official Provincial DOT Spotlight',
+      videoUrl: ad.video_url || '',
+      thumbnailUrl: ad.thumbnail_url || '',
+      displayOrder: ad.display_order ?? 0,
+      isActive: Boolean(ad.is_active),
+    });
+    setAdVideoFile(null);
+    setAdThumbnailFile(null);
+    setAdMsg({ type: '', text: '' });
+    setShowAdModal(true);
+  };
+
+  const handleSaveAd = async (e) => {
+    e.preventDefault();
+    setAdFormLoading(true);
+    setAdMsg({ type: '', text: '' });
+
+    try {
+      const formData = new FormData();
+      formData.append('title', adForm.title);
+      formData.append('subtitle', adForm.subtitle);
+      formData.append('description', adForm.description);
+      formData.append('category', adForm.category);
+      if (adForm.municipalityId) formData.append('municipalityId', adForm.municipalityId);
+      formData.append('ctaText', adForm.ctaText);
+      formData.append('ctaLink', adForm.ctaLink);
+      formData.append('badgeLabel', adForm.badgeLabel);
+      formData.append('isActive', String(adForm.isActive));
+      formData.append('displayOrder', String(adForm.displayOrder));
+      if (adForm.videoUrl) formData.append('videoUrl', adForm.videoUrl);
+      if (adForm.thumbnailUrl) formData.append('thumbnailUrl', adForm.thumbnailUrl);
+
+      if (adVideoFile) formData.append('video', adVideoFile);
+      if (adThumbnailFile) formData.append('thumbnail', adThumbnailFile);
+
+      const url = adModalMode === 'create' ? '/api/advertisements' : `/api/advertisements/${editingAdId}`;
+      const method = adModalMode === 'create' ? 'POST' : 'PUT';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setShowAdModal(false);
+        if (showAlert) showAlert(data.message || 'Video advertisement saved successfully!', 'success');
+        await fetchVideoAds();
+      } else {
+        setAdMsg({ type: 'error', text: data.message || 'Failed to save advertisement.' });
+      }
+    } catch (err) {
+      console.error('Error saving advertisement:', err);
+      setAdMsg({ type: 'error', text: 'Server error saving advertisement.' });
+    } finally {
+      setAdFormLoading(false);
+    }
+  };
+
+  const handleToggleAdStatus = async (ad) => {
+    try {
+      const res = await fetch(`/api/advertisements/${ad.id}/toggle`, {
+        method: 'PATCH',
+        headers,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (showAlert) showAlert(data.message, 'success');
+        await fetchVideoAds();
+      } else {
+        if (showAlert) showAlert(data.message || 'Failed to toggle status.', 'error');
+      }
+    } catch (err) {
+      console.error('Error toggling ad status:', err);
+      if (showAlert) showAlert('Server error toggling status.', 'error');
+    }
+  };
+
+  const handleDeleteAd = async (ad) => {
+    const result = await Swal.fire({
+      title: 'Delete Video Advertisement?',
+      html: `Are you sure you want to delete <strong>"${ad.title}"</strong>?<br/><span class="text-xs text-slate-500">It will immediately be removed from the Landing Page.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#0F3D3E',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-3xl' },
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/advertisements/${ad.id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (showAlert) showAlert(data.message || 'Advertisement deleted.', 'success');
+        await fetchVideoAds();
+      } else {
+        if (showAlert) showAlert(data.message || 'Failed to delete advertisement.', 'error');
+      }
+    } catch (err) {
+      console.error('Error deleting ad:', err);
+      if (showAlert) showAlert('Server error deleting advertisement.', 'error');
+    }
+  };
+
   useEffect(() => { fetchDashboardData(); }, [token]);
 
   useEffect(() => {
@@ -275,6 +462,7 @@ const ProvincialDashboard = () => {
     if (activeTab === 'content') {
       fetchMunicipalitiesList();
       fetchHeroConfig();
+      fetchVideoAds();
     }
     if (activeTab === 'complaints') fetchComplaints();
     if (activeTab === 'backup') fetchMunicipalitiesList();
@@ -1519,212 +1707,721 @@ const ProvincialDashboard = () => {
         )}
 
         {/* Content Management Tab */}
+        {/* Content Management Tab */}
         {activeTab === 'content' && (
-          <div className="space-y-8">
-
-            {/* ─── Homepage Hero Banner & Video Management ─── */}
-            <div className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-900/50">
-              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-white/10">
-                <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
-                  <Megaphone className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-white">Homepage Hero Banner &amp; Video Background</h3>
-                  <p className="text-xs text-white/60">Customize the top "Explore the Heart of Abra" title, tagline, and background video on the landing page.</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleUpdateHero} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Badge Text */}
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Top Badge Text</label>
-                    <input
-                      type="text"
-                      value={heroForm.badgeText}
-                      onChange={e => setHeroForm(f => ({ ...f, badgeText: e.target.value }))}
-                      placeholder="Province of Abra · Cordillera Administrative Region"
-                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                  </div>
-
-                  {/* Headline Title */}
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Hero Title ("Explore the Heart of Abra")</label>
-                    <input
-                      type="text"
-                      required
-                      value={heroForm.title}
-                      onChange={e => setHeroForm(f => ({ ...f, title: e.target.value }))}
-                      placeholder="Explore the Heart of Cordillera Abra"
-                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Subtitle Tagline */}
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Subtitle / Tagline Description</label>
-                  <textarea
-                    rows="2"
-                    value={heroForm.subtitle}
-                    onChange={e => setHeroForm(f => ({ ...f, subtitle: e.target.value }))}
-                    placeholder="From Kaparkan's limestone terraces to Itneg heritage weaving villages..."
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
-                  />
-                </div>
-
-                {/* Video Upload or Video URL */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Upload Background Video File (MP4/WebM)</label>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={e => setHeroVideoFile(e.target.files[0])}
-                      className="w-full text-xs text-white/80 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-emerald-950 hover:file:bg-amber-400 cursor-pointer"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Or Direct Video URL (Optional)</label>
-                    <input
-                      type="text"
-                      value={heroForm.videoUrl}
-                      onChange={e => setHeroForm(f => ({ ...f, videoUrl: e.target.value }))}
-                      placeholder="https://example.com/abra_hero.mp4"
-                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Current Active Video Preview */}
-                {heroForm.videoUrl && (
-                  <div className="mt-3 p-3 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                      <span className="text-xs text-amber-300 font-bold">Active Background Video Attached</span>
-                    </div>
-                    <a href={heroForm.videoUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-amber-400 hover:underline">Preview Video →</a>
-                  </div>
-                )}
-
-                {heroMsg.text && (
-                  <p className={`text-xs font-semibold ${heroMsg.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {heroMsg.text}
-                  </p>
-                )}
+          <div className="space-y-6">
+            {/* Top Sub-Navigation Bar */}
+            <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-2 shadow-xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setContentSubTab('advertisements')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    contentSubTab === 'advertisements'
+                      ? 'bg-[#153325] text-[#FAF7F2] shadow-sm'
+                      : 'text-[#5A534E] hover:text-[#153325] hover:bg-slate-100'
+                  }`}
+                >
+                  <Film className="w-4 h-4 text-[#B88B2A]" />
+                  <span>Video Advertisements</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    contentSubTab === 'advertisements' ? 'bg-[#B88B2A] text-[#153325]' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {videoAds.length}
+                  </span>
+                </button>
 
                 <button
-                  type="submit"
-                  disabled={heroLoading}
-                  className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-emerald-950 font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  type="button"
+                  onClick={() => setContentSubTab('hero')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    contentSubTab === 'hero'
+                      ? 'bg-[#153325] text-[#FAF7F2] shadow-sm'
+                      : 'text-[#5A534E] hover:text-[#153325] hover:bg-slate-100'
+                  }`}
                 >
-                  {heroLoading ? 'Updating Hero...' : 'Publish Homepage Hero Changes'}
+                  <Megaphone className="w-4 h-4 text-[#B88B2A]" />
+                  <span>Homepage Hero &amp; Video</span>
                 </button>
-              </form>
+
+                <button
+                  type="button"
+                  onClick={() => setContentSubTab('municipalities')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    contentSubTab === 'municipalities'
+                      ? 'bg-[#153325] text-[#FAF7F2] shadow-sm'
+                      : 'text-[#5A534E] hover:text-[#153325] hover:bg-slate-100'
+                  }`}
+                >
+                  <Image className="w-4 h-4 text-[#B88B2A]" />
+                  <span>Municipalities &amp; Gallery</span>
+                </button>
+              </div>
+
+              {contentSubTab === 'advertisements' && (
+                <button
+                  type="button"
+                  onClick={openCreateAdModal}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#B88B2A] to-amber-500 hover:from-amber-600 hover:to-[#B88B2A] text-[#153325] font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Post Video Advertisement</span>
+                </button>
+              )}
             </div>
 
-            <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Municipalities Profile &amp; Gallery Customization</h2>
-            
-            <div className="max-w-xs">
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Select Municipality</label>
-              <select
-                value={selectedMunId}
-                onChange={e => { setSelectedMunId(e.target.value); setSelectedMunDetails(null); setContentMsg({type:'',text:''}); }}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none"
-              >
-                <option value="">-- Select Municipality --</option>
-                {municipalitiesList.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {selectedMunDetails ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
-                {/* Left Side: Update Description */}
-                <div className="lg:col-span-1 border border-slate-150 p-5 rounded-2xl bg-slate-50 space-y-4">
-                  <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">Edit Description</h3>
-                  <form onSubmit={handleUpdateMunProfile} className="space-y-3">
-                    <div>
-                      <textarea
-                        rows="6"
-                        required
-                        value={munDescEdit}
-                        onChange={e => setMunDescEdit(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs resize-none"
-                        placeholder="Write the introduction or descriptive profile for this municipality..."
-                      />
+            {/* ══════════════════════════════════════════════════════════════════
+                SUB-TAB 1: VIDEO ADVERTISEMENTS
+            ══════════════════════════════════════════════════════════════════ */}
+            {contentSubTab === 'advertisements' && (
+              <div className="space-y-6">
+                {/* Header & KPI Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Total Campaigns</span>
+                      <Video className="w-4 h-4 text-[#B88B2A]" />
                     </div>
-                    {contentMsg.text && contentMsg.type !== 'image' && (
-                      <p className={`text-xs ${contentMsg.type === 'success' ? 'text-emerald-700' : 'text-red-600'}`}>{contentMsg.text}</p>
-                    )}
-                    <button type="submit" className="w-full py-2 bg-emerald-900 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl">
-                      Save Changes
-                    </button>
-                  </form>
-                </div>
-
-                {/* Right Side: Manage Cover & Photos */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="border border-slate-150 p-5 rounded-2xl bg-slate-50">
-                    <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2 mb-3">Upload New Gallery Photo</h3>
-                    <form onSubmit={handleAddMunImage} className="flex flex-wrap items-center gap-4">
-                      <input
-                        type="file"
-                        id="prov-mun-file-input"
-                        accept="image/*"
-                        required
-                        onChange={e => setNewMunImageFile(e.target.files[0])}
-                        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
-                      />
-                      <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={newMunImageFeatured}
-                          onChange={e => setNewMunImageFeatured(e.target.checked)}
-                          className="w-4 h-4 accent-emerald-700 rounded"
-                        />
-                        Set as Featured (Cover)
-                      </label>
-                      <button type="submit" className="px-5 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl">
-                        Add Photo
-                      </button>
-                    </form>
+                    <p className="text-2xl font-serif font-bold text-[#153325] mt-2">{videoAds.length}</p>
+                    <p className="text-[11px] text-[#5A534E] mt-0.5">Uploaded provincial video ads</p>
                   </div>
 
-                  <div>
-                    <h3 className="font-bold text-slate-800 text-sm mb-3">Gallery Photos</h3>
-                    {selectedMunDetails.municipality.images?.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-8 text-center bg-slate-50 border border-slate-100 rounded-xl">No photos uploaded yet.</p>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                        {selectedMunDetails.municipality.images?.map(img => (
-                          <div key={img.id} className="aspect-square bg-slate-100 rounded-xl overflow-hidden shadow-sm border border-slate-150 relative group">
-                            <SafeImage src={img.image_url} alt="Gallery item" className="w-full h-full object-cover" fallback="square" />
-                            {img.is_featured && (
-                              <span className="absolute top-2 left-2 bg-amber-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase">Featured</span>
-                            )}
+                  <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Live on Landing Page</span>
+                      <Eye className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <p className="text-2xl font-serif font-bold text-emerald-800 mt-2">
+                      {videoAds.filter(a => a.is_active).length}
+                    </p>
+                    <p className="text-[11px] text-[#5A534E] mt-0.5">Currently visible to travelers</p>
+                  </div>
+
+                  <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#5A534E] uppercase tracking-wider">Highlighted Towns</span>
+                      <Landmark className="w-4 h-4 text-[#355C6D]" />
+                    </div>
+                    <p className="text-2xl font-serif font-bold text-[#355C6D] mt-2">
+                      {new Set(videoAds.filter(a => a.municipality_name).map(a => a.municipality_name)).size}
+                    </p>
+                    <p className="text-[11px] text-[#5A534E] mt-0.5">Municipalities with active video campaigns</p>
+                  </div>
+                </div>
+
+                {/* Video Ads List / Grid */}
+                {videoAdsLoading ? (
+                  <div className="flex justify-center items-center py-20 bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl">
+                    <div className="w-10 h-10 border-4 border-[#153325] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : videoAds.length === 0 ? (
+                  <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-3xl p-12 text-center shadow-xs">
+                    <div className="w-16 h-16 bg-[#B88B2A]/15 text-[#B88B2A] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <Film className="w-8 h-8" />
+                    </div>
+                    <h3 className="font-serif text-lg font-bold text-[#153325]">No Video Advertisements Yet</h3>
+                    <p className="text-xs text-[#5A534E] max-w-md mx-auto mt-2 leading-relaxed">
+                      Upload promotional videos for Kaparkan Falls, Tingguian heritage weaving, river rafting, and municipal celebrations. They will automatically be featured in the interactive video showcase on the Landing Page.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openCreateAdModal}
+                      className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-[#153325] text-white font-bold text-xs rounded-xl shadow-md hover:bg-[#1D4433] transition-all cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 text-[#B88B2A]" />
+                      <span>Post First Video Advertisement</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {videoAds.map((ad) => (
+                      <div
+                        key={ad.id}
+                        className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+                      >
+                        {/* Video Player Preview */}
+                        <div className="relative aspect-video bg-black">
+                          <video
+                            controls
+                            preload="metadata"
+                            poster={ad.thumbnail_url}
+                            className="w-full h-full object-cover"
+                            src={ad.video_url}
+                          />
+                          <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
+                            <span className="bg-[#153325]/90 backdrop-blur-sm text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider border border-white/10">
+                              {ad.category || 'Eco-Tourism'}
+                            </span>
+                          </div>
+                          <div className="absolute top-3 right-3 flex items-center gap-1.5">
                             <button
-                              onClick={() => handleDeleteMunImage(img.id)}
-                              className="absolute top-2 right-2 p-1.5 bg-red-650 hover:bg-red-700 text-white rounded-lg shadow opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Delete Photo"
+                              type="button"
+                              onClick={() => handleToggleAdStatus(ad)}
+                              title={ad.is_active ? 'Click to Hide from Landing Page' : 'Click to Show on Landing Page'}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-md transition-all cursor-pointer ${
+                                ad.is_active
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                  : 'bg-slate-700 text-slate-200 hover:bg-slate-800'
+                              }`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              {ad.is_active ? (
+                                <>
+                                  <Eye className="w-3 h-3" />
+                                  <span>Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <EyeOff className="w-3 h-3" />
+                                  <span>Draft</span>
+                                </>
+                              )}
                             </button>
                           </div>
-                        ))}
+                        </div>
+
+                        {/* Card Details */}
+                        <div className="p-5 flex-1 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] text-[#5A534E] mb-1.5">
+                              {ad.municipality_name ? (
+                                <span className="font-semibold text-[#B88B2A]">
+                                  📍 {ad.municipality_name}, Abra
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-[#5A534E]">Provincial Tourism</span>
+                              )}
+                              <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                                Priority #{ad.display_order ?? 0}
+                              </span>
+                            </div>
+
+                            <h4 className="font-serif text-base font-bold text-[#153325] leading-snug mb-1">
+                              {ad.title}
+                            </h4>
+                            {ad.subtitle && (
+                              <p className="text-xs text-[#B88B2A] font-medium mb-2">
+                                {ad.subtitle}
+                              </p>
+                            )}
+                            <p className="text-xs text-[#5A534E] line-clamp-3 leading-relaxed mb-4">
+                              {ad.description || 'Promotional video advertisement showcasing Abra tourism.'}
+                            </p>
+                          </div>
+
+                          {/* CTA Info & Controls */}
+                          <div className="pt-3 border-t border-slate-100 flex flex-col gap-3">
+                            <div className="flex items-center justify-between text-[11px] bg-[#FAF7F2] p-2 rounded-lg border border-[#E8DFC8]">
+                              <span className="font-bold text-[#153325] truncate">
+                                CTA: {ad.cta_text || 'Explore Now'}
+                              </span>
+                              <span className="text-[10px] text-[#5A534E] font-mono truncate max-w-[120px]">
+                                {ad.cta_link || '/municipalities'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[10px] text-slate-400">
+                                {ad.created_at ? new Date(ad.created_at).toLocaleDateString('en-PH') : ''}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditAdModal(ad)}
+                                  className="p-1.5 text-[#153325] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                  title="Edit Advertisement"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAd(ad)}
+                                  className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete Advertisement"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
                       </div>
-                    )}
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════════
+                SUB-TAB 2: HOMEPAGE HERO BANNER & VIDEO
+            ══════════════════════════════════════════════════════════════════ */}
+            {contentSubTab === 'hero' && (
+              <div className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-900/50">
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-white/10">
+                  <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+                    <Megaphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-white">Homepage Hero Banner &amp; Background Video</h3>
+                    <p className="text-xs text-white/60">Customize the top "Explore the Heart of Abra" title, tagline, and background video on the landing page.</p>
                   </div>
                 </div>
+
+                <form onSubmit={handleUpdateHero} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Badge Text */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Top Badge Text</label>
+                      <input
+                        type="text"
+                        value={heroForm.badgeText}
+                        onChange={e => setHeroForm(f => ({ ...f, badgeText: e.target.value }))}
+                        placeholder="Province of Abra · Cordillera Administrative Region"
+                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                    </div>
+
+                    {/* Headline Title */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Hero Title ("Explore the Heart of Abra")</label>
+                      <input
+                        type="text"
+                        required
+                        value={heroForm.title}
+                        onChange={e => setHeroForm(f => ({ ...f, title: e.target.value }))}
+                        placeholder="Explore the Heart of Cordillera Abra"
+                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Subtitle Tagline */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Subtitle / Tagline Description</label>
+                    <textarea
+                      rows="2"
+                      value={heroForm.subtitle}
+                      onChange={e => setHeroForm(f => ({ ...f, subtitle: e.target.value }))}
+                      placeholder="From Kaparkan's limestone terraces to Itneg heritage weaving villages..."
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                    />
+                  </div>
+
+                  {/* Video Upload or Video URL */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Upload Background Video File (MP4/WebM)</label>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={e => setHeroVideoFile(e.target.files[0])}
+                        className="w-full text-xs text-white/80 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-emerald-950 hover:file:bg-amber-400 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1">Or Direct Video URL (Optional)</label>
+                      <input
+                        type="text"
+                        value={heroForm.videoUrl}
+                        onChange={e => setHeroForm(f => ({ ...f, videoUrl: e.target.value }))}
+                        placeholder="https://example.com/abra_hero.mp4"
+                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-xs text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Current Active Video Preview */}
+                  {heroForm.videoUrl && (
+                    <div className="mt-3 p-3 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        <span className="text-xs text-amber-300 font-bold">Active Background Video Attached</span>
+                      </div>
+                      <a href={heroForm.videoUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-amber-400 hover:underline">Preview Video →</a>
+                    </div>
+                  )}
+
+                  {heroMsg.text && (
+                    <p className={`text-xs font-semibold ${heroMsg.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {heroMsg.text}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={heroLoading}
+                    className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-emerald-950 font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {heroLoading ? 'Updating Hero...' : 'Publish Homepage Hero Changes'}
+                  </button>
+                </form>
               </div>
-            ) : selectedMunId ? (
-              <p className="text-slate-400 text-xs py-8">Loading municipality profile data...</p>
-            ) : (
-              <p className="text-slate-400 text-xs py-8 text-center border border-dashed border-slate-200 rounded-xl">
-                Please select a municipality to manage its content description and cover gallery.
-              </p>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════════
+                SUB-TAB 3: MUNICIPALITIES & GALLERY
+            ══════════════════════════════════════════════════════════════════ */}
+            {contentSubTab === 'municipalities' && (
+              <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Municipalities Profile &amp; Gallery Customization</h2>
+                  <p className="text-xs text-slate-500 mt-1">Select any of Abra's 27 municipalities to update its official introductory overview and photo gallery.</p>
+                </div>
+
+                <div className="max-w-xs">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Select Municipality</label>
+                  <select
+                    value={selectedMunId}
+                    onChange={e => { setSelectedMunId(e.target.value); setSelectedMunDetails(null); setContentMsg({type:'',text:''}); }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none"
+                  >
+                    <option value="">-- Select Municipality --</option>
+                    {municipalitiesList.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedMunDetails ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-2">
+                    {/* Left Side: Update Description */}
+                    <div className="lg:col-span-1 border border-slate-150 p-5 rounded-2xl bg-slate-50 space-y-4">
+                      <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">Edit Description</h3>
+                      <form onSubmit={handleUpdateMunProfile} className="space-y-3">
+                        <div>
+                          <textarea
+                            rows="6"
+                            required
+                            value={munDescEdit}
+                            onChange={e => setMunDescEdit(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs resize-none"
+                            placeholder="Write the introduction or descriptive profile for this municipality..."
+                          />
+                        </div>
+                        {contentMsg.text && contentMsg.type !== 'image' && (
+                          <p className={`text-xs ${contentMsg.type === 'success' ? 'text-emerald-700' : 'text-red-600'}`}>{contentMsg.text}</p>
+                        )}
+                        <button type="submit" className="w-full py-2 bg-emerald-900 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl">
+                          Save Changes
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Right Side: Manage Cover & Photos */}
+                    <div className="lg:col-span-2 space-y-6">
+                      <div className="border border-slate-150 p-5 rounded-2xl bg-slate-50">
+                        <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2 mb-3">Upload New Gallery Photo</h3>
+                        <form onSubmit={handleAddMunImage} className="flex flex-wrap items-center gap-4">
+                          <input
+                            type="file"
+                            id="prov-mun-file-input"
+                            accept="image/*"
+                            required
+                            onChange={e => setNewMunImageFile(e.target.files[0])}
+                            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
+                          />
+                          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={newMunImageFeatured}
+                              onChange={e => setNewMunImageFeatured(e.target.checked)}
+                              className="w-4 h-4 accent-emerald-700 rounded"
+                            />
+                            Set as Featured (Cover)
+                          </label>
+                          <button type="submit" className="px-5 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl">
+                            Add Photo
+                          </button>
+                        </form>
+                      </div>
+
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-sm mb-3">Gallery Photos</h3>
+                        {selectedMunDetails.municipality.images?.length === 0 ? (
+                          <p className="text-xs text-slate-400 py-8 text-center bg-slate-50 border border-slate-100 rounded-xl">No photos uploaded yet.</p>
+                        ) : (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {selectedMunDetails.municipality.images?.map(img => (
+                              <div key={img.id} className="aspect-square bg-slate-100 rounded-xl overflow-hidden shadow-sm border border-slate-150 relative group">
+                                <SafeImage src={img.image_url} alt="Gallery item" className="w-full h-full object-cover" fallback="square" />
+                                {img.is_featured && (
+                                  <span className="absolute top-2 left-2 bg-amber-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase">Featured</span>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteMunImage(img.id)}
+                                  className="absolute top-2 right-2 p-1.5 bg-red-650 hover:bg-red-700 text-white rounded-lg shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Delete Photo"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : selectedMunId ? (
+                  <p className="text-slate-400 text-xs py-8">Loading municipality profile data...</p>
+                ) : (
+                  <p className="text-slate-400 text-xs py-8 text-center border border-dashed border-slate-200 rounded-xl">
+                    Please select a municipality to manage its content description and cover gallery.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════════
+                MODAL: CREATE / EDIT VIDEO ADVERTISEMENT
+            ══════════════════════════════════════════════════════════════════ */}
+            {showAdModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+                <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-150 my-8 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-[#B88B2A]/15 text-[#B88B2A] rounded-xl">
+                        <Video className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-serif text-lg font-bold text-[#153325]">
+                          {adModalMode === 'create' ? 'Post New Video Advertisement' : 'Edit Video Advertisement'}
+                        </h3>
+                        <p className="text-xs text-[#5A534E]">
+                          Campaign will be featured in the official video showcase on the Landing Page.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdModal(false)}
+                      className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveAd} className="space-y-4">
+                    {/* Title & Subtitle */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">
+                          Campaign Title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={adForm.title}
+                          onChange={e => setAdForm(f => ({ ...f, title: e.target.value }))}
+                          placeholder="e.g. Discover Kaparkan Falls"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">
+                          Subtitle / Catchphrase
+                        </label>
+                        <input
+                          type="text"
+                          value={adForm.subtitle}
+                          onChange={e => setAdForm(f => ({ ...f, subtitle: e.target.value }))}
+                          placeholder="e.g. Emerald terraces in Tineg"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Category & Municipality */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">Category</label>
+                        <select
+                          value={adForm.category}
+                          onChange={e => setAdForm(f => ({ ...f, category: e.target.value }))}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                        >
+                          <option value="Eco-Tourism & Waterfalls">Eco-Tourism &amp; Waterfalls</option>
+                          <option value="Cultural Heritage & Crafts">Cultural Heritage &amp; Crafts</option>
+                          <option value="Mountain Adventure & Treks">Mountain Adventure &amp; Treks</option>
+                          <option value="Festivals & Cultural Events">Festivals &amp; Cultural Events</option>
+                          <option value="Local Gastronomy & Markets">Local Gastronomy &amp; Markets</option>
+                          <option value="Provincial Tourism Spotlight">Provincial Tourism Spotlight</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">
+                          Featured Municipality (Optional)
+                        </label>
+                        <select
+                          value={adForm.municipalityId}
+                          onChange={e => setAdForm(f => ({ ...f, municipalityId: e.target.value }))}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                        >
+                          <option value="">All Abra / General Provincial</option>
+                          {municipalitiesList.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">Description</label>
+                      <textarea
+                        rows="3"
+                        value={adForm.description}
+                        onChange={e => setAdForm(f => ({ ...f, description: e.target.value }))}
+                        placeholder="Detailed promotional description of this attraction, heritage, or adventure..."
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325] resize-none"
+                      />
+                    </div>
+
+                    {/* Video Source: Upload File OR Direct URL */}
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Video className="w-4 h-4 text-[#B88B2A]" />
+                        <span className="text-xs font-bold text-[#153325]">Video Media Source</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                            Upload Video File (MP4, WebM, MOV)
+                          </label>
+                          <input
+                            type="file"
+                            accept="video/*"
+                            onChange={e => setAdVideoFile(e.target.files[0])}
+                            className="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#153325] file:text-white hover:file:bg-[#1D4433] cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                            Or Direct Video URL
+                          </label>
+                          <input
+                            type="text"
+                            value={adForm.videoUrl}
+                            onChange={e => setAdForm(f => ({ ...f, videoUrl: e.target.value }))}
+                            placeholder="https://.../video.mp4"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                          />
+                        </div>
+                      </div>
+                      {adForm.videoUrl && !adVideoFile && (
+                        <p className="text-[11px] text-slate-500 font-mono truncate">
+                          Current Video: {adForm.videoUrl}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Thumbnail Image: Upload File OR Direct URL */}
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Image className="w-4 h-4 text-[#B88B2A]" />
+                        <span className="text-xs font-bold text-[#153325]">Poster / Thumbnail Image</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                            Upload Poster Image
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={e => setAdThumbnailFile(e.target.files[0])}
+                            className="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#153325] file:text-white hover:file:bg-[#1D4433] cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[#5A534E] mb-1">
+                            Or Thumbnail Image URL
+                          </label>
+                          <input
+                            type="text"
+                            value={adForm.thumbnailUrl}
+                            onChange={e => setAdForm(f => ({ ...f, thumbnailUrl: e.target.value }))}
+                            placeholder="https://.../cover.jpg"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CTA Details & Display Priority */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">CTA Button Text</label>
+                        <input
+                          type="text"
+                          value={adForm.ctaText}
+                          onChange={e => setAdForm(f => ({ ...f, ctaText: e.target.value }))}
+                          placeholder="e.g. Explore Tineg"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">CTA Destination Link</label>
+                        <input
+                          type="text"
+                          value={adForm.ctaLink}
+                          onChange={e => setAdForm(f => ({ ...f, ctaLink: e.target.value }))}
+                          placeholder="/municipalities"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#153325] mb-1">Display Priority Order</label>
+                        <input
+                          type="number"
+                          value={adForm.displayOrder}
+                          onChange={e => setAdForm(f => ({ ...f, displayOrder: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Active Checkbox */}
+                    <div className="pt-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={adForm.isActive}
+                          onChange={e => setAdForm(f => ({ ...f, isActive: e.target.checked }))}
+                          className="w-4 h-4 accent-[#153325] rounded"
+                        />
+                        <span className="text-xs font-bold text-[#153325]">
+                          Publish immediately (Visible on Landing Page video showcase)
+                        </span>
+                      </label>
+                    </div>
+
+                    {adMsg.text && (
+                      <p className={`text-xs font-semibold ${adMsg.type === 'error' ? 'text-rose-600' : 'text-emerald-700'}`}>
+                        {adMsg.text}
+                      </p>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdModal(false)}
+                        className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={adFormLoading}
+                        className="px-6 py-2 bg-gradient-to-r from-[#B88B2A] to-amber-500 hover:from-amber-600 hover:to-[#B88B2A] text-[#153325] font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {adFormLoading ? 'Saving...' : adModalMode === 'create' ? 'Publish Video Advertisement' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             )}
           </div>
         )}
