@@ -82,6 +82,21 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  const applyProvider = async (formData) => {
+    const isFormData = typeof FormData !== 'undefined' && formData instanceof FormData;
+    const response = await fetch('/api/auth/apply/provider', {
+      method: 'POST',
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+      body: isFormData ? formData : JSON.stringify(formData),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Application submission failed.');
+    }
+    return data;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setToken(null);
@@ -104,7 +119,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginTourist, loginPortal, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginTourist, loginPortal, register, applyProvider, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -21,7 +21,7 @@ const MobileBottomNav = () => {
   };
 
   const accountLink = getAccountLink();
-  const isAccountActive = ['/login', '/register', '/portal/login', '/tourist-dashboard', '/owner-dashboard', '/guide-dashboard', '/municipal-dashboard', '/provincial-dashboard'].includes(location.pathname);
+  const isAccountActive = ['/login', '/register', '/portal/login', '/apply/provider', '/tourist-dashboard', '/owner-dashboard', '/guide-dashboard', '/municipal-dashboard', '/provincial-dashboard'].includes(location.pathname);
 
   const navItems = [
     {
@@ -59,7 +59,12 @@ const MobileBottomNav = () => {
   return (
     <aside
       aria-label="Mobile Bottom Navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-[#FAF7F2]/95 dark:bg-[#0D1C15]/95 backdrop-blur-lg border-t border-[#E8DFC8] dark:border-[#2A4338] shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)] safe-bottom transition-colors"
+      className="fixed bottom-0 left-0 right-0 z-40 lg:hidden backdrop-blur-lg border-t safe-bottom transition-colors"
+      style={{
+        backgroundColor: 'var(--bg-nav)',
+        borderColor: 'var(--border-app)',
+        boxShadow: 'var(--shadow-md)',
+      }}
     >
       <div className="grid grid-cols-5 h-14 max-w-lg mx-auto items-center px-1">
         {navItems.map((item) => {
@@ -69,22 +74,23 @@ const MobileBottomNav = () => {
             <Link
               key={item.label}
               to={item.path}
-              className={`flex flex-col items-center justify-center h-full py-1 px-1 select-none transition-all active:scale-95 touch-target ${
-                active
-                  ? 'text-[#153325] dark:text-[#E2EDE5] font-bold'
-                  : 'text-[#5A534E] dark:text-[#8FADA0] hover:text-[#153325] dark:hover:text-white'
-              }`}
+              className="flex flex-col items-center justify-center h-full py-1 px-1 select-none transition-all active:scale-95 touch-target"
+              style={{
+                color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontWeight: active ? 700 : 500,
+              }}
             >
               <div
                 className={`relative flex items-center justify-center w-8 h-7 rounded-full transition-all ${
-                  active
-                    ? 'bg-[#B88B2A]/20 dark:bg-[#B88B2A]/30 text-[#946E1D] dark:text-[#D4A942]'
-                    : ''
+                  active ? 'bg-[var(--color-gold)]/20 text-[var(--color-gold)]' : ''
                 }`}
               >
                 <Icon className={`w-4 h-4 transition-transform ${active ? 'scale-110' : ''}`} />
                 {active && (
-                  <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-[#B88B2A]" />
+                  <span
+                    className="absolute -bottom-1 w-1 h-1 rounded-full"
+                    style={{ backgroundColor: 'var(--color-gold)' }}
+                  />
                 )}
               </div>
               <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-[58px]">

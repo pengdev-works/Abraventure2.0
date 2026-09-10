@@ -26,7 +26,7 @@ BEGIN
         CREATE TYPE user_role AS ENUM ('PROVINCIAL_DOT', 'MUNICIPAL_DOT', 'HOMESTAY_OWNER', 'TOUR_GUIDE', 'TOURIST');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_status') THEN
-        CREATE TYPE account_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+        CREATE TYPE account_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'ENDORSED', 'SUSPENDED', 'INACTIVE');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'document_status') THEN
         CREATE TYPE document_status AS ENUM ('PENDING', 'ENDORSED', 'APPROVED', 'REJECTED');
@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS user_accounts (
     phone_number VARCHAR(50),
     municipality_id INT REFERENCES municipalities(id) ON DELETE SET NULL,
     status account_status DEFAULT 'PENDING',
+    reference_number VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -72,6 +73,10 @@ CREATE TABLE IF NOT EXISTS homestay_profiles (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     address TEXT NOT NULL,
+    barangay VARCHAR(150),
+    total_rooms INT DEFAULT 1,
+    max_capacity INT DEFAULT 2,
+    reference_number VARCHAR(50),
     latitude DECIMAL(10, 8),
     longitude DECIMAL(11, 8),
     contact_email VARCHAR(255),
@@ -108,6 +113,10 @@ CREATE TABLE IF NOT EXISTS tour_guide_profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     guide_id UUID UNIQUE REFERENCES user_accounts(id) ON DELETE CASCADE,
     profile_picture_url TEXT,
+    license_number VARCHAR(100),
+    years_of_experience INT DEFAULT 0,
+    specializations TEXT,
+    reference_number VARCHAR(50),
     bio TEXT,
     languages_spoken VARCHAR(255),
     services_offered TEXT,

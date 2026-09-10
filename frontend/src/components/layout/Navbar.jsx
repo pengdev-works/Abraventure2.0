@@ -12,10 +12,79 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = useRef(null);
+
+  // Monitor scroll for subtle sticky header elevation
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setIsScrolled(window.scrollY > 20);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Lock body scroll when mobile menu is open, restoring exact scroll position upon closing
+  useEffect(() => {
+    if (isOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflowY = 'scroll';
+    } else {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflowY = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
+      }
+    }
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflowY = '';
+    };
+  }, [isOpen]);
+
+  // In-page smooth scrolling when section exists on current page, else navigate
+  const handleNavClick = (e, path, sectionId) => {
+    if (sectionId && (location.pathname === path || (path === '/' && location.pathname === '/'))) {
+      const el = document.getElementById(sectionId);
+      if (el) {
+        e.preventDefault();
+        if (isOpen) {
+          setIsOpen(false);
+          setTimeout(() => {
+            el.scrollIntoView({ behavior: 'smooth' });
+            window.history.replaceState(null, '', `#${sectionId}`);
+          }, 80);
+        } else {
+          el.scrollIntoView({ behavior: 'smooth' });
+          window.history.replaceState(null, '', `#${sectionId}`);
+        }
+        return;
+      }
+    }
+
+    if (isOpen) {
+      setIsOpen(false);
+    }
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -213,15 +282,21 @@ const Navbar = () => {
   const navLinkClasses = (path) => `
     px-3 py-1.5 text-xs font-semibold tracking-wider uppercase transition-all
     border-b-2 ${isActive(path)
-      ? 'text-[#153325] border-[#B88B2A] font-bold'
-      : 'text-[#5A534E] border-transparent hover:text-[#153325] hover:border-[#153325]/30'
+      ? 'text-[var(--text-primary)] border-[var(--color-gold)] font-bold'
+      : 'text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)] hover:border-[var(--color-gold)]/40'
     }
   `;
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#E8DFC8] transition-all">
+    <nav
+      className={`sticky top-0 z-50 transition-[background-color,box-shadow,border-color] duration-200 ease-out ${
+        isScrolled
+          ? 'bg-[var(--bg-header)]/98 backdrop-blur-md shadow-sm border-b border-[var(--border-app)]'
+          : 'bg-[var(--bg-header)]/90 backdrop-blur-sm border-b border-transparent'
+      }`}
+    >
       {/* Official Government Header Topline */}
-      <div className="bg-[#153325] text-[#FAF7F2] text-[10px] sm:text-[11px] py-1 px-3 sm:px-6 lg:px-8">
+      <div className="bg-[var(--color-forest-950)] text-[var(--color-cream-100)] text-[10px] sm:text-[11px] py-1 px-3 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <span className="font-medium tracking-wider uppercase opacity-90 truncate text-[10px] sm:text-[11px]">
             Provincial Tourism Office · Province of Abra, Philippines
@@ -239,7 +314,11 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-14 sm:h-16 lg:h-20">
 
           {/* Editorial Brand & Logo */}
-          <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group text-left flex-shrink-0">
+          <Link
+            to="/"
+            onClick={(e) => handleNavClick(e, '/', 'explore')}
+            className="flex items-center gap-2.5 sm:gap-3 group text-left flex-shrink-0"
+          >
             <img
               src="/abraventure-logo.png"
               alt="Abraventure Official Logo"
@@ -247,10 +326,10 @@ const Navbar = () => {
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
             <div className="flex flex-col">
-              <span className="font-serif text-lg sm:text-xl lg:text-2xl font-bold tracking-tight text-[#153325] group-hover:text-[#B88B2A] transition-colors leading-none">
+              <span className="font-serif text-lg sm:text-xl lg:text-2xl font-bold tracking-tight text-[var(--text-primary)] group-hover:text-[var(--color-gold)] transition-colors leading-none">
                 ABRAVENTURE
               </span>
-              <span className="text-[8px] sm:text-[9px] font-sans font-bold uppercase tracking-[0.2em] sm:tracking-[0.24em] text-[#5A534E] mt-0.5 sm:mt-1">
+              <span className="text-[8px] sm:text-[9px] font-sans font-bold uppercase tracking-[0.2em] sm:tracking-[0.24em] text-[var(--text-secondary)] mt-0.5 sm:mt-1">
                 Province of Abra · Cordillera
               </span>
             </div>
@@ -258,12 +337,12 @@ const Navbar = () => {
 
           {/* Desktop Nav Links (Clean Typography, No Icon Clutter) */}
           <div className="hidden lg:flex items-center gap-1">
-            <Link to="/" className={navLinkClasses('/')}>Explore</Link>
-            <Link to="/municipalities" className={navLinkClasses('/municipalities')}>Destinations</Link>
-            <Link to="/map" className={navLinkClasses('/map')}>Interactive Map</Link>
-            <Link to="/itinerary" className={navLinkClasses('/itinerary')}>Plan Itinerary</Link>
-            <Link to="/events" className={navLinkClasses('/events')}>Events</Link>
-            <Link to="/travel-tips" className={navLinkClasses('/travel-tips')}>Travel Guide</Link>
+            <Link to="/" onClick={(e) => handleNavClick(e, '/', 'explore')} className={navLinkClasses('/')}>Explore</Link>
+            <Link to="/municipalities" onClick={(e) => handleNavClick(e, '/municipalities', 'destinations')} className={navLinkClasses('/municipalities')}>Destinations</Link>
+            <Link to="/map" onClick={(e) => handleNavClick(e, '/map', 'map')} className={navLinkClasses('/map')}>Interactive Map</Link>
+            <Link to="/itinerary" onClick={(e) => handleNavClick(e, '/itinerary', 'itinerary')} className={navLinkClasses('/itinerary')}>Plan Itinerary</Link>
+            <Link to="/events" onClick={(e) => handleNavClick(e, '/events', 'events')} className={navLinkClasses('/events')}>Events</Link>
+            <Link to="/travel-tips" onClick={(e) => handleNavClick(e, '/travel-tips', '')} className={navLinkClasses('/travel-tips')}>Travel Guide</Link>
           </div>
 
           {/* Desktop Auth & Actions */}
@@ -274,7 +353,7 @@ const Navbar = () => {
               <div className="hidden lg:flex items-center gap-2">
                 <Link
                   to="/login"
-                  className="text-xs font-semibold text-[#153325] hover:text-[#B88B2A] transition-colors px-3 py-2"
+                  className="text-xs font-semibold text-[var(--text-primary)] hover:text-[var(--color-gold)] transition-colors px-3 py-2"
                 >
                   Sign In
                 </Link>
@@ -298,32 +377,32 @@ const Navbar = () => {
               <div className="relative" ref={notifRef}>
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 rounded-xl text-[#5A534E] hover:text-[#153325] hover:bg-[#F3ECE0] transition-colors relative cursor-pointer"
+                  className="p-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)] transition-colors relative cursor-pointer"
                   title="Notifications"
                   aria-label="Notifications"
                 >
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#B88B2A] opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#B88B2A] ring-2 ring-[#FAF7F2]"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-gold)] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--color-gold)] ring-2 ring-[var(--bg-header)]"></span>
                     </span>
                   )}
                 </button>
 
                 {/* Rich Notification Dropdown */}
                 {showNotifications && (
-                  <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-14 sm:top-full mt-2 w-auto sm:w-96 max-w-sm mx-auto sm:mx-0 bg-white border border-[#E8DFC8] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fadeIn">
+                  <div className="fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-14 sm:top-full mt-2 w-auto sm:w-96 max-w-sm mx-auto sm:mx-0 bg-[var(--bg-card)] border border-[var(--border-app)] rounded-2xl shadow-2xl z-50 overflow-hidden text-[var(--text-primary)] animate-fadeIn">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3.5 bg-[#FAF7F2] border-b border-[#E8DFC8]">
+                    <div className="flex items-center justify-between px-4 py-3.5 bg-[var(--bg-card-subtle)] border-b border-[var(--border-subtle)]">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-serif font-bold text-sm text-[#153325]">Notifications</h4>
+                        <h4 className="font-serif font-bold text-sm text-[var(--text-primary)]">Notifications</h4>
                         {unreadCount > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#B88B2A]/15 text-[#946E1D] border border-[#B88B2A]/30">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--color-gold)]/15 text-[var(--color-gold)] border border-[var(--color-gold)]/30">
                             {unreadCount} new
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/5 text-[#5A534E]">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/5 text-[var(--text-secondary)]">
                             All read
                           </span>
                         )}
@@ -331,7 +410,7 @@ const Navbar = () => {
                       {unreadCount > 0 && (
                         <button
                           onClick={handleMarkAllRead}
-                          className="text-xs text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                          className="text-xs text-[var(--color-gold)] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
                         >
                           <CheckCheck className="w-3.5 h-3.5" /> Mark all read
                         </button>
@@ -457,7 +536,7 @@ const Navbar = () => {
         <div className="lg:hidden relative z-50 bg-[#FAF7F2] border-b border-[#E8DFC8] px-4 pt-3 pb-6 space-y-1 shadow-xl animate-fadeIn max-h-[calc(100dvh-5rem)] overflow-y-auto">
           <Link
             to="/"
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => handleNavClick(e, '/', 'explore')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
               isActive('/') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
@@ -466,7 +545,7 @@ const Navbar = () => {
           </Link>
           <Link
             to="/municipalities"
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => handleNavClick(e, '/municipalities', 'destinations')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
               isActive('/municipalities') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
@@ -475,7 +554,7 @@ const Navbar = () => {
           </Link>
           <Link
             to="/map"
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => handleNavClick(e, '/map', 'map')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
               isActive('/map') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
@@ -484,7 +563,7 @@ const Navbar = () => {
           </Link>
           <Link
             to="/itinerary"
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => handleNavClick(e, '/itinerary', 'itinerary')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
               isActive('/itinerary') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
@@ -493,7 +572,7 @@ const Navbar = () => {
           </Link>
           <Link
             to="/events"
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => handleNavClick(e, '/events', 'events')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
               isActive('/events') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}
@@ -502,7 +581,7 @@ const Navbar = () => {
           </Link>
           <Link
             to="/travel-tips"
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => handleNavClick(e, '/travel-tips', '')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
               isActive('/travel-tips') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
             }`}

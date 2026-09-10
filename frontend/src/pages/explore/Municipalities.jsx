@@ -36,6 +36,14 @@ const Municipalities = () => {
     return matchSearch && matchCat;
   });
 
+  const handleCategorySelect = (cat) => {
+    setSelectedCategory(cat);
+    const grid = document.getElementById('directory-grid');
+    if (grid) {
+      grid.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="bg-[#FAF7F2] text-[#232120] font-sans min-h-screen">
 
@@ -43,10 +51,10 @@ const Municipalities = () => {
       <section className="bg-[#153325] text-white pt-20 pb-20 border-b border-[#E8DFC8]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center max-w-3xl">
           <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#D4A942] mb-3 inline-block">
-            Province of Abra · Cordillera Administrative Region
+            Official Provincial Registry
           </span>
-          <h1 className="font-serif text-4xl sm:text-6xl font-bold tracking-tight text-white mb-6">
-            The 27 Municipalities
+          <h1 className="font-serif text-3xl sm:text-5xl font-bold tracking-tight mb-4 text-white">
+            The 27 Municipalities of Abra
           </h1>
           <p className="text-sm sm:text-base text-white/80 leading-relaxed mb-10 font-normal">
             From historic lowlands along the Abra River to mist-shrouded northern rainforests and southern mountain peaks. Discover certified local accommodations, accredited tour guides, and protected natural landmarks.
@@ -69,10 +77,10 @@ const Municipalities = () => {
             {CATEGORIES.map(cat => (
               <button
                 key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                onClick={() => handleCategorySelect(cat)}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                   selectedCategory === cat
-                    ? 'bg-[#B88B2A] text-white'
+                    ? 'bg-[#B88B2A] text-white shadow-sm'
                     : 'bg-[#1D4433] text-white/80 hover:bg-[#2D5D46]'
                 }`}
               >
@@ -84,7 +92,7 @@ const Municipalities = () => {
       </section>
 
       {/* ── Directory Grid ── */}
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="directory-grid" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between pb-4 mb-10 border-b border-[#E8DFC8]">
           <p className="text-xs font-bold uppercase tracking-wider text-[#5A534E]">
             Showing {filteredMunicipalities.length} {filteredMunicipalities.length === 1 ? 'Municipality' : 'Municipalities'}

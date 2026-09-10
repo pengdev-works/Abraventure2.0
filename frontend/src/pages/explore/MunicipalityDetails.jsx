@@ -103,6 +103,7 @@ const MunicipalityDetails = () => {
   const [inquiryMessage, setInquiryMessage] = useState('');
   const [inquirySuccess, setInquirySuccess] = useState('');
   const [inquiryError, setInquiryError] = useState('');
+  const [inquiryLoading, setInquiryLoading] = useState(false);
   const [bookedDates, setBookedDates] = useState([]); // confirmed booked ranges
 
   // Local Attraction Features & Itinerary Planning State

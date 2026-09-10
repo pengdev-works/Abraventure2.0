@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import SafeImage from '../../components/common/SafeImage';
 import DarkModeToggle from '../../components/common/DarkModeToggle';
+import DocumentViewerModal from '../../components/common/DocumentViewerModal';
 
 const OwnerDashboard = () => {
   const { token, user, logout, refreshUser } = useAuth();
@@ -1306,54 +1307,11 @@ const OwnerDashboard = () => {
       </div> {/* <-- Closes Tab Content container */}
 
       {selectedDocUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="font-bold text-slate-800 text-base">Document Viewer</h3>
-              <div className="flex items-center gap-3">
-                <a
-                  href={selectedDocUrl}
-                  download
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
-                >
-                  Download / Open
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setSelectedDocUrl(null)}
-                  className="p-1.5 text-slate-450 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                  aria-label="Close modal"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            
-            {/* Modal Content */}
-            <div className="flex-1 p-6 overflow-y-auto bg-slate-50 flex flex-col justify-center">
-              {selectedDocUrl.toLowerCase().endsWith('.pdf') ? (
-                <iframe
-                  src={selectedDocUrl}
-                  className="w-full h-[65vh] rounded-xl border border-slate-200 bg-white"
-                  title="Document Viewer"
-                />
-              ) : (
-                <div className="flex justify-center items-center h-[65vh]">
-                  <img
-                    src={selectedDocUrl}
-                    alt="Uploaded file"
-                    className="max-w-full max-h-full object-contain rounded-xl shadow-sm border border-slate-200 bg-white"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <DocumentViewerModal
+          docUrl={selectedDocUrl}
+          onClose={() => setSelectedDocUrl(null)}
+          title="Document Viewer"
+        />
       )}
 
         </div>

@@ -1,8 +1,9 @@
 import React from 'react';
 import Navbar from './Navbar';
 import MobileBottomNav from './MobileBottomNav';
+import BackToTop from '../common/BackToTop';
 import { Link, useLocation } from 'react-router-dom';
-import { Mail, Phone, MapPin, ShieldCheck, Award } from 'lucide-react';
+import { Mail, Phone, MapPin, ShieldCheck, Award, ArrowUp } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const location = useLocation();
@@ -15,23 +16,29 @@ const Layout = ({ children }) => {
 
   // Official and Stakeholder Dashboards have their own full-page executive sidebar layout
   if (isDashboardWithSidebar) {
-    return <div className="min-h-screen bg-[var(--bg-app,#E3ECE4)] text-[var(--text-primary,#17281D)] transition-colors">{children}</div>;
+    return (
+      <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-primary)] transition-colors">
+        {children}
+        <BackToTop />
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--bg-app,#E3ECE4)] text-[var(--text-primary,#17281D)] transition-colors">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-app)] text-[var(--text-primary)] transition-colors">
       <Navbar />
       <main className="flex-grow pb-16 lg:pb-0">
         {children}
       </main>
       <MobileBottomNav />
+      <BackToTop />
 
       {/* ── Official Provincial Tourism Office Footer ── */}
-      <footer className="bg-[#153325] text-[#FAF7F2] border-t-2 border-[#B88B2A]">
+      <footer className="bg-[var(--color-forest-950)] text-[var(--color-cream-100)] border-t-2 border-[var(--color-gold)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
 
           {/* Masthead Header */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-10 mb-12 border-b border-[#FAF7F2]/10 gap-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-10 mb-12 border-b border-[var(--color-cream-100)]/10 gap-6">
             <div className="flex items-center gap-3.5">
               <img
                 src="/abraventure-logo.png"
@@ -40,21 +47,21 @@ const Layout = ({ children }) => {
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
               <div>
-                <span className="font-serif text-2xl font-bold tracking-tight text-[#FAF7F2]">
+                <span className="font-serif text-2xl font-bold tracking-tight text-[var(--color-cream-100)]">
                   ABRAVENTURE
                 </span>
-                <p className="text-xs text-[#FAF7F2]/70 tracking-wider uppercase mt-0.5">
+                <p className="text-xs text-[var(--color-cream-200)]/70 tracking-wider uppercase mt-0.5">
                   Integrated Tourism Platform · Provincial Tourism Office (DOT) of Abra
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#FAF7F2]/10 border border-[#FAF7F2]/15 text-[#FAF7F2]/90">
-                <Award className="w-3.5 h-3.5 text-[#B88B2A]" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--color-cream-100)]/10 border border-[var(--color-cream-100)]/15 text-[var(--color-cream-100)]/90">
+                <Award className="w-3.5 h-3.5 text-[var(--color-gold)]" />
                 <span>DOT Endorsed</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#FAF7F2]/10 border border-[#FAF7F2]/15 text-[#FAF7F2]/90">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#B88B2A]" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--color-cream-100)]/10 border border-[var(--color-cream-100)]/15 text-[var(--color-cream-100)]/90">
+                <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-gold)]" />
                 <span>27 Municipalities</span>
               </div>
             </div>
@@ -65,45 +72,45 @@ const Layout = ({ children }) => {
 
             {/* Col 1: About Abra */}
             <div>
-              <h4 className="font-serif font-bold text-sm tracking-wide text-[#FAF7F2] mb-4">
+              <h4 className="font-serif font-bold text-sm tracking-wide text-[var(--color-cream-100)] mb-4">
                 About the Platform
               </h4>
-              <p className="text-[#FAF7F2]/70 leading-relaxed mb-4">
+              <p className="text-[var(--color-cream-200)]/70 leading-relaxed mb-4">
                 ABRAVENTURE is the official integrated tourism and accommodation portal of the Provincial Tourism Office of Abra, Cordillera Administrative Region (CAR). Connecting travelers to accredited homestays, licensed local guides, and municipal tourism desks.
               </p>
-              <p className="text-[11px] text-[#B88B2A] font-semibold">
+              <p className="text-[11px] text-[var(--color-gold)] font-semibold">
                 Capitol Building, Bangued, Abra 2800
               </p>
             </div>
 
             {/* Col 2: Destinations & Travel */}
             <div>
-              <h4 className="font-serif font-bold text-sm tracking-wide text-[#FAF7F2] mb-4">
+              <h4 className="font-serif font-bold text-sm tracking-wide text-[var(--color-cream-100)] mb-4">
                 Explore Abra
               </h4>
-              <ul className="space-y-2.5 text-[#FAF7F2]/75">
+              <ul className="space-y-2.5 text-[var(--color-cream-200)]/75">
                 <li>
-                  <Link to="/municipalities" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/municipalities" className="hover:text-[var(--color-gold)] transition-colors">
                     All 27 Municipalities
                   </Link>
                 </li>
                 <li>
-                  <Link to="/map" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/map" className="hover:text-[var(--color-gold)] transition-colors">
                     Interactive Province Map
                   </Link>
                 </li>
                 <li>
-                  <Link to="/itinerary" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/itinerary" className="hover:text-[var(--color-gold)] transition-colors">
                     Plan Your Itinerary
                   </Link>
                 </li>
                 <li>
-                  <Link to="/events" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/events" className="hover:text-[var(--color-gold)] transition-colors">
                     Festivals & Cultural Events
                   </Link>
                 </li>
                 <li>
-                  <Link to="/travel-tips" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/travel-tips" className="hover:text-[var(--color-gold)] transition-colors">
                     Travel Advisory & Safety Guidelines
                   </Link>
                 </li>
@@ -112,32 +119,32 @@ const Layout = ({ children }) => {
 
             {/* Col 3: Stakeholders & Governance */}
             <div>
-              <h4 className="font-serif font-bold text-sm tracking-wide text-[#FAF7F2] mb-4">
+              <h4 className="font-serif font-bold text-sm tracking-wide text-[var(--color-cream-100)] mb-4">
                 Stakeholder Portals
               </h4>
-              <ul className="space-y-2.5 text-[#FAF7F2]/75">
+              <ul className="space-y-2.5 text-[var(--color-cream-200)]/75">
                 <li>
-                  <Link to="/register" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/apply/provider?type=homestay" className="hover:text-[var(--color-gold)] transition-colors">
                     Register a Homestay Listing
                   </Link>
                 </li>
                 <li>
-                  <Link to="/register" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/apply/provider?type=guide" className="hover:text-[var(--color-gold)] transition-colors">
                     Apply as Accredited Tour Guide
                   </Link>
                 </li>
                 <li>
-                  <Link to="/portal/login" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/portal/login" className="hover:text-[var(--color-gold)] transition-colors">
                     Municipal Tourism Officer Login
                   </Link>
                 </li>
                 <li>
-                  <Link to="/portal/login" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/portal/login" className="hover:text-[var(--color-gold)] transition-colors">
                     Provincial DOT Admin Login
                   </Link>
                 </li>
                 <li>
-                  <Link to="/login" className="hover:text-[#B88B2A] transition-colors">
+                  <Link to="/login" className="hover:text-[var(--color-gold)] transition-colors">
                     Tourist Account Sign In
                   </Link>
                 </li>
@@ -146,27 +153,27 @@ const Layout = ({ children }) => {
 
             {/* Col 4: Official Contact */}
             <div>
-              <h4 className="font-serif font-bold text-sm tracking-wide text-[#FAF7F2] mb-4">
+              <h4 className="font-serif font-bold text-sm tracking-wide text-[var(--color-cream-100)] mb-4">
                 Provincial Tourism Desk
               </h4>
-              <div className="space-y-3 text-[#FAF7F2]/75">
+              <div className="space-y-3 text-[var(--color-cream-200)]/75">
                 <div className="flex items-start gap-2.5">
-                  <MapPin className="w-4 h-4 text-[#B88B2A] flex-shrink-0 mt-0.5" />
+                  <MapPin className="w-4 h-4 text-[var(--color-gold)] flex-shrink-0 mt-0.5" />
                   <span>Provincial Capitol Building, Bangued, Abra, CAR</span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <Mail className="w-4 h-4 text-[#B88B2A] flex-shrink-0" />
-                  <a href="mailto:tourism@abra.gov.ph" className="hover:text-[#B88B2A] transition-colors">
+                  <Mail className="w-4 h-4 text-[var(--color-gold)] flex-shrink-0" />
+                  <a href="mailto:tourism@abra.gov.ph" className="hover:text-[var(--color-gold)] transition-colors">
                     tourism@abra.gov.ph
                   </a>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <Phone className="w-4 h-4 text-[#B88B2A] flex-shrink-0" />
+                  <Phone className="w-4 h-4 text-[var(--color-gold)] flex-shrink-0" />
                   <span>(074) 752-8200 / +63 917 123 4567</span>
                 </div>
               </div>
-              <div className="mt-5 pt-4 border-t border-[#FAF7F2]/10">
-                <p className="text-[11px] text-[#FAF7F2]/60">
+              <div className="mt-5 pt-4 border-t border-[var(--color-cream-100)]/10">
+                <p className="text-[11px] text-[var(--color-cream-200)]/60">
                   Tourist Assistance Desk: Open Monday–Friday, 8:00 AM – 5:00 PM PHT
                 </p>
               </div>
@@ -174,16 +181,26 @@ const Layout = ({ children }) => {
           </div>
 
           {/* Bottom Copyright & Accreditation Line */}
-          <div className="pt-8 border-t border-[#FAF7F2]/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#FAF7F2]/60">
+          <div className="pt-8 border-t border-[var(--color-cream-100)]/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--color-cream-200)]/60">
             <p>
               © {new Date().getFullYear()} Provincial Tourism Office of Abra. Republic of the Philippines. All rights reserved.
             </p>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
               <span>Privacy Policy</span>
               <span>•</span>
               <span>Terms of Service</span>
               <span>•</span>
               <span>Safety Guidelines</span>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="inline-flex items-center gap-1 text-[var(--color-cream-100)]/80 hover:text-[var(--color-gold)] transition-colors cursor-pointer"
+                aria-label="Scroll back to top"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+                <span>Back to Top</span>
+              </button>
             </div>
           </div>
         </div>

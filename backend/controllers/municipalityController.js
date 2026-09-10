@@ -1,5 +1,37 @@
 import pool from '../config/db.js';
 
+const FALLBACK_MUNICIPALITIES = [
+  { id: 1, name: 'Bangued', description: 'The capital municipality of Abra, known for its Victoria Park and San Lorenzo Climaco Shrine.' },
+  { id: 2, name: 'Boliney', description: 'Home to majestic mountains and hot springs, rich in cultural tribal traditions.' },
+  { id: 3, name: 'Bucay', description: 'Historical municipality hosting the ruins of the first Spanish provincial capitol.' },
+  { id: 4, name: 'Bucloc', description: 'A scenic highland town featuring traditional terraces and cultural communities.' },
+  { id: 5, name: 'Daguioman', description: 'A remote mountainous municipality known for pristine rivers and upland agriculture.' },
+  { id: 6, name: 'Danglas', description: 'Famous for its pine forests and agricultural farms, offering calm nature trails.' },
+  { id: 7, name: 'Dolores', description: 'Well-known for the historical Libtec Crystal Cave and sprawling agricultural fields.' },
+  { id: 8, name: 'La Paz', description: 'Known for traditional loom weaving (Abel) and agricultural rice production.' },
+  { id: 9, name: 'Lacub', description: 'Surrounded by pine-clad mountains, offering rugged hiking and historical caves.' },
+  { id: 10, name: 'Lagangilang', description: 'Center for education and agricultural experiments, hosting scenic riverbanks.' },
+  { id: 11, name: 'Lagayan', description: 'Home to the Lusuac Dam and various natural swimming spots.' },
+  { id: 12, name: 'Langiden', description: 'Lies along the Abra River, known for bamboo crafts and fishing.' },
+  { id: 13, name: 'Licuan-Baay', description: 'Gateway to the highland gold rush area and home to scenic mountain passes.' },
+  { id: 14, name: 'Luba', description: 'Famous for the historical Luba-Tubo hanging bridge and pristine mountain views.' },
+  { id: 15, name: 'Malibcong', description: 'Famous for the Boliney-Malibcong pine forests and clean headwaters.' },
+  { id: 16, name: 'Manabo', description: 'Known for its historical irrigation canals and agricultural rice bowls.' },
+  { id: 17, name: 'Peñarrubia', description: 'A close neighbor of Bangued, proud of its rich Tingguian heritage.' },
+  { id: 18, name: 'Pidigan', description: 'Known for its historical brick church, agricultural farms, and local sweets.' },
+  { id: 19, name: 'Pilar', description: 'Home of the historic Bolbolo waterfalls and agricultural landscapes.' },
+  { id: 20, name: 'Sallapadan', description: 'Known for the scenic Sallapadan river and warm upland hospitality.' },
+  { id: 21, name: 'San Isidro', description: 'An agricultural hub producing rice, tobacco, and high-value crops.' },
+  { id: 22, name: 'San Juan', description: 'An educational center in the northern part of Abra, hosting historical markers.' },
+  { id: 23, name: 'San Quintin', description: 'The gateway municipality to Abra from Ilocos Sur, hosting the Tangadan Tunnel.' },
+  { id: 24, name: 'Tayum', description: 'Famous for its colonial-era brick houses and the majestic Santa Catalina de Alejandria Church.' },
+  { id: 25, name: 'Tineg', description: 'Home to the famous Kaparkan Falls (Mulawin Falls) and massive forest reserves.' },
+  { id: 26, name: 'Tubo', description: 'The southernmost town of Abra, bordered by high peaks and famous for traditional culture.' },
+  { id: 27, name: 'Villaviciosa', description: 'Known for the Kimkimay Lake and agricultural farms.' }
+];
+
+let cachedMunicipalities = [...FALLBACK_MUNICIPALITIES];
+
 // Get all municipalities
 export const getMunicipalities = async (req, res) => {
   try {
@@ -10,9 +42,15 @@ export const getMunicipalities = async (req, res) => {
        LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
        ORDER BY m.name ASC`
     );
+    if (result.rows && result.rows.length > 0) {
+      cachedMunicipalities = result.rows;
+    }
     return res.status(200).json(result.rows);
   } catch (err) {
-    console.error('Error fetching municipalities:', err);
+    console.error('Error fetching municipalities (serving cached fallback):', err.message || err);
+    if (cachedMunicipalities && cachedMunicipalities.length > 0) {
+      return res.status(200).json(cachedMunicipalities);
+    }
     return res.status(500).json({ message: 'Internal server error fetching municipalities.' });
   }
 };

@@ -229,12 +229,33 @@ pool.query(`
     true,
     2
   WHERE (SELECT COUNT(*) FROM video_advertisements) < 2;
+
+  -- Provider Application & Accreditation Tracking Extensions
+  ALTER TABLE user_accounts ADD COLUMN IF NOT EXISTS reference_number VARCHAR(50);
+  ALTER TABLE homestay_profiles ADD COLUMN IF NOT EXISTS barangay VARCHAR(150);
+  ALTER TABLE homestay_profiles ADD COLUMN IF NOT EXISTS total_rooms INT DEFAULT 1;
+  ALTER TABLE homestay_profiles ADD COLUMN IF NOT EXISTS max_capacity INT DEFAULT 2;
+  ALTER TABLE homestay_profiles ADD COLUMN IF NOT EXISTS reference_number VARCHAR(50);
+  ALTER TABLE tour_guide_profiles ADD COLUMN IF NOT EXISTS license_number VARCHAR(100);
+  ALTER TABLE tour_guide_profiles ADD COLUMN IF NOT EXISTS years_of_experience INT DEFAULT 0;
+  ALTER TABLE tour_guide_profiles ADD COLUMN IF NOT EXISTS specializations TEXT;
+  ALTER TABLE tour_guide_profiles ADD COLUMN IF NOT EXISTS reference_number VARCHAR(50);
 `)
   .then(async () => {
     try {
       await pool.query(`ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'ENDORSED'`);
     } catch (err) {
-      console.warn('[DATABASE] ALTER TYPE account_status warning (might already exist or transaction restriction):', err.message);
+      console.warn('[DATABASE] ALTER TYPE account_status (ENDORSED):', err.message);
+    }
+    try {
+      await pool.query(`ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'SUSPENDED'`);
+    } catch (err) {
+      console.warn('[DATABASE] ALTER TYPE account_status (SUSPENDED):', err.message);
+    }
+    try {
+      await pool.query(`ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'INACTIVE'`);
+    } catch (err) {
+      console.warn('[DATABASE] ALTER TYPE account_status (INACTIVE):', err.message);
     }
     console.log('[DATABASE] All migrations verified successfully.');
   })
@@ -272,6 +293,179 @@ app.use('/api', globalApiRateLimiter({ maxRequests: 2000, windowMs: 15 * 60 * 10
 // Serve static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Fallback for missing uploads (serves branded 404 page or JSON)
+app.use('/uploads', (req, res) => {
+  const fileName = path.basename(req.path) || 'file';
+  const clientOrigin = (process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(',')[0] : 'http://localhost:5173');
+
+  if (req.accepts('html')) {
+    return res.status(404).send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>File Not Found · Abraventure</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+        <style>
+          :root {
+            --bg-app: #E3ECE4;
+            --bg-card: #FFFFFF;
+            --forest-900: #153325;
+            --forest-800: #1D4433;
+            --gold-500: #B88B2A;
+            --text-primary: #17281D;
+            --text-muted: #45594C;
+            --border: #C7D7C9;
+          }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+          }
+          .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1.5rem;
+            max-width: 32rem;
+            width: 100%;
+            padding: 2.5rem 2rem;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.08);
+            position: relative;
+            overflow: hidden;
+          }
+          .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, var(--forest-900), var(--gold-500), var(--forest-900));
+          }
+          .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.85rem;
+            background: rgba(225, 29, 72, 0.08);
+            border: 1px solid rgba(225, 29, 72, 0.2);
+            color: #be123c;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 1.25rem;
+          }
+          .icon-box {
+            width: 4.5rem;
+            height: 4.5rem;
+            margin: 0 auto 1.25rem;
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e11d48;
+          }
+          h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.75rem;
+            color: var(--forest-900);
+            margin-bottom: 0.75rem;
+          }
+          p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+          }
+          .path-pill {
+            background: #FAF7F2;
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.6rem 0.9rem;
+            font-size: 0.75rem;
+            font-family: monospace;
+            word-break: break-all;
+            margin-bottom: 1.75rem;
+            color: var(--forest-900);
+          }
+          .actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+          }
+          .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.65rem 1.25rem;
+            border-radius: 0.75rem;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+          }
+          .btn-primary {
+            background: var(--forest-900);
+            color: #ffffff;
+          }
+          .btn-primary:hover {
+            background: var(--forest-800);
+          }
+          .btn-secondary {
+            background: #ffffff;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+          }
+          .btn-secondary:hover {
+            background: #f8fafc;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="badge">404 · File Not Found</div>
+          <div class="icon-box">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="9.5" y1="12.5" x2="14.5" y2="17.5"/>
+              <line x1="14.5" y1="12.5" x2="9.5" y2="17.5"/>
+            </svg>
+          </div>
+          <h1>File Not Found</h1>
+          <p>The requested file or document could not be located on the Abraventure server. It may have been relocated, removed, or was never uploaded.</p>
+          <div class="path-pill">/uploads/${fileName}</div>
+          <div class="actions">
+            <a href="javascript:history.back()" class="btn btn-secondary">← Go Back</a>
+            <a href="${clientOrigin}" class="btn btn-primary">Return to Abraventure</a>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+
+  return res.status(404).json({
+    error: 'File Not Found',
+    message: 'The requested file does not exist on the server.',
+    path: `/uploads/${fileName}`
+  });
+});
+
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/municipalities', municipalityRoutes);
@@ -299,6 +493,14 @@ app.get('/api/health', (req, res) => {
 app.post('/api/notifications/trigger-cron', async (req, res) => {
   const result = await checkOverdueAssetsAndNotify();
   res.status(result.success ? 200 : 500).json(result);
+});
+
+// 404 fallback for unmatched API routes
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: `API endpoint '${req.originalUrl}' does not exist.`
+  });
 });
 
 // Error fallback
