@@ -1,6 +1,7 @@
 import express from 'express';
-import { getEvents, createEvent, updateEvent, deleteEvent, upload } from '../controllers/eventController.js';
+import { getEvents, createEvent, updateEvent, deleteEvent } from '../controllers/eventController.js';
 import { verifyToken, requireRoles } from '../middleware/authMiddleware.js';
+import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 

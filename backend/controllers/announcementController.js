@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitToAll } from '../socket/socketManager.js';
 
 // GET /api/announcements — public (all published)
 export const getAnnouncements = async (req, res) => {
@@ -43,7 +44,9 @@ export const createAnnouncement = async (req, res) => {
       `INSERT INTO announcements (created_by, title, content, is_published) VALUES ($1, $2, $3, $4) RETURNING *`,
       [req.user.id, title, content, isPublished !== false]
     );
-    res.status(201).json(result.rows[0]);
+    const ann = result.rows[0];
+    if (ann.is_published) emitToAll('announcement:new', ann);
+    res.status(201).json(ann);
   } catch (err) {
     console.error('createAnnouncement error:', err);
     res.status(500).json({ message: 'Server error.' });
@@ -60,7 +63,9 @@ export const updateAnnouncement = async (req, res) => {
       [title, content, isPublished, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ message: 'Not found.' });
-    res.json(result.rows[0]);
+    const ann = result.rows[0];
+    if (ann.is_published) emitToAll('announcement:updated', ann);
+    res.json(ann);
   } catch (err) {
     console.error('updateAnnouncement error:', err);
     res.status(500).json({ message: 'Server error.' });

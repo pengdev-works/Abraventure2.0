@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useAlert } from '../../context/AlertContext';
+import { useSocketEvent } from '../../context/SocketContext';
 import Swal from 'sweetalert2';
 import {
   Home, FileText, Bed, MessageSquare, Upload, CheckCircle,
@@ -119,6 +120,23 @@ const OwnerDashboard = () => {
     fetchProfileAndRequirements();
     fetchReceivedReviews();
   }, [token, user]);
+
+  // Real-time live dashboard sync
+  useSocketEvent('account:status_changed', () => {
+    fetchProfileAndRequirements();
+  });
+
+  useSocketEvent('inquiry:new', () => {
+    fetchProfileAndRequirements();
+  });
+
+  useSocketEvent('inquiry:updated', () => {
+    fetchProfileAndRequirements();
+  });
+
+  useSocketEvent('review:new', () => {
+    fetchReceivedReviews();
+  });
 
   const fetchReceivedReviews = async () => {
     if (!token) return;

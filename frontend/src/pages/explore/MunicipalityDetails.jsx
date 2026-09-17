@@ -7,7 +7,7 @@ import {
   Landmark, Star, MessageSquare, Upload, Image, Home, BedDouble, Users, 
   Package, Sparkles, Send, Clock, ChevronDown, ChevronUp, Film, Video, 
   Play, ExternalLink, Compass, Navigation, Plus, Search, X, ShieldCheck, 
-  Check, Share2, Eye, Map, AlertTriangle, ArrowRight, Tag, CheckSquare, Layers, DollarSign 
+  Check, Share2, Eye, Map, AlertTriangle, ArrowRight, ArrowLeft, Tag, CheckSquare, Layers, DollarSign 
 } from 'lucide-react';
 import SafeImage, { formatMediaUrl } from '../../components/common/SafeImage';
 
@@ -500,6 +500,17 @@ const MunicipalityDetails = () => {
         style={{ backgroundImage: `linear-gradient(to top, rgba(21,51,37,0.95) 0%, rgba(21,51,37,0.4) 60%, rgba(21,51,37,0.7) 100%), url('${bannerImages[currentImageIndex]}')` }}
       >
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pb-12 pt-24">
+          {/* Back to Destinations */}
+          <div className="mb-4">
+            <Link
+              to="/municipalities"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/90 hover:text-white backdrop-blur-md text-xs font-semibold tracking-wide border border-white/20 transition-all group shadow-sm"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-[#D4A942] group-hover:-translate-x-1 transition-transform" />
+              <span>Back to Destinations</span>
+            </Link>
+          </div>
+
           <div className="inline-flex items-center gap-2 mb-3">
             <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#D4A942]">
               Province of Abra · Cordillera

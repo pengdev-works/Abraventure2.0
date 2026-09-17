@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { AlertProvider } from './context/AlertContext';
 import { ToastProvider } from './context/ToastContext';
+import { SocketProvider } from './context/SocketContext';
 import LoadingScreen from './components/common/LoadingScreen';
 
 // Layout Components
@@ -28,6 +29,7 @@ import Events from './pages/explore/Events';
 import TravelTips from './pages/explore/TravelTips';
 import PhotoGallery from './pages/explore/PhotoGallery';
 import ItineraryPlanner from './pages/explore/ItineraryPlanner';
+import Announcements from './pages/explore/Announcements';
 
 // Dashboard Pages
 import ProvincialDashboard from './pages/dashboards/ProvincialDashboard';
@@ -43,6 +45,7 @@ function App() {
     <AuthProvider>
       <AlertProvider>
         <ToastProvider>
+          <SocketProvider>
           {showInitialLoader && (
             <LoadingScreen onFinish={() => setShowInitialLoader(false)} minDuration={1400} />
           )}
@@ -61,6 +64,7 @@ function App() {
                 <Route path="/map" element={<InteractiveMap />} />
                 <Route path="/events" element={<Events />} />
                 <Route path="/travel-tips" element={<TravelTips />} />
+                <Route path="/announcements" element={<Announcements />} />
                 <Route path="/municipalities/:id/gallery" element={<PhotoGallery />} />
 
                 {/* Tourist Protected Routes */}
@@ -127,6 +131,7 @@ function App() {
               </Routes>
             </Layout>
           </BrowserRouter>
+          </SocketProvider>
         </ToastProvider>
       </AlertProvider>
     </AuthProvider>

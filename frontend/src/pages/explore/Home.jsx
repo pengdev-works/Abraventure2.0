@@ -16,7 +16,7 @@ const FEATURED_DESTINATIONS = [
     tag: 'Nature',
     tagColor: 'bg-[#2F7D5A] text-white',
     desc: 'A hidden paradise of cascading waterfalls and natural travertine pools.',
-    image: '/uploads/kaparkan-falls.jpg',
+    image: '/uploads/kaparkan-terraced-blue-pools.jpg',
     link: '/municipalities'
   },
   {
@@ -26,7 +26,7 @@ const FEATURED_DESTINATIONS = [
     tag: 'Nature',
     tagColor: 'bg-[#2F7D5A] text-white',
     desc: 'A majestic twin falls surrounded by lush greenery and cool springs.',
-    image: '/uploads/ar-arbis-falls.jpg',
+    image: '/uploads/ar-arbis-falls-cascades.jpg',
     link: '/municipalities'
   },
   {
@@ -36,7 +36,7 @@ const FEATURED_DESTINATIONS = [
     tag: 'Adventure',
     tagColor: 'bg-[#B88B2A] text-white',
     desc: 'Breathtaking views, endless hills, perfect for adventure seekers.',
-    image: '/uploads/apao-rolling-hills.jpg',
+    image: '/uploads/apao-rolling-hills-sunset.jpg',
     link: '/municipalities'
   },
   {
@@ -121,11 +121,93 @@ const UPCOMING_EVENTS = [
   }
 ];
 
+/* ─── Panoramic CTA Background Abra Destinations ─────────────── */
+const CTA_ABRA_DESTINATIONS = [
+  {
+    id: 'kaparkan-blue-pools',
+    name: 'Kaparkan Travertine Step Pools',
+    municipality: 'Tineg, Abra',
+    tag: 'Natural Terraced Spring Pools',
+    image: '/uploads/kaparkan-terraced-blue-pools.jpg',
+  },
+  {
+    id: 'apao-sunset',
+    name: 'Apao Rolling Hills Golden Sunset',
+    municipality: 'Tineg, Abra',
+    tag: 'Cordillera Mountain Ridgeline',
+    image: '/uploads/apao-rolling-hills-sunset.jpg',
+  },
+  {
+    id: 'lusuac-spring',
+    name: 'Lusuac Dam & Spring Resort',
+    municipality: 'Lagayan, Abra',
+    tag: 'Crystal Mountain Springs',
+    image: '/uploads/lusuac-spring-dam.jpg',
+  },
+  {
+    id: 'gaco-park',
+    name: 'Gaco Park Observation Tower',
+    municipality: 'Lacub, Abra',
+    tag: 'Highland Peak Viewpoint',
+    image: '/uploads/gaco-park-viewpoint.jpg',
+  },
+  {
+    id: 'ar-arbis-falls',
+    name: 'Ar-Arbis Waterfalls',
+    municipality: 'Lagayan, Abra',
+    tag: 'Lush Forest Cascades',
+    image: '/uploads/ar-arbis-falls-cascades.jpg',
+  },
+  {
+    id: 'apao-green',
+    name: 'Apao Rolling Hills Verdant Ridges',
+    municipality: 'Tineg, Abra',
+    tag: 'Velvet Mountain Panorama',
+    image: '/uploads/apao-rolling-hills-green.jpg',
+  },
+  {
+    id: 'kaparkan-canopy',
+    name: 'Kaparkan River Gorge & Basin',
+    municipality: 'Tineg, Abra',
+    tag: 'Untouched Rainforest Stream',
+    image: '/uploads/kaparkan-rainforest-canopy.jpg',
+  },
+  {
+    id: 'kaparkan-cascades',
+    name: 'Kaparkan Limestone Cascades',
+    municipality: 'Tineg, Abra',
+    tag: 'Towering Tiered Waterfalls',
+    image: '/uploads/kaparkan-cascades-limestone.jpg',
+  },
+];
+
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT: Home
 ═══════════════════════════════════════════════════════════════ */
 const Home = () => {
   const navigate = useNavigate();
+
+  /* ─── Hero Background Slideshow State ─── */
+  const [heroSlideIndex, setHeroSlideIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeroSlideIndex((prev) => (prev + 1) % CTA_ABRA_DESTINATIONS.length);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  /* ─── Panoramic CTA Background & Floating Spots State ─── */
+  const [ctaSpotIndex, setCtaSpotIndex] = useState(0);
+  const [ctaHovering, setCtaHovering] = useState(false);
+
+  useEffect(() => {
+    if (ctaHovering) return;
+    const timer = setInterval(() => {
+      setCtaSpotIndex((prev) => (prev + 1) % CTA_ABRA_DESTINATIONS.length);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [ctaHovering]);
 
   /* ─── Hero Config from /api/announcements/hero ─── */
   const [heroConfig, setHeroConfig] = useState({
@@ -275,7 +357,7 @@ const Home = () => {
           1. FULL-BLEED CINEMATIC HERO SECTION
       ══════════════════════════════════════════════════════ */}
       <section id="explore" className="relative min-h-[90vh] lg:min-h-[96vh] flex flex-col justify-between overflow-visible bg-[#09231C]">
-        {/* Panoramic Mountain Landscape with Winding Abra River */}
+        {/* Panoramic Abra Destinations Slideshow Background */}
         <div className="absolute inset-0 z-0">
           {heroConfig.video_url ? (
             <video
@@ -286,11 +368,23 @@ const Home = () => {
           ) : heroConfig.background_image_url ? (
             <img src={formatMediaUrl(heroConfig.background_image_url)} alt="Scenic Abra Landscape" className="w-full h-full object-cover object-center" />
           ) : (
-            <img
-              src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=2000&auto=format&fit=crop&q=85"
-              alt="Majestic Abra Cordillera Mountains and River Valley"
-              className="w-full h-full object-cover object-center"
-            />
+            /* Auto-cycling Abra tourist spot slideshow */
+            <>
+              {CTA_ABRA_DESTINATIONS.map((dest, idx) => (
+                <div
+                  key={dest.id}
+                  className={`absolute inset-0 transition-opacity duration-[400ms] ease-in-out ${
+                    idx === heroSlideIndex ? 'opacity-100' : 'opacity-0'
+                  }`}
+                >
+                  <img
+                    src={dest.image}
+                    alt={dest.name}
+                    className="w-full h-full object-cover object-center"
+                  />
+                </div>
+              ))}
+            </>
           )}
           {/* Multi-layered cinematic gradient overlays for high text contrast */}
           <div className="absolute inset-0 bg-gradient-to-t from-[#09231C] via-[#09231C]/45 to-black/60" />
@@ -958,36 +1052,136 @@ const Home = () => {
       </section>
 
       {/* ══════════════════════════════════════════════════════
-          8. PANORAMIC CALL TO ACTION BANNER
+          8. PANORAMIC CALL TO ACTION BANNER (DYNAMIC ABRA DESTINATIONS)
       ══════════════════════════════════════════════════════ */}
-      <section id="cta" className="reveal-on-scroll relative py-24 sm:py-32 overflow-hidden bg-[#09231C]">
-        <div className="absolute inset-0 z-0">
-          <img
-            src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1600&auto=format&fit=crop&q=80"
-            alt="Panoramic Cordillera Mountains of Abra"
-            loading="lazy"
-            className="w-full h-full object-cover object-center"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#09231C] via-[#09231C]/60 to-[#09231C]/40" />
+      <section
+        id="cta"
+        className="reveal-on-scroll relative py-20 sm:py-28 overflow-hidden bg-[#09231C] select-none"
+        onMouseEnter={() => setCtaHovering(true)}
+        onMouseLeave={() => setCtaHovering(false)}
+      >
+        {/* Dynamic Background Slideshow with Smooth Crossfade & Ken Burns Zoom */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
+          {CTA_ABRA_DESTINATIONS.map((dest, idx) => (
+            <div
+              key={dest.id}
+              className={`absolute inset-0 transition-opacity duration-[400ms] ease-in-out ${
+                idx === ctaSpotIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+            >
+              <img
+                src={dest.image}
+                alt={dest.name}
+                loading="lazy"
+                className={`w-full h-full object-cover object-center transform transition-transform duration-1000 ${
+                  idx === ctaSpotIndex ? 'animate-ken-burns scale-105' : 'scale-100'
+                }`}
+              />
+            </div>
+          ))}
+
+          {/* Vignette & Contrast Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#09231C] via-[#09231C]/75 to-[#09231C]/55" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(9,35,28,0.85)_100%)]" />
         </div>
 
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-          <span className="text-[10px] sm:text-[11px] font-sans font-bold uppercase tracking-[0.3em] text-[var(--color-gold-300)] block mb-3 drop-shadow-sm">
-            Explore • Experience • Support Local
-          </span>
-          <h2 className="font-serif text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4 drop-shadow-md">
+        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+          {/* Active Spot Indicator Pill with Live Pulse */}
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-[var(--color-gold)]/40 shadow-lg mb-6 animate-fadeIn">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-gold)] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--color-gold)]"></span>
+            </span>
+            <span className="text-[11px] font-sans font-bold uppercase tracking-wider text-[var(--color-gold-300)]">
+              Spotlight: {CTA_ABRA_DESTINATIONS[ctaSpotIndex].name} • {CTA_ABRA_DESTINATIONS[ctaSpotIndex].municipality}
+            </span>
+          </div>
+
+          <h2 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white mb-4 drop-shadow-lg leading-tight">
             Your Abra story starts here.
           </h2>
-          <p className="text-xs sm:text-base text-white/85 leading-relaxed max-w-xl mx-auto mb-8 drop-shadow-sm">
-            Plan your next adventure and be part of a sustainable tourism future.
+          <p className="text-sm sm:text-base text-white/90 leading-relaxed max-w-2xl mx-auto mb-8 drop-shadow-md">
+            Journey through limestone travertine pools, misty mountain ridges, and centuries-old Tingguian weaving sanctuaries across all 27 municipalities.
           </p>
-          <Link
-            to="/municipalities"
-            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-bold text-xs sm:text-sm bg-[var(--color-gold)] text-[#09231C] hover:bg-[var(--color-gold-400)] transition-all shadow-xl hover:shadow-2xl cursor-pointer"
-          >
-            <span>Explore Destinations</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-10">
+            <Link
+              to="/municipalities"
+              className="inline-flex items-center gap-2.5 px-8 py-4 rounded-xl font-bold text-xs sm:text-sm bg-[var(--color-gold)] text-[#09231C] hover:bg-[var(--color-gold-400)] transition-all shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <span>Explore All 27 Municipalities</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              to="/map"
+              className="inline-flex items-center gap-2.5 px-7 py-4 rounded-xl font-bold text-xs sm:text-sm bg-white/15 backdrop-blur-md text-white hover:bg-white/25 border border-white/20 transition-all shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <Compass className="w-4 h-4 text-[var(--color-gold)]" />
+              <span>Interactive Map</span>
+            </Link>
+          </div>
+
+          {/* Floating Destination Cards Strip (Marquee with Auto-hovering) */}
+          <div className="mt-2 pt-6 border-t border-white/15 relative overflow-hidden">
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/70 mb-4">
+              Featured Tourist Spots & Heritage Landmarks · Click Any Spot to Preview
+            </p>
+
+            <div className="w-full overflow-hidden py-2 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+              <div className="animate-marquee-drift flex gap-4">
+                {[...CTA_ABRA_DESTINATIONS, ...CTA_ABRA_DESTINATIONS].map((dest, i) => {
+                  const isActive = (i % CTA_ABRA_DESTINATIONS.length) === ctaSpotIndex;
+                  return (
+                    <button
+                      key={`${dest.id}-${i}`}
+                      type="button"
+                      onClick={() => setCtaSpotIndex(i % CTA_ABRA_DESTINATIONS.length)}
+                      className={`group flex items-center gap-3 px-4 py-2.5 rounded-2xl transition-all duration-300 backdrop-blur-md text-left cursor-pointer shrink-0 ${
+                        isActive
+                          ? 'bg-black/65 border-2 border-[var(--color-gold)] shadow-xl scale-105'
+                          : 'bg-black/40 border border-white/15 hover:bg-black/60 hover:border-white/40 hover:scale-105'
+                      }`}
+                    >
+                      <img
+                        src={dest.image}
+                        alt={dest.name}
+                        className="w-11 h-11 rounded-xl object-cover ring-1 ring-white/20 group-hover:ring-[var(--color-gold)] transition-all shrink-0"
+                      />
+                      <div className="min-w-[140px]">
+                        <p className={`text-xs font-bold transition-colors line-clamp-1 ${
+                          isActive ? 'text-[var(--color-gold-300)]' : 'text-white group-hover:text-[var(--color-gold-300)]'
+                        }`}>
+                          {dest.name}
+                        </p>
+                        <p className="text-[10px] text-white/70 flex items-center gap-1">
+                          <MapPin className="w-2.5 h-2.5 text-[var(--color-gold)] shrink-0" />
+                          <span className="truncate">{dest.municipality}</span>
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Indicator Navigation Dots */}
+            <div className="flex justify-center items-center gap-2 mt-5">
+              {CTA_ABRA_DESTINATIONS.map((dest, idx) => (
+                <button
+                  key={dest.id}
+                  type="button"
+                  onClick={() => setCtaSpotIndex(idx)}
+                  className={`transition-all duration-300 rounded-full h-1.5 cursor-pointer ${
+                    idx === ctaSpotIndex
+                      ? 'w-8 bg-[var(--color-gold)]'
+                      : 'w-2 bg-white/30 hover:bg-white/60'
+                  }`}
+                  aria-label={`View ${dest.name}`}
+                  title={dest.name}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useAlert } from '../../context/AlertContext';
+import { useSocketEvent } from '../../context/SocketContext';
 import Swal from 'sweetalert2';
 import {
   Landmark, Compass, FolderClosed, CheckSquare, Plus, Trash2, Edit,
@@ -361,6 +362,30 @@ const MunicipalDashboard = () => {
     fetchVideoAds();
   }, [token, user]);
 
+  // Real-time live dashboard sync
+  useSocketEvent('dashboard:accounts_updated', () => {
+    fetchData();
+    fetchAnalytics();
+  });
+
+  useSocketEvent('complaint:new', () => {
+    fetchComplaints();
+    fetchAnalytics();
+  });
+
+  useSocketEvent('complaint:updated', () => {
+    fetchComplaints();
+  });
+
+  useSocketEvent('inquiry:new', () => {
+    fetchDotInquiries();
+    fetchAnalytics();
+  });
+
+  useSocketEvent('inquiry:updated', () => {
+    fetchDotInquiries();
+  });
+
   const fetchVideoAds = async () => {
     if (!token) return;
     setVideoAdsLoading(true);
@@ -523,7 +548,7 @@ const MunicipalDashboard = () => {
   const fetchPackages = async () => {
     if (!user?.municipalityId) return;
     try {
-      const res = await fetch(`/api/packages?municipalityId=${user.municipalityId}`);
+      const res = await fetch(`/api/packages?municipalityId=${user.municipalityId}&includeUnpublished=true`);
       if (res.ok) setPackagesList(await res.json());
     } catch (err) {
       console.error('Error fetching packages:', err);
@@ -1827,7 +1852,7 @@ const MunicipalDashboard = () => {
                                   >
                                     <option value="">-- Choose Tour Guide --</option>
                                     {data.guides.map(g => (
-                                      <option key={g.id} value={g.id}>{g.full_name} ({g.languages_spoken || 'Guide'})</option>
+                                      <option key={g.id} value={g.id}>{g.guide_name || g.full_name || 'Licensed Guide'} ({g.languages_spoken || 'Guide'})</option>
                                     ))}
                                   </select>
                                 </div>

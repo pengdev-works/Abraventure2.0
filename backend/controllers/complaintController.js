@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitToMunicipality, emitToUser, emitToRole } from '../socket/socketManager.js';
 
 // POST /api/complaints - Create a complaint (Tourist only)
 export const createComplaint = async (req, res) => {
@@ -43,6 +44,9 @@ export const createComplaint = async (req, res) => {
         ]
       ).catch(() => {});
     }
+
+    emitToMunicipality(parseInt(municipalityId), 'complaint:new', newComplaint);
+    emitToRole('PROVINCIAL_DOT', 'complaint:new', newComplaint);
 
     return res.status(201).json({
       message: 'Complaint submitted successfully.',
@@ -156,6 +160,12 @@ export const resolveComplaint = async (req, res) => {
         ]
       ).catch(() => {});
     }
+
+    if (complaint.tourist_id) {
+      emitToUser(complaint.tourist_id, 'complaint:updated', updatedComplaint);
+    }
+    emitToMunicipality(complaint.municipality_id, 'complaint:updated', updatedComplaint);
+    emitToRole('PROVINCIAL_DOT', 'complaint:updated', updatedComplaint);
 
     return res.status(200).json({
       message: 'Complaint resolved successfully.',

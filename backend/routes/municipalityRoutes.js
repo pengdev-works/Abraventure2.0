@@ -19,8 +19,26 @@ router.get('/', getMunicipalities);
 router.get('/map/data', getMapData);
 router.get('/:id', getMunicipalityDetails);
 
-router.post('/attractions', verifyToken, requireRoles(['MUNICIPAL_DOT']), upload.single('image'), addAttraction);
-router.put('/attractions/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), upload.single('image'), updateAttraction);
+router.post(
+  '/attractions',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT']),
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'video', maxCount: 1 }
+  ]),
+  addAttraction
+);
+router.put(
+  '/attractions/:id',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT']),
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'video', maxCount: 1 }
+  ]),
+  updateAttraction
+);
 router.delete('/attractions/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), deleteAttraction);
 
 // Municipality Profile & Cover Images Customization

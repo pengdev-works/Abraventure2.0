@@ -2,8 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import { createServer } from 'http';
 import { fileURLToPath } from 'url';
 import pool from './config/db.js';
+import { initSocket } from './socket/socketManager.js';
 
 import authRoutes from './routes/authRoutes.js';
 import municipalityRoutes from './routes/municipalityRoutes.js';
@@ -509,7 +511,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal server error encountered.' });
 });
 
-app.listen(PORT, () => {
+const httpServer = createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(PORT, () => {
   console.log(`[ABRAVENTURE BACKEND] Server is active on port ${PORT}`);
   initOverdueCronJob();
 });

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { 
   Home, Compass, User, Mail, Phone, Lock, FileText, Upload, 
   CheckCircle2, AlertCircle, ArrowRight, Shield, Building2, 
-  Eye, EyeOff, Check, Copy, Info, Sparkles, MapPin, Award
+  Eye, EyeOff, Check, Copy, Info, Sparkles, MapPin, Award, Landmark
 } from 'lucide-react';
 
 const FALLBACK_MUNICIPALITIES = [
@@ -28,7 +28,9 @@ const ProviderApply = () => {
   const queryParams = new URLSearchParams(location.search);
   const initialType = queryParams.get('type') === 'guide' || location.state?.providerType === 'guide'
     ? 'guide'
-    : (queryParams.get('type') === 'homestay' || location.state?.providerType === 'homestay' ? 'homestay' : null);
+    : (queryParams.get('type') === 'homestay' || location.state?.providerType === 'homestay'
+      ? 'homestay'
+      : (queryParams.get('type') === 'municipal_office' || location.state?.providerType === 'municipal_office' ? 'municipal_office' : null));
 
   const [providerType, setProviderType] = useState(initialType);
   const [municipalities, setMunicipalities] = useState(FALLBACK_MUNICIPALITIES);
@@ -61,6 +63,13 @@ const ProviderApply = () => {
   const [areasCovered, setAreasCovered] = useState('Kaparkan Falls, Tineg, Bangued');
   const [specializations, setSpecializations] = useState('Eco-Trek, Travertine Waterfalls, Cultural Immersion');
   const [bio, setBio] = useState('');
+
+  // Municipal Tourism Office Specific Details
+  const [officeName, setOfficeName] = useState('');
+  const [officeAddress, setOfficeAddress] = useState('');
+  const [contactPersonDesignation, setContactPersonDesignation] = useState('');
+  const [officePhone, setOfficePhone] = useState('');
+  const [officeEmail, setOfficeEmail] = useState('');
 
   // Documents
   const [validIdFile, setValidIdFile] = useState(null);
@@ -160,7 +169,7 @@ const ProviderApply = () => {
 
     try {
       const formData = new FormData();
-      formData.append('providerType', providerType === 'homestay' ? 'HOMESTAY_OWNER' : 'TOUR_GUIDE');
+      formData.append('providerType', providerType === 'homestay' ? 'HOMESTAY_OWNER' : providerType === 'guide' ? 'TOUR_GUIDE' : 'MUNICIPAL_OFFICE');
       formData.append('fullName', fullName.trim());
       formData.append('email', email.trim());
       formData.append('phoneNumber', phoneNumber.trim());
@@ -177,7 +186,7 @@ const ProviderApply = () => {
         formData.append('description', description.trim());
         formData.append('businessPhone', businessPhone.trim() || phoneNumber.trim());
         formData.append('businessEmail', businessEmail.trim() || email.trim());
-      } else {
+      } else if (providerType === 'guide') {
         formData.append('guideName', guideName.trim() || fullName.trim());
         formData.append('licenseNumber', licenseNumber.trim());
         formData.append('yearsOfExperience', yearsOfExperience);
@@ -185,6 +194,12 @@ const ProviderApply = () => {
         formData.append('areasCovered', areasCovered.trim());
         formData.append('specializations', specializations.trim());
         formData.append('bio', bio.trim());
+      } else {
+        formData.append('officeName', officeName.trim());
+        formData.append('officeAddress', officeAddress.trim());
+        formData.append('contactPersonDesignation', contactPersonDesignation.trim());
+        formData.append('officePhone', officePhone.trim() || phoneNumber.trim());
+        formData.append('officeEmail', officeEmail.trim() || email.trim());
       }
 
       if (validIdFile) formData.append('validId', validIdFile);
@@ -283,7 +298,7 @@ const ProviderApply = () => {
                 <div className="flex justify-between">
                   <span>Classification:</span>
                   <span className="font-semibold text-[#153325]">
-                    {submittedData.providerType === 'homestay' ? 'Homestay Accommodation' : 'Licensed Local Guide'}
+                    {submittedData.providerType === 'homestay' ? 'Homestay Accommodation' : submittedData.providerType === 'guide' ? 'Licensed Local Guide' : 'Municipal Tourism Office'}
                   </span>
                 </div>
               </div>
@@ -329,8 +344,8 @@ const ProviderApply = () => {
                 </p>
               </div>
 
-              {/* Two Large Selection Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              {/* Three Large Selection Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                 {/* 1. HOMESTAY HOST CARD */}
                 <div
                   role="radio"
@@ -394,6 +409,39 @@ const ProviderApply = () => {
                   </h3>
                   <p className="text-xs text-[#5A534E] leading-relaxed">
                     Apply to be listed as a verified local tour guide.
+                  </p>
+                </div>
+
+                {/* 3. MUNICIPAL TOURISM OFFICE CARD */}
+                <div
+                  role="radio"
+                  aria-checked={providerType === 'municipal_office'}
+                  tabIndex={0}
+                  onClick={() => setProviderType('municipal_office')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setProviderType('municipal_office'); } }}
+                  className={`p-5 rounded-2xl border transition-all cursor-pointer text-left relative focus:outline-none focus:ring-2 focus:ring-[#B88B2A] ${
+                    providerType === 'municipal_office'
+                      ? 'border-[#B88B2A] bg-[#153325]/5 shadow-sm ring-1 ring-[#B88B2A]'
+                      : 'border-[#E8DFC8] hover:border-[#153325]/40 hover:bg-[#FAF7F2]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                      providerType === 'municipal_office' ? 'bg-[#153325] text-[#FAF7F2]' : 'bg-[#FAF7F2] text-[#153325] border border-[#E8DFC8]'
+                    }`}>
+                      <Landmark className="w-5 h-5" />
+                    </div>
+                    {providerType === 'municipal_office' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#B88B2A] bg-white px-2 py-0.5 rounded-full border border-[#B88B2A]">
+                        <Check className="w-3 h-3 stroke-[3]" /> Selected
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-serif text-base font-bold text-[#153325] mb-1">
+                    Municipal Tourism Office
+                  </h3>
+                  <p className="text-xs text-[#5A534E] leading-relaxed">
+                    Register your LGU tourism office and manage local destinations.
                   </p>
                 </div>
               </div>
@@ -551,7 +599,105 @@ const ProviderApply = () => {
                   </div>
 
                   {/* Section B: Provider-Specific Details */}
-                  {providerType === 'homestay' ? (
+                  {providerType === 'municipal_office' ? (
+                    <div>
+                      <h3 className="font-serif text-base font-bold text-[#153325] flex items-center gap-2 pb-2 border-b border-[#F3ECE0]">
+                        <Landmark className="w-4 h-4 text-[#B88B2A]" />
+                        <span>Municipal Tourism Office Information</span>
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        {/* Office Name */}
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-semibold text-[#232120] mb-1">
+                            Office / LGU Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={officeName}
+                            onChange={(e) => setOfficeName(e.target.value)}
+                            className={inputClasses}
+                            placeholder="e.g. Municipality of Bangued — Tourism Office"
+                          />
+                        </div>
+
+                        {/* Municipality */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#232120] mb-1">
+                            Municipality <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            required
+                            value={municipalityId}
+                            onChange={(e) => setMunicipalityId(e.target.value)}
+                            className={inputClasses}
+                          >
+                            <option value="">— Select Municipality in Abra —</option>
+                            {municipalities.map((m) => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Contact Person Designation */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#232120] mb-1">
+                            Contact Person &amp; Designation
+                          </label>
+                          <input
+                            type="text"
+                            value={contactPersonDesignation}
+                            onChange={(e) => setContactPersonDesignation(e.target.value)}
+                            className={inputClasses}
+                            placeholder="e.g. Juan Cruz — Municipal Tourism Officer"
+                          />
+                        </div>
+
+                        {/* Office Address */}
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-semibold text-[#232120] mb-1">
+                            Office Address <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={officeAddress}
+                            onChange={(e) => setOfficeAddress(e.target.value)}
+                            className={inputClasses}
+                            placeholder="Municipal Hall, Poblacion, Municipality, Abra"
+                          />
+                        </div>
+
+                        {/* Office Phone */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#232120] mb-1">
+                            Office Contact Number
+                          </label>
+                          <input
+                            type="tel"
+                            value={officePhone}
+                            onChange={(e) => setOfficePhone(e.target.value)}
+                            className={inputClasses}
+                            placeholder="Same as mobile or landline"
+                          />
+                        </div>
+
+                        {/* Office Email */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#232120] mb-1">
+                            Official Office Email
+                          </label>
+                          <input
+                            type="email"
+                            value={officeEmail}
+                            onChange={(e) => setOfficeEmail(e.target.value)}
+                            className={inputClasses}
+                            placeholder="tourism@municipality.gov.ph"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : providerType === 'homestay' ? (
                     <div>
                       <h3 className="font-serif text-base font-bold text-[#153325] flex items-center gap-2 pb-2 border-b border-[#F3ECE0]">
                         <Building2 className="w-4 h-4 text-[#B88B2A]" />

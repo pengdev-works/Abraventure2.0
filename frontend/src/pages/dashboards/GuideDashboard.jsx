@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useAlert } from '../../context/AlertContext';
+import { useSocketEvent } from '../../context/SocketContext';
 import {
   Award, FileText, User, MessageSquare, Upload, CheckCircle,
   AlertTriangle, Trash2, Calendar, Star, Menu, X, ArrowUpRight, ShieldCheck
@@ -106,6 +107,23 @@ const GuideDashboard = () => {
     fetchProfileAndRequirements();
     fetchReceivedReviews();
   }, [token, user]);
+
+  // Real-time live dashboard sync
+  useSocketEvent('account:status_changed', () => {
+    fetchProfileAndRequirements();
+  });
+
+  useSocketEvent('inquiry:new', () => {
+    fetchProfileAndRequirements();
+  });
+
+  useSocketEvent('inquiry:updated', () => {
+    fetchProfileAndRequirements();
+  });
+
+  useSocketEvent('review:new', () => {
+    fetchReceivedReviews();
+  });
 
   const fetchReceivedReviews = async () => {
     if (!token) return;

@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitToUser, emitToAll } from '../socket/socketManager.js';
 
 // GET /api/reviews?homestayId=...&guideId=...
 export const getReviews = async (req, res) => {
@@ -54,6 +55,7 @@ export const createReview = async (req, res) => {
     if (homestayId) {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id=$1', [homestayId]);
       if (ownerRes.rows.length > 0) {
+        emitToUser(ownerRes.rows[0].owner_id, 'review:new', { review: result.rows[0], homestayId });
         await pool.query(
           `INSERT INTO notifications (user_id, title, message, type, link)
            VALUES ($1, $2, $3, 'REVIEW', '/owner-dashboard?tab=reviews')`,
@@ -64,6 +66,7 @@ export const createReview = async (req, res) => {
     if (guideId) {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id=$1', [guideId]);
       if (guideRes.rows.length > 0) {
+        emitToUser(guideRes.rows[0].guide_id, 'review:new', { review: result.rows[0], guideId });
         await pool.query(
           `INSERT INTO notifications (user_id, title, message, type, link)
            VALUES ($1, $2, $3, 'REVIEW', '/guide-dashboard?tab=reviews')`,
@@ -71,6 +74,8 @@ export const createReview = async (req, res) => {
         ).catch(() => {});
       }
     }
+
+    emitToAll('review:created', { review: result.rows[0] });
 
     res.status(201).json(result.rows[0]);
   } catch (err) {

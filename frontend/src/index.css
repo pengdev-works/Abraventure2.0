@@ -958,6 +958,48 @@ h1, h2, h3, .font-serif {
   animation: shimmer 1.5s infinite;
 }
 
+@keyframes kenBurnsZoom {
+  0%   { transform: scale(1) translate(0%, 0%); }
+  50%  { transform: scale(1.08) translate(-1%, -1.5%); }
+  100% { transform: scale(1.03) translate(1%, 0.5%); }
+}
+
+@keyframes floatGentle {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-8px); }
+}
+
+@keyframes floatGentleAlt {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(8px); }
+}
+
+@keyframes marqueeDrift {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-ken-burns {
+  animation: kenBurnsZoom 16s ease-in-out infinite alternate;
+}
+
+.animate-float-gentle {
+  animation: floatGentle 4.5s ease-in-out infinite;
+}
+
+.animate-float-alt {
+  animation: floatGentleAlt 5.5s ease-in-out infinite;
+}
+
+.animate-marquee-drift {
+  display: flex;
+  width: max-content;
+  animation: marqueeDrift 40s linear infinite;
+}
+.animate-marquee-drift:hover {
+  animation-play-state: paused;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
    SCROLLBAR

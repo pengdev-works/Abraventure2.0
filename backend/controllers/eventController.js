@@ -1,16 +1,5 @@
 import pool from '../config/db.js';
-import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => cb(null, `event_${Date.now()}${path.extname(file.originalname)}`),
-});
-const upload = multer({ storage });
+import upload from '../middleware/uploadMiddleware.js';
 
 // GET /api/events — public, optionally filter by municipality_id or month
 export const getEvents = async (req, res) => {
@@ -45,7 +34,7 @@ export const getEvents = async (req, res) => {
 // POST /api/events — MUNICIPAL_DOT only
 export const createEvent = async (req, res) => {
   const { title, description, category, startDate, endDate, venue } = req.body;
-  const imageUrl = req.file ? req.file.path : null;
+  const imageUrl = req.file ? (req.file.secure_url || req.file.path) : null;
 
   if (!title || !startDate) {
     return res.status(400).json({ message: 'Title and start date are required.' });
@@ -78,7 +67,7 @@ export const updateEvent = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to edit this event.' });
     }
 
-    const imageUrl = req.file ? req.file.path : existing.rows[0].image_url;
+    const imageUrl = req.file ? (req.file.secure_url || req.file.path) : existing.rows[0].image_url;
 
     const result = await pool.query(
       `UPDATE events SET title=$1, description=$2, category=$3, image_url=$4, start_date=$5, end_date=$6, venue=$7

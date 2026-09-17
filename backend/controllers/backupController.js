@@ -23,7 +23,11 @@ const TABLES_IN_ORDER = [
   'activity_logs',
   'announcements',
   'guide_availability',
-  'complaints'
+  'complaints',
+  'homepage_hero',
+  'video_advertisements',
+  'packages',
+  'package_items'
 ];
 
 // GET /api/backup/export - Export database as JSON

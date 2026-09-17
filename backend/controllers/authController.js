@@ -2,6 +2,7 @@ import pool from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { emitToRole, emitToUser } from '../socket/socketManager.js';
 
 dotenv.config();
 
@@ -101,7 +102,7 @@ export const register = async (req, res) => {
 // ─── 2. Tourism Provider Accreditation Application ─────────────────────────────
 export const applyProvider = async (req, res) => {
   const {
-    providerType, // 'HOMESTAY_OWNER' or 'TOUR_GUIDE'
+    providerType, // 'HOMESTAY_OWNER', 'TOUR_GUIDE', or 'MUNICIPAL_OFFICE'
     fullName,
     email,
     phoneNumber,
@@ -127,6 +128,13 @@ export const applyProvider = async (req, res) => {
     areasCovered,
     specializations,
     bio,
+
+    // Municipal Office Specific
+    officeName,
+    officeAddress,
+    contactPersonDesignation,
+    officePhone,
+    officeEmail,
   } = req.body;
 
   // Basic required checks
@@ -134,9 +142,12 @@ export const applyProvider = async (req, res) => {
     return res.status(400).json({ message: 'Please provide all required personal information.' });
   }
 
-  const normalizedRole = providerType === 'TOUR_GUIDE' || providerType === 'guide'
-    ? 'TOUR_GUIDE'
-    : 'HOMESTAY_OWNER';
+  const normalizedRole =
+    providerType === 'TOUR_GUIDE' || providerType === 'guide'
+      ? 'TOUR_GUIDE'
+      : providerType === 'MUNICIPAL_OFFICE' || providerType === 'municipal_office'
+        ? 'MUNICIPAL_DOT'
+        : 'HOMESTAY_OWNER';
 
   // Password confirmation check
   if (confirmPassword && password !== confirmPassword) {
@@ -159,12 +170,16 @@ export const applyProvider = async (req, res) => {
     if (!licenseNumber || !municipalityId) {
       return res.status(400).json({ message: 'Please provide your Guide License Number and Host Municipality.' });
     }
+  } else if (normalizedRole === 'MUNICIPAL_DOT') {
+    if (!officeName || !officeAddress || !municipalityId) {
+      return res.status(400).json({ message: 'Please provide the Office Name, Address, and Municipality.' });
+    }
   }
 
   const cleanEmail = email.trim().toLowerCase();
   const year = new Date().getFullYear();
   const randomDigits = Math.floor(1000 + Math.random() * 9000);
-  const refPrefix = normalizedRole === 'HOMESTAY_OWNER' ? 'ABRA-HS' : 'ABRA-TG';
+  const refPrefix = normalizedRole === 'HOMESTAY_OWNER' ? 'ABRA-HS' : normalizedRole === 'TOUR_GUIDE' ? 'ABRA-TG' : 'ABRA-MTO';
   const referenceNumber = `${refPrefix}-${year}-${randomDigits}`;
 
   const client = await pool.connect();
@@ -236,6 +251,23 @@ export const applyProvider = async (req, res) => {
           referenceNumber
         ]
       );
+    } else if (normalizedRole === 'MUNICIPAL_DOT') {
+      await client.query(
+        `INSERT INTO municipal_dot_profiles (
+          user_id, office_name, office_address, designation,
+          contact_phone, contact_email, status, reference_number
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7)
+        ON CONFLICT DO NOTHING`,
+        [
+          user.id,
+          officeName ? officeName.trim() : null,
+          officeAddress ? officeAddress.trim() : null,
+          contactPersonDesignation ? contactPersonDesignation.trim() : null,
+          officePhone ? officePhone.trim() : (phoneNumber || null),
+          officeEmail ? officeEmail.trim().toLowerCase() : cleanEmail,
+          referenceNumber
+        ]
+      );
     }
 
     // Attach any uploaded document files
@@ -250,7 +282,7 @@ export const applyProvider = async (req, res) => {
             `SELECT id FROM municipal_requirements 
              WHERE municipality_id = $1 AND target_type = $2 
              LIMIT 1`,
-            [munId, normalizedRole === 'HOMESTAY_OWNER' ? 'HOMESTAY' : 'TOUR_GUIDE']
+            [munId, normalizedRole === 'HOMESTAY_OWNER' ? 'HOMESTAY' : normalizedRole === 'TOUR_GUIDE' ? 'TOUR_GUIDE' : 'MUNICIPAL_OFFICE']
           );
           const requirementId = reqCheck.rows.length > 0 ? reqCheck.rows[0].id : null;
           if (requirementId) {
@@ -283,6 +315,12 @@ export const applyProvider = async (req, res) => {
     ).catch(() => {});
 
     await client.query('COMMIT');
+
+    // Real-time: notify Provincial and Municipal DOT dashboards of new application
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: normalizedRole, status: 'PENDING', targetUserId: user.id });
+    if (user.municipality_id) {
+      emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type: normalizedRole, status: 'PENDING', targetUserId: user.id });
+    }
 
     return res.status(201).json({
       message: 'Application Submitted Successfully',

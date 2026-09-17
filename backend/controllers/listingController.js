@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { emitToUser, emitToRole, emitToAll } from '../socket/socketManager.js';
 
 // --- HOMESTAY PROFILE MANAGEMENT ---
 
@@ -425,6 +426,10 @@ export const endorseStakeholder = async (req, res) => {
     // Update profile status to ENDORSED (awaiting Provincial DOT approval)
     await pool.query(`UPDATE ${table} SET status = 'ENDORSED', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
 
+    // ── Real-time: notify applicant and provincial dashboard ──
+    emitToUser(applicantId, 'account:status_changed', { status: 'ENDORSED', type, remarks });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type, status: 'ENDORSED', targetUserId: applicantId });
+
     return res.status(200).json({ message: 'Stakeholder endorsed successfully to Provincial DOT.' });
   } catch (err) {
     console.error('Error endorsing stakeholder:', err);
@@ -502,6 +507,12 @@ export const approveAccount = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // ── Real-time: notify the affected user and refresh all admin dashboards ──
+    emitToUser(targetUserId, 'account:status_changed', { status, type, remarks });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type, status, targetUserId });
+    emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type, status, targetUserId });
+
     return res.status(200).json({ message: `Account / Listing ${status.toLowerCase()} successfully.` });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -613,6 +624,8 @@ export const createDotUser = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'DOT_USER', action: 'CREATE', user });
     return res.status(201).json({ message: 'DOT account created successfully.', user });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -696,7 +709,11 @@ export const updateDotUser = async (req, res) => {
       [id]
     );
 
-    return res.status(200).json({ message: 'DOT account updated successfully.', user: updated.rows[0] });
+    const updatedUser = updated.rows[0];
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'DOT_USER', action: 'UPDATE', user: updatedUser });
+    emitToUser(id, 'account:status_changed', { status: updatedUser?.status, role: updatedUser?.role });
+
+    return res.status(200).json({ message: 'DOT account updated successfully.', user: updatedUser });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error updating DOT user:', err);
@@ -723,6 +740,9 @@ export const deleteDotUser = async (req, res) => {
     }
 
     await pool.query('DELETE FROM user_accounts WHERE id = $1', [id]);
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'DOT_USER', action: 'DELETE', id });
+    emitToUser(id, 'account:status_changed', { status: 'DELETED' });
+
     return res.status(200).json({ message: `Account for "${check.rows[0].full_name}" deleted successfully.` });
   } catch (err) {
     console.error('Error deleting DOT user:', err);

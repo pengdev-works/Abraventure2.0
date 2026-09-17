@@ -1,8 +1,8 @@
 import pool from '../config/db.js';
 
-// Get all published packages (optional filter by municipalityId)
+// Get all published packages (optional filter by municipalityId, or includeUnpublished for officers)
 export const getPackages = async (req, res) => {
-  const { municipalityId } = req.query;
+  const { municipalityId, includeUnpublished } = req.query;
 
   try {
     let queryStr = `
@@ -13,12 +13,16 @@ export const getPackages = async (req, res) => {
       FROM packages p
       JOIN municipalities m ON p.municipality_id = m.id
       LEFT JOIN user_accounts u ON p.created_by = u.id
-      WHERE p.is_published = true`;
+      WHERE 1=1`;
     let params = [];
 
+    if (includeUnpublished !== 'true' && includeUnpublished !== true) {
+      queryStr += ` AND p.is_published = true`;
+    }
+
     if (municipalityId) {
-      queryStr += ` AND p.municipality_id = $1`;
       params.push(parseInt(municipalityId));
+      queryStr += ` AND p.municipality_id = $${params.length}`;
     }
 
     queryStr += ` ORDER BY p.created_at DESC`;
@@ -131,9 +135,9 @@ export const createPackage = async (req, res) => {
             parseInt(item.dayNumber || 1),
             item.timeSlot || null,
             item.activityType,
-            item.attractionId || null,
-            item.homestayId || null,
-            item.guideId || null,
+            (item.attractionId && String(item.attractionId).trim()) || null,
+            (item.homestayId && String(item.homestayId).trim()) || null,
+            (item.guideId && String(item.guideId).trim()) || null,
             item.customActivityName || null,
             item.notes || '',
             i + 1
@@ -211,9 +215,9 @@ export const updatePackage = async (req, res) => {
             parseInt(item.dayNumber || 1),
             item.timeSlot || null,
             item.activityType,
-            item.attractionId || null,
-            item.homestayId || null,
-            item.guideId || null,
+            (item.attractionId && String(item.attractionId).trim()) || null,
+            (item.homestayId && String(item.homestayId).trim()) || null,
+            (item.guideId && String(item.guideId).trim()) || null,
             item.customActivityName || null,
             item.notes || '',
             i + 1

@@ -71,7 +71,7 @@ if (isCloudinaryConfigured) {
         resource_type = 'video';
       }
       else if (file.fieldname === 'document')  folder = 'abraventure/documents';
-      else if (file.fieldname === 'payment')   folder = 'abraventure/payments';
+      else if (file.fieldname === 'payment' || file.fieldname === 'paymentProof') folder = 'abraventure/payments';
 
       return {
         folder,

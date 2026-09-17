@@ -38,7 +38,7 @@ BEGIN
         CREATE TYPE activity_type AS ENUM ('ATTRACTION', 'HOMESTAY', 'GUIDE', 'CUSTOM');
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'requirement_target') THEN
-        CREATE TYPE requirement_target AS ENUM ('HOMESTAY', 'TOUR_GUIDE');
+        CREATE TYPE requirement_target AS ENUM ('HOMESTAY', 'TOUR_GUIDE', 'MUNICIPAL_OFFICE');
     END IF;
 END $$;
 
@@ -59,11 +59,18 @@ CREATE TABLE IF NOT EXISTS user_accounts (
 -- 3. MUNICIPAL DOT PROFILES (Extends User Account)
 CREATE TABLE IF NOT EXISTS municipal_dot_profiles (
     user_id UUID PRIMARY KEY REFERENCES user_accounts(id) ON DELETE CASCADE,
-    designation VARCHAR(150),
+    office_name VARCHAR(255),
     office_address TEXT,
+    designation VARCHAR(150),                          -- Contact person title/designation
+    contact_phone VARCHAR(50),
+    contact_email VARCHAR(255),
+    status account_status DEFAULT 'PENDING',
+    reference_number VARCHAR(50),
     profile_picture_url TEXT,
     authorized_at TIMESTAMP WITH TIME ZONE,
-    authorized_by UUID REFERENCES user_accounts(id)
+    authorized_by UUID REFERENCES user_accounts(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 4. HOMESTAY PROFILES
@@ -76,12 +83,12 @@ CREATE TABLE IF NOT EXISTS homestay_profiles (
     barangay VARCHAR(150),
     total_rooms INT DEFAULT 1,
     max_capacity INT DEFAULT 2,
-    reference_number VARCHAR(50),
-    latitude DECIMAL(10, 8),
-    longitude DECIMAL(11, 8),
     contact_email VARCHAR(255),
     contact_phone VARCHAR(50),
     status account_status DEFAULT 'PENDING',
+    reference_number VARCHAR(50),
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
     is_featured BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -112,17 +119,17 @@ CREATE TABLE IF NOT EXISTS homestay_rooms (
 CREATE TABLE IF NOT EXISTS tour_guide_profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     guide_id UUID UNIQUE REFERENCES user_accounts(id) ON DELETE CASCADE,
-    profile_picture_url TEXT,
     license_number VARCHAR(100),
     years_of_experience INT DEFAULT 0,
-    specializations TEXT,
-    reference_number VARCHAR(50),
-    bio TEXT,
     languages_spoken VARCHAR(255),
-    services_offered TEXT,
     areas_covered TEXT,
-    price_rate DECIMAL(10, 2),
+    specializations TEXT,
+    bio TEXT,
+    services_offered TEXT,
+    price_rate DECIMAL(10, 2) DEFAULT 0.00,
     status account_status DEFAULT 'PENDING',
+    reference_number VARCHAR(50),
+    profile_picture_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

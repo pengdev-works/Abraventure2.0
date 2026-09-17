@@ -1,6 +1,7 @@
 import express from 'express';
-import { createInquiry, getInquiries, replyInquiry, uploadPaymentProof, upload, getBookedDates } from '../controllers/inquiryController.js';
+import { createInquiry, getInquiries, replyInquiry, uploadPaymentProof, getBookedDates } from '../controllers/inquiryController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
+import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 

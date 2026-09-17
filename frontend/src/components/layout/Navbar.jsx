@@ -6,6 +6,7 @@ import {
   Calendar, AlertCircle, Star, FileText, ChevronRight, Inbox
 } from 'lucide-react';
 import DarkModeToggle from '../common/DarkModeToggle';
+import { useSocketEvent } from '../../context/SocketContext';
 
 const Navbar = () => {
   const { user, token, logout } = useAuth();
@@ -97,23 +98,35 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Fetch notifications + unread count
-  useEffect(() => {
+  const fetchNotifications = async () => {
     if (!token || !user) { setUnreadCount(0); setNotifications([]); return; }
-    const fetchNotifications = async () => {
-      try {
-        const [notifRes, countRes] = await Promise.all([
-          fetch('/api/notifications', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/notifications/unread-count', { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
-        if (notifRes.ok) setNotifications(await notifRes.json());
-        if (countRes.ok) { const d = await countRes.json(); setUnreadCount(d.count); }
-      } catch (err) { /* silent */ }
-    };
+    try {
+      const [notifRes, countRes] = await Promise.all([
+        fetch('/api/notifications', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/notifications/unread-count', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (notifRes.ok) setNotifications(await notifRes.json());
+      if (countRes.ok) { const d = await countRes.json(); setUnreadCount(d.count); }
+    } catch (err) { /* silent */ }
+  };
+
+  // Fetch notifications on mount / token change
+  useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // poll every 30s
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [token, user]);
+
+  // Real-time events: live notification updates without page refresh
+  useSocketEvent('notification:new', () => {
+    fetchNotifications();
+  });
+  useSocketEvent('account:status_changed', () => {
+    fetchNotifications();
+  });
+  useSocketEvent('announcement:new', () => {
+    fetchNotifications();
+  });
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -237,7 +250,7 @@ const Navbar = () => {
     // Announcements
     if (type === 'ANNOUNCEMENT' || title.includes('announcement')) {
       if (role === 'PROVINCIAL_DOT') return '/provincial-dashboard?tab=announcements';
-      return '/events';
+      return '/announcements';
     }
 
     // Fallback to user's dashboard link

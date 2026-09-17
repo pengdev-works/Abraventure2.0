@@ -1,22 +1,14 @@
 import pool from '../config/db.js';
-import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import upload from '../middleware/uploadMiddleware.js';
+import { emitToUser } from '../socket/socketManager.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => cb(null, `payment_${Date.now()}${path.extname(file.originalname)}`),
-});
-export const upload = multer({ storage });
+export { upload };
 
 // Send booking inquiry (Tourist only)
 export const createInquiry = async (req, res) => {
   const touristId = req.user.id;
   const { homestayId, guideId, startDate, endDate, numberOfGuests, message } = req.body;
-  const paymentProofUrl = req.file ? req.file.path : null;
+  const paymentProofUrl = req.file ? (req.file.secure_url || req.file.path) : null;
 
   if (!message) {
     return res.status(400).json({ message: 'Message is required.' });
@@ -84,19 +76,25 @@ export const createInquiry = async (req, res) => {
     if (homestayId) {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id=$1', [homestayId]);
       if (ownerRes.rows.length > 0) {
+        const ownerId = ownerRes.rows[0].owner_id;
         await pool.query(
           `INSERT INTO notifications (user_id, title, message, type, link) VALUES ($1, $2, $3, 'BOOKING', '/owner-dashboard?tab=inquiries')`,
-          [ownerRes.rows[0].owner_id, 'New Booking Inquiry', `A tourist sent a booking inquiry for your homestay${paymentProofUrl ? ' with payment proof attached' : ''}.`]
+          [ownerId, 'New Booking Inquiry', `A tourist sent a booking inquiry for your homestay${paymentProofUrl ? ' with payment proof attached' : ''}.`]
         ).catch(() => {});
+        // ── Real-time socket push ──
+        emitToUser(ownerId, 'inquiry:new', { inquiry: result.rows[0] });
       }
     }
     if (guideId) {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id=$1', [guideId]);
       if (guideRes.rows.length > 0) {
+        const guideUserId = guideRes.rows[0].guide_id;
         await pool.query(
           `INSERT INTO notifications (user_id, title, message, type, link) VALUES ($1, $2, $3, 'BOOKING', '/guide-dashboard?tab=inquiries')`,
-          [guideRes.rows[0].guide_id, 'New Booking Inquiry', 'A tourist sent a booking inquiry for your guide services.']
+          [guideUserId, 'New Booking Inquiry', 'A tourist sent a booking inquiry for your guide services.']
         ).catch(() => {});
+        // ── Real-time socket push ──
+        emitToUser(guideUserId, 'inquiry:new', { inquiry: result.rows[0] });
       }
     }
 
@@ -232,15 +230,18 @@ export const replyInquiry = async (req, res) => {
     );
 
     if (checkRes.rows[0]?.tourist_id) {
+      const touristId = checkRes.rows[0].tourist_id;
       await pool.query(
         `INSERT INTO notifications (user_id, title, message, type, link)
          VALUES ($1, $2, $3, 'BOOKING', '/tourist-dashboard?tab=bookings')`,
         [
-          checkRes.rows[0].tourist_id,
+          touristId,
           `Booking Update: ${newStatus}`,
           `Your booking inquiry has been updated to ${newStatus}.`
         ]
       ).catch(() => {});
+      // ── Real-time: push update to tourist ──
+      emitToUser(touristId, 'inquiry:updated', { inquiry: result.rows[0] });
     }
 
     return res.status(200).json({
@@ -257,7 +258,7 @@ export const replyInquiry = async (req, res) => {
 export const uploadPaymentProof = async (req, res) => {
   const { id } = req.params;
   const touristId = req.user.id;
-  const paymentProofUrl = req.file ? req.file.path : null;
+  const paymentProofUrl = req.file ? (req.file.secure_url || req.file.path) : null;
 
   if (!paymentProofUrl) {
     return res.status(400).json({ message: 'Payment proof file is required.' });

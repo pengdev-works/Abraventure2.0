@@ -36,10 +36,16 @@ let cachedMunicipalities = [...FALLBACK_MUNICIPALITIES];
 export const getMunicipalities = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT m.*, p.profile_picture_url as dot_profile_pic
+      `SELECT m.*,
+         (
+           SELECT p.profile_picture_url
+           FROM user_accounts u
+           LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
+           WHERE u.municipality_id = m.id AND u.role = 'MUNICIPAL_DOT' AND u.status = 'APPROVED'
+           ORDER BY u.created_at DESC
+           LIMIT 1
+         ) AS dot_profile_pic
        FROM municipalities m
-       LEFT JOIN user_accounts u ON u.municipality_id = m.id AND u.role = 'MUNICIPAL_DOT' AND u.status = 'APPROVED'
-       LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
        ORDER BY m.name ASC`
     );
     if (result.rows && result.rows.length > 0) {
@@ -152,7 +158,14 @@ export const addAttraction = async (req, res) => {
   let imageUrl = req.body.imageUrl || null;
   let finalVideoUrl = videoUrl || null;
 
-  if (req.file) {
+  if (req.files) {
+    if (req.files['image'] && req.files['image'][0]) {
+      imageUrl = req.files['image'][0].path;
+    }
+    if (req.files['video'] && req.files['video'][0]) {
+      finalVideoUrl = req.files['video'][0].path;
+    }
+  } else if (req.file) {
     const filePath = req.file.path;
     if (req.file.mimetype && req.file.mimetype.startsWith('video/')) {
       finalVideoUrl = filePath;
@@ -209,17 +222,23 @@ export const updateAttraction = async (req, res) => {
     let finalImageUrl = checkRes.rows[0].image_url;
     let finalVideoUrl = checkRes.rows[0].video_url;
 
-    if (req.file) {
+    if (req.files) {
+      if (req.files['image'] && req.files['image'][0]) {
+        finalImageUrl = req.files['image'][0].path;
+      }
+      if (req.files['video'] && req.files['video'][0]) {
+        finalVideoUrl = req.files['video'][0].path;
+      }
+    } else if (req.file) {
       const filePath = req.file.path;
       if (req.file.mimetype && req.file.mimetype.startsWith('video/')) {
         finalVideoUrl = filePath;
       } else {
         finalImageUrl = filePath;
       }
-    } else {
-      if (imageUrl !== undefined) finalImageUrl = imageUrl;
-      if (videoUrl !== undefined) finalVideoUrl = videoUrl;
     }
+    if (imageUrl !== undefined && (!req.files || !req.files['image'])) finalImageUrl = imageUrl;
+    if (videoUrl !== undefined && (!req.files || !req.files['video'])) finalVideoUrl = videoUrl;
 
     const result = await pool.query(
       `UPDATE tourist_attractions 

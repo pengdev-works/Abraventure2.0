@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useAlert } from '../../context/AlertContext';
+import { useSocketEvent } from '../../context/SocketContext';
 import Swal from 'sweetalert2';
 import {
   Landmark, ShieldCheck, Users, Home, Award, Calendar, AlertCircle,
@@ -455,6 +456,39 @@ const ProvincialDashboard = () => {
 
   useEffect(() => { fetchDashboardData(); }, [token]);
 
+  // Real-time live dashboard sync
+  useSocketEvent('dashboard:accounts_updated', () => {
+    fetchDashboardData();
+    fetchDotUsers();
+    if (activeTab === 'analytics') fetchAnalytics();
+  });
+
+  useSocketEvent('complaint:new', () => {
+    fetchComplaints();
+    if (activeTab === 'analytics') fetchAnalytics();
+  });
+
+  useSocketEvent('complaint:updated', () => {
+    fetchComplaints();
+  });
+
+  useSocketEvent('inquiry:new', () => {
+    fetchDashboardData();
+    if (activeTab === 'analytics') fetchAnalytics();
+  });
+
+  useSocketEvent('inquiry:updated', () => {
+    fetchDashboardData();
+  });
+
+  useSocketEvent('announcement:new', () => {
+    fetchAnnouncements();
+  });
+
+  useSocketEvent('announcement:updated', () => {
+    fetchAnnouncements();
+  });
+
   useEffect(() => {
     if (activeTab === 'analytics') fetchAnalytics();
     if (activeTab === 'announcements') fetchAnnouncements();
@@ -649,6 +683,18 @@ const ProvincialDashboard = () => {
   // ─── Approval Handler ────────────────────────────────────────
   const handleApprove = async (id, type, status) => {
     if (!token) return;
+
+    // Optimistic UI update: immediately change status in local state for 0ms delay
+    setData(prev => {
+      if (!prev) return prev;
+      const updateList = (list) =>
+        (list || []).map(item => (item.id === id || item.userId === id ? { ...item, status } : item));
+      if (type === 'HOMESTAY') return { ...prev, homestays: updateList(prev.homestays) };
+      if (type === 'GUIDE') return { ...prev, guides: updateList(prev.guides) };
+      if (type === 'MUNICIPAL_ADMIN') return { ...prev, municipalAdmins: updateList(prev.municipalAdmins) };
+      return prev;
+    });
+
     try {
       const response = await fetch(`/api/listings/approve/${id}`, {
         method: 'PUT',
@@ -658,12 +704,16 @@ const ProvincialDashboard = () => {
       if (response.ok) {
         setRemarks('');
         await fetchDashboardData();
+        showAlert(`Account marked as ${status} successfully.`, 'success');
       } else {
         const err = await response.json();
         showAlert(err.message || 'Action failed.', 'error');
+        await fetchDashboardData();
       }
     } catch (err) {
       console.error('Error in approval action:', err);
+      showAlert('Network error in approval action.', 'error');
+      await fetchDashboardData();
     }
   };
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useSocketEvent } from '../../context/SocketContext';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   Calendar, MessageSquare, AlertCircle, Star, CreditCard, 
@@ -100,6 +101,15 @@ const TouristDashboard = () => {
   useEffect(() => {
     initDashboard();
   }, [token]);
+
+  // Real-time live dashboard sync
+  useSocketEvent('inquiry:updated', () => {
+    fetchBookings();
+  });
+
+  useSocketEvent('complaint:updated', () => {
+    fetchComplaints();
+  });
 
   const handleUploadPaymentProof = async (bookingId) => {
     if (!paymentFile) {

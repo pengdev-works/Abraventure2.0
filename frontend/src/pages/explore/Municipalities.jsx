@@ -28,7 +28,11 @@ const Municipalities = () => {
     fetchMunicipalities();
   }, []);
 
-  const filteredMunicipalities = municipalities.filter((m) => {
+  const uniqueMunicipalities = Array.from(
+    new Map((municipalities || []).map(m => [m.id, m])).values()
+  );
+
+  const filteredMunicipalities = uniqueMunicipalities.filter((m) => {
     const matchSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (m.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchCat = selectedCategory === 'All' ||
@@ -113,26 +117,56 @@ const Municipalities = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredMunicipalities.map((m) => (
-              <Link
-                key={m.id}
-                to={`/municipalities/${m.id}`}
-                className="group flex flex-col text-left border border-[#E8DFC8] rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow"
-              >
-                {/* Photo container */}
-                <div className="img-editorial-wrapper aspect-[16/10] bg-[#153325]">
-                  <SafeImage
-                    src={m.dot_profile_pic || m.featured_image_url}
-                    alt={m.name}
-                    className="img-editorial w-full h-full object-cover"
-                    fallback="landscape"
-                  />
-                  <div className="absolute top-3 right-3">
-                    <span className="bg-[#153325]/85 backdrop-blur-sm text-[#FAF7F2] text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded">
-                      Abra · CAR
-                    </span>
-                  </div>
-                </div>
+            {filteredMunicipalities.map((m) => {
+              const imageSrc = m.dot_profile_pic || m.featured_image_url;
+              const isSeal = imageSrc && !imageSrc.includes('images.unsplash.com');
+
+              return (
+                <Link
+                  key={`mun-${m.id}-${m.name}`}
+                  to={`/municipalities/${m.id}`}
+                  className="group flex flex-col text-left border border-[#E8DFC8] rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow"
+                >
+                  {/* Photo / Emblem container */}
+                  {isSeal ? (
+                    <div className="img-editorial-wrapper aspect-[16/10] bg-gradient-to-b from-[#10271D] via-[#153325] to-[#1A3F2E] relative overflow-hidden flex items-center justify-center">
+                      {/* Subtle concentric watermark rings for prestige government seal feel */}
+                      <div className="absolute w-44 h-44 rounded-full border border-[#D4A942]/15 pointer-events-none" />
+                      <div className="absolute w-56 h-56 rounded-full border border-white/5 pointer-events-none" />
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(212,169,66,0.1)_0%,transparent_70%)] pointer-events-none" />
+
+                      {/* Official Seal Medallion following the circle */}
+                      <div className="relative z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden bg-white shadow-2xl ring-4 ring-[#D4A942]/70 border-2 border-white flex items-center justify-center group-hover:scale-105 group-hover:ring-[#D4A942] transition-all duration-300">
+                        <SafeImage
+                          src={imageSrc}
+                          alt={`${m.name} Official Seal`}
+                          className="w-full h-full object-cover rounded-full"
+                          fallback="landscape"
+                        />
+                      </div>
+
+                      <div className="absolute top-3 right-3 z-20">
+                        <span className="bg-[#153325]/90 backdrop-blur-sm text-[#FAF7F2] text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded border border-[#D4A942]/40 shadow-xs">
+                          Official Seal
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="img-editorial-wrapper aspect-[16/10] bg-[#153325] relative overflow-hidden">
+                      <SafeImage
+                        src={imageSrc}
+                        alt={m.name}
+                        className="img-editorial w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                        fallback="landscape"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                      <div className="absolute top-3 right-3 z-10">
+                        <span className="bg-[#153325]/85 backdrop-blur-sm text-[#FAF7F2] text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded border border-white/10">
+                          Abra · CAR
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                 {/* Content */}
                 <div className="p-6 flex-grow flex flex-col justify-between">
@@ -151,7 +185,8 @@ const Municipalities = () => {
                   </div>
                 </div>
               </Link>
-            ))}
+            );
+          })}
           </div>
         )}
       </section>
