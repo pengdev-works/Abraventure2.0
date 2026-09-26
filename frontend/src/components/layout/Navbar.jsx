@@ -432,12 +432,12 @@ const Navbar = () => {
                     </div>
 
                     {/* Notification List */}
-                    <div className="max-h-80 overflow-y-auto divide-y divide-[#F3ECE0]">
+                    <div className="max-h-80 overflow-y-auto divide-y divide-[var(--border-subtle)]">
                       {notifications.length === 0 ? (
                         <div className="py-10 px-4 text-center">
-                          <Inbox className="w-8 h-8 text-[#5A534E]/40 mx-auto mb-2" />
-                          <p className="font-serif font-bold text-xs text-[#153325]">You're all caught up</p>
-                          <p className="text-[11px] text-[#5A534E] mt-0.5">No notifications at this time</p>
+                          <Inbox className="w-8 h-8 text-[var(--text-muted)] opacity-40 mx-auto mb-2" />
+                          <p className="font-serif font-bold text-xs text-[var(--text-primary)]">You're all caught up</p>
+                          <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">No notifications at this time</p>
                         </div>
                       ) : (
                         notifications.map((n) => {
@@ -447,8 +447,8 @@ const Navbar = () => {
                             <div
                               key={n.id}
                               onClick={() => handleNotificationClick(n)}
-                              className={`p-3.5 flex items-start gap-3 text-left hover:bg-[#FAF7F2] transition-colors cursor-pointer group relative ${
-                                !n.is_read ? 'bg-[#FAF7F2]/90 border-l-4 border-[#B88B2A]' : 'opacity-90 hover:opacity-100'
+                              className={`p-3.5 flex items-start gap-3 text-left hover:bg-[var(--bg-card-subtle)] transition-colors cursor-pointer group relative ${
+                                !n.is_read ? 'bg-[var(--bg-card-subtle)]/70 border-l-4 border-[var(--color-gold)]' : 'opacity-90 hover:opacity-100'
                               }`}
                             >
                               <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 mt-0.5 ${iconData.bg}`}>
@@ -457,19 +457,19 @@ const Navbar = () => {
 
                               <div className="flex-1 min-w-0 pr-6">
                                 <div className="flex items-center gap-1.5 mb-0.5">
-                                  <p className={`text-xs truncate ${!n.is_read ? 'font-bold text-[#153325]' : 'font-medium text-[#232120]'}`}>
+                                  <p className={`text-xs truncate ${!n.is_read ? 'font-bold text-[var(--text-primary)]' : 'font-medium text-[var(--text-primary)]'}`}>
                                     {n.title}
                                   </p>
                                   {!n.is_read && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#B88B2A] flex-shrink-0 animate-pulse" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] flex-shrink-0 animate-pulse" />
                                   )}
                                 </div>
-                                <p className="text-[11px] text-[#5A534E] line-clamp-2 leading-relaxed">
+                                <p className="text-[11px] text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
                                   {n.message}
                                 </p>
-                                <div className="flex items-center justify-between mt-1.5 text-[10px] text-[#5A534E]/80">
+                                <div className="flex items-center justify-between mt-1.5 text-[10px] text-[var(--text-muted)]">
                                   <span className="font-mono">{formatTimeAgo(n.created_at)}</span>
-                                  <span className="text-[#B88B2A] font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                  <span className="text-[var(--color-gold)] font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                                     Open <ChevronRight className="w-3 h-3" />
                                   </span>
                                 </div>
@@ -477,7 +477,7 @@ const Navbar = () => {
 
                               <button
                                 onClick={(e) => handleDeleteNotif(n.id, e)}
-                                className="absolute top-3 right-3 p-1 text-[#5A534E]/40 hover:text-rose-600 rounded-md transition-colors cursor-pointer"
+                                className="absolute top-3 right-3 p-1 text-[var(--text-muted)] hover:text-rose-600 rounded-md transition-colors cursor-pointer"
                                 title="Delete notification"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -547,12 +547,12 @@ const Navbar = () => {
 
       {/* Mobile Drawer */}
       {isOpen && (
-        <div className="lg:hidden relative z-50 bg-[#FAF7F2] border-b border-[#E8DFC8] px-4 pt-3 pb-6 space-y-1 shadow-xl animate-fadeIn max-h-[calc(100dvh-5rem)] overflow-y-auto">
+        <div className="lg:hidden relative z-50 bg-[var(--bg-card)] border-b border-[var(--border-app)] px-4 pt-3 pb-6 space-y-1 shadow-xl animate-fadeIn max-h-[calc(100dvh-5rem)] overflow-y-auto">
           <Link
             to="/"
             onClick={(e) => handleNavClick(e, '/', 'explore')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
-              isActive('/') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+              isActive('/') ? 'bg-[var(--color-primary)] text-white font-bold' : 'text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)]'
             }`}
           >
             Explore
@@ -561,7 +561,7 @@ const Navbar = () => {
             to="/municipalities"
             onClick={(e) => handleNavClick(e, '/municipalities', 'destinations')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
-              isActive('/municipalities') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+              isActive('/municipalities') ? 'bg-[var(--color-primary)] text-white font-bold' : 'text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)]'
             }`}
           >
             Destinations (27 Municipalities)
@@ -570,7 +570,7 @@ const Navbar = () => {
             to="/tour-packages"
             onClick={() => setIsOpen(false)}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
-              isActive('/tour-packages') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+              isActive('/tour-packages') ? 'bg-[var(--color-primary)] text-white font-bold' : 'text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)]'
             }`}
           >
             Tour Packages & Circuits
@@ -579,7 +579,7 @@ const Navbar = () => {
             to="/map"
             onClick={(e) => handleNavClick(e, '/map', 'map')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
-              isActive('/map') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+              isActive('/map') ? 'bg-[var(--color-primary)] text-white font-bold' : 'text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)]'
             }`}
           >
             Interactive Map
@@ -588,7 +588,7 @@ const Navbar = () => {
             to="/itinerary"
             onClick={(e) => handleNavClick(e, '/itinerary', 'itinerary')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
-              isActive('/itinerary') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+              isActive('/itinerary') ? 'bg-[var(--color-primary)] text-white font-bold' : 'text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)]'
             }`}
           >
             Plan Itinerary
@@ -597,7 +597,7 @@ const Navbar = () => {
             to="/events"
             onClick={(e) => handleNavClick(e, '/events', 'events')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
-              isActive('/events') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+              isActive('/events') ? 'bg-[var(--color-primary)] text-white font-bold' : 'text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)]'
             }`}
           >
             Events & Festivals
@@ -606,23 +606,23 @@ const Navbar = () => {
             to="/travel-tips"
             onClick={(e) => handleNavClick(e, '/travel-tips', '')}
             className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
-              isActive('/travel-tips') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+              isActive('/travel-tips') ? 'bg-[var(--color-primary)] text-white font-bold' : 'text-[var(--text-primary)] hover:bg-[var(--bg-card-subtle)]'
             }`}
           >
             Travel Guide
           </Link>
 
-          <div className="pt-4 border-t border-[#E8DFC8] space-y-2">
+          <div className="pt-4 border-t border-[var(--border-subtle)] space-y-2">
             {user ? (
               <>
-                <div className="p-3 bg-[#F3ECE0] rounded-xl flex items-center justify-between">
+                <div className="p-3 bg-[var(--bg-card-subtle)] rounded-xl flex items-center justify-between border border-[var(--border-subtle)]">
                   <div>
-                    <p className="text-xs font-bold text-[#153325]">{user.fullName}</p>
-                    <p className="text-[10px] text-[#5A534E] uppercase font-semibold">{user.role.replace(/_/g, ' ')}</p>
+                    <p className="text-xs font-bold text-[var(--text-primary)]">{user.fullName}</p>
+                    <p className="text-[10px] text-[var(--text-secondary)] uppercase font-semibold">{user.role.replace(/_/g, ' ')}</p>
                   </div>
                   <button
                     onClick={handleLogout}
-                    className="text-xs font-semibold text-rose-700 hover:underline cursor-pointer p-2"
+                    className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer p-2"
                   >
                     Sign Out
                   </button>
@@ -648,7 +648,7 @@ const Navbar = () => {
                   <Link
                     to="/portal/login"
                     onClick={() => setIsOpen(false)}
-                    className="text-center btn-editorial-outline text-xs !py-3 rounded-xl border-[#153325] text-[#153325] touch-target flex items-center justify-center"
+                    className="text-center btn-editorial-outline text-xs !py-3 rounded-xl touch-target flex items-center justify-center text-[var(--color-primary)] border-[var(--color-primary)]/40 hover:border-[var(--color-primary)]"
                   >
                     Official Portal
                   </Link>

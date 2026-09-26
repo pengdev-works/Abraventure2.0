@@ -193,7 +193,7 @@ const Home = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setHeroSlideIndex((prev) => (prev + 1) % CTA_ABRA_DESTINATIONS.length);
-    }, 1000);
+    }, 6500);
     return () => clearInterval(timer);
   }, []);
 
@@ -205,7 +205,7 @@ const Home = () => {
     if (ctaHovering) return;
     const timer = setInterval(() => {
       setCtaSpotIndex((prev) => (prev + 1) % CTA_ABRA_DESTINATIONS.length);
-    }, 1000);
+    }, 6500);
     return () => clearInterval(timer);
   }, [ctaHovering]);
 
@@ -373,7 +373,7 @@ const Home = () => {
               {CTA_ABRA_DESTINATIONS.map((dest, idx) => (
                 <div
                   key={dest.id}
-                  className={`absolute inset-0 transition-opacity duration-[400ms] ease-in-out ${
+                  className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${
                     idx === heroSlideIndex ? 'opacity-100' : 'opacity-0'
                   }`}
                 >

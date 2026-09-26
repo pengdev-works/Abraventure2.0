@@ -5,7 +5,7 @@ import {
   Package, Plus, Edit, Trash2, Send, CheckCircle, Clock, XCircle, AlertCircle,
   RefreshCw, Eye, Calendar, Users, Bus, ChevronDown, ChevronUp, MapPin, Building2,
   DollarSign, Check, X, MessageSquare, Download, Filter, Search, Award, TrendingUp,
-  FileText, ExternalLink
+  FileText, ExternalLink, Upload
 } from 'lucide-react';
 
 const MUNICIPALITIES = [
@@ -18,9 +18,11 @@ const MUNICIPALITIES = [
 const STATUS_COLORS = {
   DRAFT: { bg: '#F2EDE2', text: '#7B847F', border: '#DCD4C5', label: 'Draft' },
   PENDING_COORDINATION: { bg: '#FFF4D8', text: '#7A5A14', border: '#F2D785', label: 'Coordination' },
+  PENDING_APPROVAL: { bg: '#FEF3C7', text: '#92400E', border: '#FCD34D', label: 'Pending Approval' },
   SUBMITTED: { bg: '#EBF4FF', text: '#1E429F', border: '#B4C6FF', label: 'Under Review' },
-  REVISION_REQUESTED: { bg: '#FEF3C7', text: '#92400E', border: '#FCD34D', label: 'Needs Revision' },
+  REVISION_REQUESTED: { bg: '#FFF0E0', text: '#C2410C', border: '#FDBA74', label: 'Needs Revision' },
   APPROVED: { bg: '#E7F3EC', text: '#1E6040', border: '#B2DBC3', label: 'Approved' },
+  PUBLISHED: { bg: '#D1FAE5', text: '#065F46', border: '#6EE7B7', label: 'Published' },
   REJECTED: { bg: '#FDE8E8', text: '#9B1C1C', border: '#F8B4B4', label: 'Rejected' },
   ARCHIVED: { bg: '#F3F4F6', text: '#4B5563', border: '#E5E7EB', label: 'Archived' },
 };
@@ -88,30 +90,27 @@ const ProvincialPackagesTab = () => {
     participating_municipalities: ['Bangued'],
   };
   const [formData, setFormData] = useState(initialForm);
+  const [coverImageFile, setCoverImageFile] = useState(null);
+  const [coverImagePreview, setCoverImagePreview] = useState(null);
 
   // Schedule modal state
   const [schedules, setSchedules] = useState([]);
   const [newSchedule, setNewSchedule] = useState({
-    schedule_date: '',
-    available_slots: 20,
-    max_slots: 20,
-    departure_time: '07:00:00',
-    status: 'OPEN',
-    notes: '',
+    travel_date: '',
+    max_capacity: 20,
+    is_available: true,
+    departure_time: '07:00',
   });
 
   // Transport modal state
   const [transports, setTransports] = useState([]);
   const [newTransport, setNewTransport] = useState({
-    schedule_id: '',
-    vehicle_type: 'VAN',
+    travel_date: '',
+    vehicle_label: '',
     driver_name: '',
-    driver_contact: '',
-    plate_number: '',
-    capacity: 14,
-    pickup_point: '',
-    departure_time: '07:00:00',
-    notes: '',
+    total_seats: 14,
+    route_notes: '',
+    departure_time: '07:00',
   });
 
   const token = localStorage.getItem('token');
@@ -127,26 +126,30 @@ const ProvincialPackagesTab = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (activeSubTab === 'all-packages') {
-        const res = await fetch('/api/tour-packages', { headers });
+      if (activeSubTab === 'all-packages' || activeSubTab === 'schedules') {
+        // includeAll=true so DRAFT/SUBMITTED/APPROVED packages are visible to Provincial DOT
+        const res = await fetch('/api/tour-packages?includeAll=true', { headers });
         const data = await res.json();
-        if (data.packages) setPackages(data.packages);
+        const list = Array.isArray(data) ? data : (data.packages || []);
+        setPackages(list);
       } else if (activeSubTab === 'reviews') {
-        const res = await fetch('/api/tour-packages/provincial/pending-reviews', { headers });
+        // Backend sets status = 'PENDING_APPROVAL' when Municipal DOT submits
+        const res = await fetch('/api/tour-packages?includeAll=true&status=PENDING_APPROVAL', { headers });
         const data = await res.json();
-        if (data.packages) setReviews(data.packages);
+        const list = Array.isArray(data) ? data : (data.packages || []);
+        setReviews(list);
       } else if (activeSubTab === 'coordination') {
-        const res = await fetch('/api/tour-packages/provincial/coordinations', { headers });
+        // Multi-municipality cross-boundary packages
+        const res = await fetch('/api/tour-packages?includeAll=true&packageType=MULTI_MUNICIPALITY', { headers });
         const data = await res.json();
-        if (data.packages) setCoordinationPackages(data.packages);
+        const list = Array.isArray(data) ? data : (data.packages || []);
+        setCoordinationPackages(list);
       } else if (activeSubTab === 'bookings') {
-        const res = await fetch('/api/tour-packages/admin/bookings', { headers });
+        // All bookings across the province
+        const res = await fetch('/api/tour-packages/bookings/all', { headers });
         const data = await res.json();
-        if (data.bookings) setBookings(data.bookings);
-      } else if (activeSubTab === 'schedules') {
-        const res = await fetch('/api/tour-packages', { headers });
-        const data = await res.json();
-        if (data.packages) setPackages(data.packages);
+        const list = Array.isArray(data) ? data : (data.bookings || []);
+        setBookings(list);
       }
     } catch (err) {
       console.error('Error fetching provincial package data:', err);
@@ -183,28 +186,50 @@ const ProvincialPackagesTab = () => {
         tour_guide_names: typeof formData.tour_guide_names === 'string' ? formData.tour_guide_names.split('\n').filter(Boolean) : formData.tour_guide_names,
       };
 
+      const bodyData = new FormData();
+      Object.entries(payload).forEach(([k, v]) => {
+        if (Array.isArray(v)) {
+          bodyData.append(k, JSON.stringify(v));
+        } else if (v !== null && v !== undefined) {
+          bodyData.append(k, v);
+        }
+      });
+      bodyData.append('price', payload.price_per_pax || 0);
+      bodyData.append('durationDays', payload.duration_days || 1);
+      bodyData.append('maxCapacityPerDate', payload.daily_capacity || 30);
+      bodyData.append('municipalityId', payload.primary_municipality_id || 1);
+      bodyData.append('imageUrl', formData.cover_image_url || '');
+
+      if (coverImageFile) {
+        bodyData.append('coverImage', coverImageFile);
+      }
+
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
       let res, data;
       if (editingPkg) {
         res = await fetch(`/api/tour-packages/${editingPkg.id}`, {
           method: 'PUT',
-          headers,
-          body: JSON.stringify(payload),
+          headers: authHeaders,
+          body: bodyData,
         });
         data = await res.json();
       } else {
         res = await fetch('/api/tour-packages', {
           method: 'POST',
-          headers,
-          body: JSON.stringify(payload),
+          headers: authHeaders,
+          body: bodyData,
         });
         data = await res.json();
       }
 
       if (res.ok) {
-        Swal.fire('Success', data.message, 'success');
+        Swal.fire('Success', data.message || 'Package saved successfully!', 'success');
         setShowModal(false);
         setEditingPkg(null);
         setFormData(initialForm);
+        setCoverImageFile(null);
+        setCoverImagePreview(null);
         fetchData();
       } else {
         Swal.fire('Error', data.message || 'Failed to save package', 'error');
@@ -217,7 +242,8 @@ const ProvincialPackagesTab = () => {
   // Review decisions
   const handleReviewAction = async (action) => {
     if (!reviewModalPkg) return;
-    if ((action === 'REJECTED' || action === 'REVISION_REQUESTED') && !reviewFeedback.trim()) {
+    // Backend accepts: action='APPROVE'|'REJECT'|'REQUEST_REVISION' and body field `remarks`
+    if ((action === 'REJECT' || action === 'REQUEST_REVISION') && !reviewFeedback.trim()) {
       Swal.fire('Required', 'Please provide feedback/reasons for this decision.', 'warning');
       return;
     }
@@ -226,7 +252,7 @@ const ProvincialPackagesTab = () => {
       const res = await fetch(`/api/tour-packages/${reviewModalPkg.id}/review`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ action, review_feedback: reviewFeedback }),
+        body: JSON.stringify({ action, remarks: reviewFeedback }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -274,14 +300,13 @@ const ProvincialPackagesTab = () => {
     try {
       const res = await fetch(`/api/tour-packages/${pkg.id}/schedules`, { headers });
       const data = await res.json();
-      setSchedules(data.schedules || []);
+      // Backend returns plain array
+      setSchedules(Array.isArray(data) ? data : (data.schedules || []));
       setNewSchedule({
-        schedule_date: '',
-        available_slots: pkg.daily_capacity || 20,
-        max_slots: pkg.daily_capacity || 20,
-        departure_time: '07:00:00',
-        status: 'OPEN',
-        notes: '',
+        travel_date: '',
+        max_capacity: pkg.max_capacity || pkg.daily_capacity || 20,
+        is_available: true,
+        departure_time: '07:00',
       });
     } catch (err) {
       console.error(err);
@@ -292,10 +317,16 @@ const ProvincialPackagesTab = () => {
     e.preventDefault();
     if (!schedulePkg) return;
     try {
+      // Map to backend expected field names: travelDate, maxCapacity, isAvailable
+      const payload = {
+        travelDate: newSchedule.travel_date,
+        maxCapacity: newSchedule.max_capacity,
+        isAvailable: newSchedule.is_available,
+      };
       const res = await fetch(`/api/tour-packages/${schedulePkg.id}/schedules`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(newSchedule),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (res.ok) {
@@ -311,7 +342,8 @@ const ProvincialPackagesTab = () => {
 
   const handleDeleteSchedule = async (scheduleId) => {
     try {
-      const res = await fetch(`/api/tour-packages/schedules/${scheduleId}`, { method: 'DELETE', headers });
+      // Correct route: DELETE /api/tour-packages/:id/schedules/:sid
+      const res = await fetch(`/api/tour-packages/${schedulePkg.id}/schedules/${scheduleId}`, { method: 'DELETE', headers });
       if (res.ok) openSchedules(schedulePkg);
     } catch (err) {
       console.error(err);
@@ -324,11 +356,21 @@ const ProvincialPackagesTab = () => {
     try {
       const res = await fetch(`/api/tour-packages/${pkg.id}/transport`, { headers });
       const data = await res.json();
-      setTransports(data.transports || []);
-      // fetch schedules for dropdown
+      // Backend returns plain array
+      setTransports(Array.isArray(data) ? data : (data.transports || []));
+      // fetch schedules for date dropdown
       const sRes = await fetch(`/api/tour-packages/${pkg.id}/schedules`, { headers });
       const sData = await sRes.json();
-      setSchedules(sData.schedules || []);
+      setSchedules(Array.isArray(sData) ? sData : (sData.schedules || []));
+      // Reset transport form
+      setNewTransport({
+        travel_date: '',
+        vehicle_label: '',
+        driver_name: '',
+        total_seats: 14,
+        route_notes: '',
+        departure_time: '07:00',
+      });
     } catch (err) {
       console.error(err);
     }
@@ -338,10 +380,19 @@ const ProvincialPackagesTab = () => {
     e.preventDefault();
     if (!transportPkg) return;
     try {
+      // Map to backend expected field names: travelDate, vehicleLabel, totalSeats, driverName, routeNotes
+      const payload = {
+        travelDate: newTransport.travel_date,
+        vehicleLabel: newTransport.vehicle_label,
+        driverName: newTransport.driver_name || null,
+        totalSeats: newTransport.total_seats || 10,
+        routeNotes: newTransport.route_notes || null,
+        departureTime: newTransport.departure_time || null,
+      };
       const res = await fetch(`/api/tour-packages/${transportPkg.id}/transport`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(newTransport),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (res.ok) {
@@ -357,7 +408,8 @@ const ProvincialPackagesTab = () => {
 
   const handleDeleteTransport = async (tId) => {
     try {
-      const res = await fetch(`/api/tour-packages/transport/${tId}`, { method: 'DELETE', headers });
+      // Correct route: DELETE /api/tour-packages/:id/transport/:tid
+      const res = await fetch(`/api/tour-packages/${transportPkg.id}/transport/${tId}`, { method: 'DELETE', headers });
       if (res.ok) openTransports(transportPkg);
     } catch (err) {
       console.error(err);
@@ -366,10 +418,13 @@ const ProvincialPackagesTab = () => {
 
   // Filtered lists
   const filteredPackages = packages.filter(p => {
-    const matchMuni = filterMuni === 'ALL' || p.municipality === filterMuni;
+    const muniName = p.municipality_name || p.municipality || '';
+    const matchMuni = filterMuni === 'ALL' || muniName === filterMuni;
     const matchStatus = filterStatus === 'ALL' || p.status === filterStatus;
     const matchType = filterType === 'ALL' || p.package_type === filterType;
-    const matchSearch = !searchQuery || p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.municipality.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = !searchQuery ||
+      (p.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      muniName.toLowerCase().includes(searchQuery.toLowerCase());
     return matchMuni && matchStatus && matchType && matchSearch;
   });
 
@@ -477,6 +532,8 @@ const ProvincialPackagesTab = () => {
             onClick={() => {
               setEditingPkg(null);
               setFormData({ ...initialForm, package_type: 'MULTI_MUNICIPALITY' });
+              setCoverImageFile(null);
+              setCoverImagePreview(null);
               setShowModal(true);
             }}
           >
@@ -658,11 +715,12 @@ const ProvincialPackagesTab = () => {
                 }}
               >
                 <option value="ALL">All Statuses</option>
+                <option value="PUBLISHED">Published</option>
                 <option value="APPROVED">Approved</option>
                 <option value="SUBMITTED">Under Review</option>
                 <option value="REVISION_REQUESTED">Revision Requested</option>
-                <option value="REJECTED">Rejected</option>
                 <option value="DRAFT">Draft</option>
+                <option value="REJECTED">Rejected</option>
               </select>
             </div>
 
@@ -704,7 +762,7 @@ const ProvincialPackagesTab = () => {
                   <div style={{
                     height: 160,
                     position: 'relative',
-                    backgroundImage: `url(${pkg.cover_image_url || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'})`,
+                    backgroundImage: `url(${pkg.image_url || pkg.cover_image_url || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80'})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                   }}>
@@ -728,7 +786,7 @@ const ProvincialPackagesTab = () => {
                     </div>
                     <div style={{ position: 'absolute', bottom: '0.75rem', left: '0.75rem', right: '0.75rem', color: '#fff' }}>
                       <div style={{ fontSize: '0.75rem', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <MapPin size={12} /> {pkg.municipality}
+                        <MapPin size={12} /> {pkg.municipality_name || pkg.municipality || 'Abra'}
                       </div>
                       <div style={{ fontWeight: 800, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {pkg.title}
@@ -769,12 +827,33 @@ const ProvincialPackagesTab = () => {
                       <div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Rate per pax</div>
                         <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-primary)' }}>
-                          ₱{parseFloat(pkg.price_per_pax || 0).toLocaleString()}
+                          ₱{parseFloat(pkg.price || pkg.price_per_pax || 0).toLocaleString()}
                         </div>
                       </div>
 
                       {/* Action buttons */}
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      {pkg.status === 'PENDING_APPROVAL' && (
+                        <button
+                          style={{ ...btnPrimary, padding: "0.4rem 0.75rem", background: "#059669", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                          onClick={() => { setReviewModalPkg(pkg); setReviewFeedback('Meets Abra Provincial Tourism standards.'); }}
+                        >
+                          <CheckCircle size={13} /> Review
+                        </button>
+                      )}
+                      {pkg.status === 'APPROVED' && (
+                        <button
+                          style={{ ...btnPrimary, padding: "0.4rem 0.75rem", background: "#2563EB", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                          onClick={async () => {
+                            const r = await fetch(`/api/tour-packages/${pkg.id}/publish`, { method: "PUT", headers });
+                            const d = await r.json();
+                            if (r.ok) { Swal.fire('Published!', d.message, 'success'); fetchData(); }
+                            else Swal.fire('Error', d.message, 'error');
+                          }}
+                        >
+                          <ExternalLink size={13} /> Publish
+                        </button>
+                      )}
+                      <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
                         <button
                           title="Manage Schedules & Capacity"
                           style={{ ...btnSecondary, padding: '0.4rem 0.6rem' }}
@@ -796,30 +875,32 @@ const ProvincialPackagesTab = () => {
                             setEditingPkg(pkg);
                             setFormData({
                               title: pkg.title,
-                              municipality: pkg.municipality,
+                              municipality: pkg.municipality_name || pkg.municipality || 'Bangued',
                               package_type: pkg.package_type || 'MUNICIPAL',
                               description: pkg.description || '',
                               duration_days: pkg.duration_days || 1,
                               duration_nights: pkg.duration_nights || 0,
-                              price_per_pax: pkg.price_per_pax || '',
+                              price_per_pax: pkg.price || pkg.price_per_pax || '',
                               min_pax: pkg.min_pax || 1,
                               max_pax: pkg.max_pax || 20,
-                              daily_capacity: pkg.daily_capacity || 30,
+                              daily_capacity: pkg.max_capacity || pkg.daily_capacity || 30,
                               inclusions: Array.isArray(pkg.inclusions) ? pkg.inclusions.join('\n') : pkg.inclusions || '',
                               exclusions: Array.isArray(pkg.exclusions) ? pkg.exclusions.join('\n') : pkg.exclusions || '',
                               itinerary: pkg.itinerary || '',
                               homestay_options: Array.isArray(pkg.homestay_options) ? pkg.homestay_options.join('\n') : pkg.homestay_options || '',
                               tour_guide_names: Array.isArray(pkg.tour_guide_names) ? pkg.tour_guide_names.join('\n') : pkg.tour_guide_names || '',
-                              transport_mode: pkg.transport_mode || 'JEEPNEY',
+                              transport_mode: pkg.transport_mode || pkg.transport_option || 'JEEPNEY',
                               transport_options: pkg.transport_options || '',
                               meeting_point: pkg.meeting_point || '',
                               dropoff_point: pkg.dropoff_point || '',
-                              cover_image_url: pkg.cover_image_url || '',
+                              cover_image_url: pkg.image_url || pkg.cover_image_url || '',
                               contact_person: pkg.contact_person || '',
                               contact_number: pkg.contact_number || '',
                               is_published: !!pkg.is_published,
-                              participating_municipalities: pkg.participating_municipalities || [pkg.municipality],
+                              participating_municipalities: pkg.participating_municipalities || [pkg.municipality_name || pkg.municipality],
                             });
+                            setCoverImageFile(null);
+                            setCoverImagePreview(pkg.image_url || pkg.cover_image_url || null);
                             setShowModal(true);
                           }}
                         >
@@ -1439,18 +1520,134 @@ const ProvincialPackagesTab = () => {
                   </div>
                 </div>
 
-                {/* Cover Image & Contact */}
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '0.25rem' }}>Cover Image URL</label>
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                      value={formData.cover_image_url}
-                      onChange={e => setFormData({ ...formData, cover_image_url: e.target.value })}
-                      style={{ width: '100%', padding: '0.5rem', borderRadius: '0.4rem', border: '1px solid var(--border-app)', background: 'var(--bg-body)', color: 'var(--text-main)' }}
-                    />
-                  </div>
+                {/* Package Cover Image Upload */}
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '0.35rem' }}>
+                    Package Cover Photo *
+                  </label>
+
+                  {coverImagePreview ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      padding: '0.75rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid var(--border-app)',
+                      background: 'var(--bg-body)'
+                    }}>
+                      <img
+                        src={coverImagePreview}
+                        alt="Package Cover Preview"
+                        style={{
+                          width: '100px',
+                          height: '65px',
+                          objectFit: 'cover',
+                          borderRadius: '0.4rem',
+                          border: '1px solid var(--border-app)',
+                          flexShrink: 0
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', wordBreak: 'break-all' }}>
+                          {coverImageFile ? coverImageFile.name : 'Current Package Cover Photo'}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          {coverImageFile
+                            ? `${(coverImageFile.size / (1024 * 1024)).toFixed(2)} MB · Ready to upload`
+                            : 'Existing cover image'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                        <label style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.45rem 0.75rem',
+                          background: 'var(--color-primary)',
+                          color: '#fff',
+                          borderRadius: '0.4rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}>
+                          <Upload size={14} /> Change
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                setCoverImageFile(file);
+                                setCoverImagePreview(URL.createObjectURL(file));
+                                setFormData(prev => ({ ...prev, cover_image_url: '' }));
+                              }
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCoverImageFile(null);
+                            setCoverImagePreview(null);
+                            setFormData(prev => ({ ...prev, cover_image_url: '' }));
+                          }}
+                          style={{
+                            padding: '0.45rem 0.65rem',
+                            background: 'transparent',
+                            border: '1px solid #DC2626',
+                            color: '#DC2626',
+                            borderRadius: '0.4rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '1.25rem 1rem',
+                      borderRadius: '0.5rem',
+                      border: '2px dashed var(--border-app)',
+                      background: 'var(--bg-body)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      textAlign: 'center'
+                    }}>
+                      <Upload size={24} style={{ color: 'var(--color-primary)', marginBottom: '0.5rem' }} />
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Click to select and upload package cover photo
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        PNG, JPG, JPEG, or WEBP (recommended high-resolution landscape photo)
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setCoverImageFile(file);
+                            setCoverImagePreview(URL.createObjectURL(file));
+                            setFormData(prev => ({ ...prev, cover_image_url: '' }));
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Contact Person & Contact Number */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '0.25rem' }}>Contact Person</label>
                     <input
@@ -1522,7 +1719,13 @@ const ProvincialPackagesTab = () => {
                 Review: {reviewModalPkg.title}
               </h3>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Submitted by {reviewModalPkg.municipality} Municipal Tourism Office
+                Submitted by {reviewModalPkg.municipality_name || reviewModalPkg.municipality || 'Municipal'} Tourism Office
+                {reviewModalPkg.creator_name && ` · by ${reviewModalPkg.creator_name}`}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                Price: ₱{parseFloat(reviewModalPkg.price || reviewModalPkg.price_per_pax || 0).toLocaleString()} per pax
+                {' · '} Duration: {reviewModalPkg.duration_days} day(s)
+                {' · '} Capacity: {reviewModalPkg.max_capacity || reviewModalPkg.daily_capacity || 30} pax/day
               </div>
             </div>
 
@@ -1546,13 +1749,13 @@ const ProvincialPackagesTab = () => {
                 Cancel
               </button>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button style={btnDanger} onClick={() => handleReviewAction('REJECTED')}>
+                <button style={btnDanger} onClick={() => handleReviewAction('REJECT')}>
                   <XCircle size={14} /> Reject
                 </button>
-                <button style={{ ...btnSecondary, color: '#D97706', borderColor: '#FDE68A' }} onClick={() => handleReviewAction('REVISION_REQUESTED')}>
+                <button style={{ ...btnSecondary, color: '#D97706', borderColor: '#FDE68A' }} onClick={() => handleReviewAction('REQUEST_REVISION')}>
                   <MessageSquare size={14} /> Request Revision
                 </button>
-                <button style={btnSuccess} onClick={() => handleReviewAction('APPROVED')}>
+                <button style={btnSuccess} onClick={() => handleReviewAction('APPROVE')}>
                   <CheckCircle size={14} /> Approve Package
                 </button>
               </div>
@@ -1598,18 +1801,18 @@ const ProvincialPackagesTab = () => {
                     <input
                       required
                       type="date"
-                      value={newSchedule.schedule_date}
-                      onChange={e => setNewSchedule({ ...newSchedule, schedule_date: e.target.value })}
+                      value={newSchedule.travel_date}
+                      onChange={e => setNewSchedule({ ...newSchedule, travel_date: e.target.value })}
                       style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Available Slots</label>
+                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Max Capacity</label>
                     <input
                       type="number"
                       min={1}
-                      value={newSchedule.available_slots}
-                      onChange={e => setNewSchedule({ ...newSchedule, available_slots: parseInt(e.target.value), max_slots: parseInt(e.target.value) })}
+                      value={newSchedule.max_capacity}
+                      onChange={e => setNewSchedule({ ...newSchedule, max_capacity: parseInt(e.target.value) || 20 })}
                       style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
                     />
                   </div>
@@ -1623,6 +1826,13 @@ const ProvincialPackagesTab = () => {
                     />
                   </div>
                 </div>
+                <label style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={newSchedule.is_available}
+                    onChange={e => setNewSchedule({ ...newSchedule, is_available: e.target.checked })}
+                  /> Open for bookings
+                </label>
                 <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: '0.25rem' }}>
                   Add Schedule Slot
                 </button>
@@ -1640,14 +1850,14 @@ const ProvincialPackagesTab = () => {
                     {schedules.map(s => (
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 0.85rem', border: '1px solid var(--border-app)', borderRadius: '0.4rem', background: 'var(--bg-card)' }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>📅 {s.schedule_date?.split('T')[0] || s.schedule_date}</div>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>📅 {(s.travel_date || s.schedule_date || '').toString().split('T')[0]}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            Departure: {s.departure_time} · Slots: {s.available_slots} / {s.max_slots} ({s.booked_slots || 0} booked)
+                            Capacity: {s.max_capacity || s.max_slots || 20} · Booked: {s.reserved_count || s.booked_slots || 0} · Remaining: {(s.max_capacity || s.max_slots || 20) - (s.reserved_count || s.booked_slots || 0)}
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: 999, background: s.status === 'OPEN' ? '#E7F3EC' : '#FEE2E2', color: s.status === 'OPEN' ? '#1E6040' : '#DC2626' }}>
-                            {s.status}
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: 999, background: s.is_available ? '#E7F3EC' : '#FEE2E2', color: s.is_available ? '#1E6040' : '#DC2626' }}>
+                            {s.is_available ? 'OPEN' : 'CLOSED'}
                           </span>
                           <button onClick={() => handleDeleteSchedule(s.id)} style={{ ...btnDanger, padding: '0.3rem 0.5rem' }}>
                             <Trash2 size={12} />
@@ -1694,20 +1904,45 @@ const ProvincialPackagesTab = () => {
               {/* Add transport form */}
               <form onSubmit={handleAddTransport} style={{ background: 'var(--bg-body)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border-app)' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.6rem' }}>+ Assign Vehicle / Driver</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <div>
-                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Vehicle Type</label>
-                    <select
-                      value={newTransport.vehicle_type}
-                      onChange={e => setNewTransport({ ...newTransport, vehicle_type: e.target.value })}
-                      style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
-                    >
-                      <option value="VAN">Van</option>
-                      <option value="JEEPNEY">Jeepney</option>
-                      <option value="BUS">Tourist Bus</option>
-                      <option value="TRICYCLE">Tricycle</option>
-                    </select>
+                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Travel Date *</label>
+                    {schedules.length > 0 ? (
+                      <select
+                        required
+                        value={newTransport.travel_date}
+                        onChange={e => setNewTransport({ ...newTransport, travel_date: e.target.value })}
+                        style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)', background: 'var(--bg-card)', color: 'var(--text-main)' }}
+                      >
+                        <option value="">Select a scheduled date</option>
+                        {schedules.map(s => {
+                          const d = (s.travel_date || '').toString().split('T')[0];
+                          return <option key={s.id} value={d}>{d}</option>;
+                        })}
+                      </select>
+                    ) : (
+                      <input
+                        required
+                        type="date"
+                        value={newTransport.travel_date}
+                        onChange={e => setNewTransport({ ...newTransport, travel_date: e.target.value })}
+                        style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
+                      />
+                    )}
                   </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Vehicle Label *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g. Van - ABC 1234 (14 seater)"
+                      value={newTransport.vehicle_label}
+                      onChange={e => setNewTransport({ ...newTransport, vehicle_label: e.target.value })}
+                      style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <div>
                     <label style={{ fontSize: '0.72rem', display: 'block' }}>Driver Name</label>
                     <input
@@ -1719,50 +1954,35 @@ const ProvincialPackagesTab = () => {
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Driver Contact</label>
-                    <input
-                      type="text"
-                      placeholder="0917-xxx-xxxx"
-                      value={newTransport.driver_contact}
-                      onChange={e => setNewTransport({ ...newTransport, driver_contact: e.target.value })}
-                      style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Plate Number</label>
-                    <input
-                      type="text"
-                      placeholder="ABC 1234"
-                      value={newTransport.plate_number}
-                      onChange={e => setNewTransport({ ...newTransport, plate_number: e.target.value })}
-                      style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Capacity (Pax)</label>
+                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Total Seats</label>
                     <input
                       type="number"
                       min={1}
-                      value={newTransport.capacity}
-                      onChange={e => setNewTransport({ ...newTransport, capacity: parseInt(e.target.value) })}
+                      value={newTransport.total_seats}
+                      onChange={e => setNewTransport({ ...newTransport, total_seats: parseInt(e.target.value) || 1 })}
                       style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Pickup Point</label>
+                    <label style={{ fontSize: '0.72rem', display: 'block' }}>Departure Time</label>
                     <input
-                      type="text"
-                      placeholder="Capitol Grounds Bangued"
-                      value={newTransport.pickup_point}
-                      onChange={e => setNewTransport({ ...newTransport, pickup_point: e.target.value })}
+                      type="time"
+                      value={newTransport.departure_time}
+                      onChange={e => setNewTransport({ ...newTransport, departure_time: e.target.value })}
                       style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
                     />
                   </div>
                 </div>
-
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <label style={{ fontSize: '0.72rem', display: 'block' }}>Route / Notes</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Capitol → Boliney → Malibcong"
+                    value={newTransport.route_notes}
+                    onChange={e => setNewTransport({ ...newTransport, route_notes: e.target.value })}
+                    style={{ width: '100%', padding: '0.4rem', borderRadius: '0.35rem', border: '1px solid var(--border-app)' }}
+                  />
+                </div>
                 <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: '0.25rem' }}>
                   Assign Transport Unit
                 </button>
@@ -1780,9 +2000,9 @@ const ProvincialPackagesTab = () => {
                     {transports.map(t => (
                       <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 0.85rem', border: '1px solid var(--border-app)', borderRadius: '0.4rem', background: 'var(--bg-card)' }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>🚌 {t.vehicle_type} · {t.plate_number || 'No plate'} ({t.capacity} seats)</div>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>🚌 {t.vehicle_label} · {(t.travel_date || '').toString().split('T')[0]}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            Driver: {t.driver_name || 'Unassigned'} ({t.driver_contact || 'N/A'}) · Pickup: {t.pickup_point || 'Capitol'}
+                            Driver: {t.driver_name || 'Unassigned'} · Seats: {t.total_seats} · {t.route_notes || 'No route notes'}
                           </div>
                         </div>
                         <button onClick={() => handleDeleteTransport(t.id)} style={{ ...btnDanger, padding: '0.3rem 0.5rem' }}>

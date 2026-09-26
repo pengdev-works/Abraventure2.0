@@ -197,12 +197,16 @@ export const createTourPackage = async (req, res) => {
         : req.body.participatingMunicipalities)
     : [];
 
-  let coverImageUrl = imageUrl || null;
+  let coverImageUrl = imageUrl || req.body.cover_image_url || req.body.coverImageUrl || null;
   if (req.file) coverImageUrl = req.file.secure_url || req.file.path || null;
+
+  const priceVal = price !== undefined && price !== '' ? price : req.body.price_per_pax;
+  const durationVal = durationDays !== undefined && durationDays !== '' ? durationDays : req.body.duration_days;
+  const capacityVal = maxCapacityPerDate !== undefined && maxCapacityPerDate !== '' ? maxCapacityPerDate : req.body.daily_capacity;
 
   const targetMunicipalityId = role === 'MUNICIPAL_DOT'
     ? municipality_id
-    : (municipalityId ? parseInt(municipalityId) : municipality_id);
+    : (municipalityId ? parseInt(municipalityId) : (req.body.primary_municipality_id ? parseInt(req.body.primary_municipality_id) : (municipality_id || 1)));
 
   const resolvedPackageType = role === 'PROVINCIAL_DOT' ? 'PROVINCIAL' : 'MUNICIPAL';
 
@@ -225,13 +229,13 @@ export const createTourPackage = async (req, res) => {
         creatorId,
         title,
         description || '',
-        price ? parseFloat(price) : 0.00,
-        durationDays ? parseInt(durationDays) : 1,
+        priceVal ? parseFloat(priceVal) : 0.00,
+        durationVal ? parseInt(durationVal) : 1,
         coverImageUrl,
         inclusions || '',
         resolvedPackageType,
-        maxCapacityPerDate ? parseInt(maxCapacityPerDate) : 30,
-        transportOption || 'BOTH',
+        capacityVal ? parseInt(capacityVal) : 30,
+        transportOption || req.body.transport_mode || 'BOTH',
         homestayIncluded === 'true' || homestayIncluded === true,
       ]
     );
@@ -314,8 +318,12 @@ export const updateTourPackage = async (req, res) => {
     ? (typeof req.body.items === 'string' ? JSON.parse(req.body.items) : req.body.items)
     : undefined;
 
-  let coverImageUrl = imageUrl !== undefined ? imageUrl : undefined;
+  let coverImageUrl = imageUrl !== undefined ? imageUrl : req.body.cover_image_url;
   if (req.file) coverImageUrl = req.file.secure_url || req.file.path || null;
+
+  const priceVal = price !== undefined && price !== '' ? price : req.body.price_per_pax;
+  const durationVal = durationDays !== undefined && durationDays !== '' ? durationDays : req.body.duration_days;
+  const capacityVal = maxCapacityPerDate !== undefined && maxCapacityPerDate !== '' ? maxCapacityPerDate : req.body.daily_capacity;
 
   try {
     const checkRes = await pool.query('SELECT * FROM packages WHERE id = $1', [id]);
@@ -344,12 +352,12 @@ export const updateTourPackage = async (req, res) => {
         [
           title !== undefined ? title : pkg.title,
           description !== undefined ? description : pkg.description,
-          price !== undefined ? parseFloat(price) : pkg.price,
-          durationDays !== undefined ? parseInt(durationDays) : pkg.duration_days,
+          priceVal !== undefined ? parseFloat(priceVal) : pkg.price,
+          durationVal !== undefined ? parseInt(durationVal) : pkg.duration_days,
           inclusions !== undefined ? inclusions : pkg.inclusions,
           coverImageUrl !== undefined ? coverImageUrl : pkg.image_url,
-          maxCapacityPerDate !== undefined ? parseInt(maxCapacityPerDate) : pkg.max_capacity,
-          transportOption !== undefined ? transportOption : pkg.transport_option,
+          capacityVal !== undefined ? parseInt(capacityVal) : pkg.max_capacity,
+          transportOption !== undefined ? transportOption : (req.body.transport_mode !== undefined ? req.body.transport_mode : pkg.transport_option),
           homestayIncluded !== undefined ? (homestayIncluded === 'true' || homestayIncluded === true) : pkg.homestay_included,
           id,
         ]
@@ -748,11 +756,15 @@ export const deleteTransportSchedule = async (req, res) => {
 export const createPackageBooking = async (req, res) => {
   const touristId = req.user.id;
   const { id: packageId } = req.params;
-  const {
-    travelDate, numberOfTourists, transportChoice, transportScheduleId,
-    homestayId, homestayCheckin, homestayCheckout, homestayRooms,
-    specialRequests
-  } = req.body;
+  const travelDate = req.body.travelDate || req.body.travel_date;
+  const numberOfTourists = req.body.numberOfTourists || req.body.number_of_tourists;
+  const transportChoice = req.body.transportChoice || req.body.transport_choice;
+  const transportScheduleId = req.body.transportScheduleId || req.body.transport_schedule_id;
+  const homestayId = req.body.homestayId || req.body.homestay_id;
+  const homestayCheckin = req.body.homestayCheckin || req.body.homestay_checkin;
+  const homestayCheckout = req.body.homestayCheckout || req.body.homestay_checkout;
+  const homestayRooms = req.body.homestayRooms || req.body.homestay_rooms;
+  const specialRequests = req.body.specialRequests || req.body.special_requests;
 
   if (!travelDate || !numberOfTourists || !transportChoice) {
     return res.status(400).json({ message: 'Travel date, number of tourists, and transport choice are required.' });

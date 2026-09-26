@@ -368,7 +368,7 @@ export const getApplications = async (req, res) => {
         `SELECT sd.*, mr.requirement_name, mr.is_required
          FROM submitted_documents sd
          JOIN municipal_requirements mr ON sd.requirement_id = mr.id
-         WHERE sd.user_id = ANY($1::int[])`,
+         WHERE sd.user_id = ANY($1::uuid[])`,
         [allUserIds]
       );
       for (const doc of docRes.rows) {
