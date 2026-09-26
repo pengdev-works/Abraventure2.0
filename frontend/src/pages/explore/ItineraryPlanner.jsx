@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { 
   Calendar, 
   Plus, 
@@ -22,9 +23,16 @@ import {
   Sparkles, 
   Package, 
   Compass,
-  ArrowRight
+  ArrowRight,
+  Search,
+  Filter,
+  Layers,
+  ChevronLeft,
+  Eye,
+  Check
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SafeImage from '../../components/common/SafeImage';
 
 const ItineraryPlanner = () => {
   const { token } = useAuth();
@@ -66,54 +74,173 @@ const ItineraryPlanner = () => {
   const [modalError, setModalError] = useState('');
   const [modalSuccess, setModalSuccess] = useState('');
 
+  const { showToast } = useToast();
+
   // Import Municipal Package state
   const [showPackageImportModal, setShowPackageImportModal] = useState(false);
   const [availablePackages, setAvailablePackages] = useState([]);
+  const [loadingPackages, setLoadingPackages] = useState(false);
   const [importingPkgId, setImportingPkgId] = useState(null);
 
+  // Filters inside Modal
+  const [pkgSearchQuery, setPkgSearchQuery] = useState('');
+  const [pkgMunicipalityFilter, setPkgMunicipalityFilter] = useState('ALL');
+  const [pkgDurationFilter, setPkgDurationFilter] = useState('ALL');
+
+  // Preview & Configuration state
+  const [previewPackage, setPreviewPackage] = useState(null);
+  const [previewItems, setPreviewItems] = useState([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [importStartDate, setImportStartDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
   const fetchAvailablePackages = async () => {
+    setLoadingPackages(true);
     try {
       const res = await fetch('/api/packages');
       if (res.ok) setAvailablePackages(await res.json());
     } catch (err) {
       console.error('Error fetching packages for import:', err);
+    } finally {
+      setLoadingPackages(false);
     }
   };
 
   const handleOpenPackageImportModal = async () => {
     setShowPackageImportModal(true);
+    setPreviewPackage(null);
+    setPreviewItems([]);
+    setPkgSearchQuery('');
+    setPkgMunicipalityFilter('ALL');
+    setPkgDurationFilter('ALL');
+    setImportStartDate(new Date().toISOString().split('T')[0]);
     await fetchAvailablePackages();
   };
 
-  const handleImportPackageDirect = async (packageId) => {
-    if (!token) return;
-    setImportingPkgId(packageId);
+  const handleSelectPackageForPreview = async (pkg) => {
+    setPreviewPackage(pkg);
+    setPreviewLoading(true);
     try {
-      const res = await fetch(`/api/packages/${packageId}/import`, {
+      const res = await fetch(`/api/packages/${pkg.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPreviewItems(data.items || []);
+      }
+    } catch (err) {
+      console.error('Error fetching package stops:', err);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!token || !previewPackage) return;
+    setImportingPkgId(previewPackage.id);
+    try {
+      const res = await fetch(`/api/packages/${previewPackage.id}/import`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({ startDate: importStartDate })
       });
       const data = await res.json();
       if (res.ok) {
+        showToast(
+          `Curated tour package "${previewPackage.title}" successfully imported with ${previewItems.length} stops!`,
+          'success',
+          5000,
+          'Package Imported'
+        );
         setShowPackageImportModal(false);
+        setPreviewPackage(null);
         await fetchItineraries();
         if (data.itinerary) {
           setSelectedItinerary(data.itinerary);
+          fetchItineraryDetails(data.itinerary.id);
         }
+        setMobileTab('schedule');
       } else {
-        alert(data.message || 'Failed to import package.');
+        showToast(data.message || 'Failed to import package.', 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('Error importing package.');
+      showToast('Network error importing package.', 'error');
     } finally {
       setImportingPkgId(null);
     }
   };
+
+  const packageMunicipalities = useMemo(() => {
+    const map = new Map();
+    availablePackages.forEach((pkg) => {
+      if (pkg.municipality_id && pkg.municipality_name) {
+        map.set(pkg.municipality_id, pkg.municipality_name);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [availablePackages]);
+
+  const filteredAvailablePackages = useMemo(() => {
+    return availablePackages.filter((pkg) => {
+      const q = pkgSearchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        (pkg.title && pkg.title.toLowerCase().includes(q)) ||
+        (pkg.municipality_name && pkg.municipality_name.toLowerCase().includes(q)) ||
+        (pkg.description && pkg.description.toLowerCase().includes(q)) ||
+        (pkg.inclusions && pkg.inclusions.toLowerCase().includes(q));
+
+      const matchesMun =
+        pkgMunicipalityFilter === 'ALL' ||
+        String(pkg.municipality_id) === String(pkgMunicipalityFilter) ||
+        pkg.municipality_name === pkgMunicipalityFilter;
+
+      const duration = parseInt(pkg.duration_days || 1, 10);
+      const matchesDuration =
+        pkgDurationFilter === 'ALL' ||
+        (pkgDurationFilter === '1' && duration === 1) ||
+        (pkgDurationFilter === '2' && duration === 2) ||
+        (pkgDurationFilter === '3+' && duration >= 3);
+
+      return matchesSearch && matchesMun && matchesDuration;
+    });
+  }, [availablePackages, pkgSearchQuery, pkgMunicipalityFilter, pkgDurationFilter]);
+
+  const previewStopsByDay = useMemo(() => {
+    const days = {};
+    previewItems.forEach((item) => {
+      const d = item.day_number || 1;
+      if (!days[d]) days[d] = [];
+      days[d].push(item);
+    });
+    return days;
+  }, [previewItems]);
+
+  const calculatedEndDateString = useMemo(() => {
+    if (!previewPackage || !importStartDate) return '';
+    try {
+      const parts = importStartDate.split('-').map(Number);
+      const startD = new Date(parts[0], parts[1] - 1, parts[2]);
+      const endD = new Date(parts[0], parts[1] - 1, parts[2] + Math.max(0, (previewPackage.duration_days || 1) - 1));
+      return endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return '';
+    }
+  }, [previewPackage, importStartDate]);
+
+  const formattedStartDateString = useMemo(() => {
+    if (!importStartDate) return '';
+    try {
+      const parts = importStartDate.split('-').map(Number);
+      const startD = new Date(parts[0], parts[1] - 1, parts[2]);
+      return startD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return '';
+    }
+  }, [importStartDate]);
 
   // Fetch all itineraries for the tourist
   const fetchItineraries = async () => {
@@ -1081,77 +1208,389 @@ const ItineraryPlanner = () => {
         </div>
       )}
 
-      {/* Import Municipal Package Modal */}
+      {/* Import Municipal Package Modal (Proper 2-Stage Preview & Date Configuration) */}
       {showPackageImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#232120]/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl border border-[#E8DFC8] animate-fadeIn max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-3xl border border-[var(--border-subtle)] animate-fadeIn max-h-[90vh] flex flex-col overflow-hidden text-[var(--text-primary)]">
+            
             {/* Modal Header */}
-            <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-[#F3ECE0] flex-shrink-0">
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#B88B2A] block mb-0.5">
-                  OFFICIAL MUNICIPAL PACKAGES
-                </span>
-                <h2 className="font-serif font-bold text-[#153325] text-lg flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#B88B2A]" /> Import Curated Tour Package
-                </h2>
-                <p className="text-xs text-[#5A534E] mt-0.5">
-                  Select a standardized package curated by Municipal Tourism Officers to import as an editable base itinerary.
-                </p>
+            <div className="flex justify-between items-center px-5 sm:px-6 pt-5 pb-4 border-b border-[var(--border-subtle)] bg-[var(--bg-card)] flex-shrink-0">
+              <div className="flex items-center gap-3">
+                {previewPackage && (
+                  <button
+                    onClick={() => {
+                      setPreviewPackage(null);
+                      setPreviewItems([]);
+                    }}
+                    className="p-1.5 rounded-lg border border-[var(--border-subtle)] hover:bg-[var(--bg-app)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer flex items-center gap-1 text-xs font-bold"
+                    title="Back to package list"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">Back</span>
+                  </button>
+                )}
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[var(--color-gold)] block">
+                    {previewPackage ? 'STEP 2: PREVIEW & CONFIGURE EXPEDITION' : 'OFFICIAL MUNICIPAL PACKAGES'}
+                  </span>
+                  <h2 className="font-serif font-bold text-lg sm:text-xl text-[var(--text-primary)] flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[var(--color-gold)]" />
+                    <span>{previewPackage ? previewPackage.title : 'Import Curated Tour Package'}</span>
+                  </h2>
+                </div>
               </div>
+
               <button
-                onClick={() => setShowPackageImportModal(false)}
-                className="p-1.5 rounded-lg hover:bg-[#FAF7F2] text-[#9E978E] hover:text-[#232120] cursor-pointer"
+                onClick={() => {
+                  setShowPackageImportModal(false);
+                  setPreviewPackage(null);
+                  setPreviewItems([]);
+                }}
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-app)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-4 flex-grow">
-              {availablePackages.length === 0 ? (
-                <div className="text-center py-12 text-[#5A534E]">
-                  <Package className="w-10 h-10 mx-auto text-[#DCD5C9] mb-2" />
-                  <p className="font-serif font-bold text-sm text-[#153325]">No official packages published yet</p>
-                  <p className="text-xs mt-1 text-[#5A534E]">Municipal Tourism Officers will publish verified packages here.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {availablePackages.map((pkg) => (
-                    <div key={pkg.id} className="border border-[#E8DFC8] rounded-2xl p-4 bg-[#FAF7F2] hover:bg-white hover:border-[#153325] transition-all flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex justify-between items-start mb-1.5">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-[#153325] bg-white px-2 py-0.5 rounded border border-[#E8DFC8]">
-                            {pkg.municipality_name}
-                          </span>
-                          <span className="text-xs font-bold text-[#B88B2A]">
-                            ₱{parseFloat(pkg.price).toLocaleString()}
-                          </span>
-                        </div>
-                        <h3 className="font-serif font-bold text-[#153325] text-sm line-clamp-1">{pkg.title}</h3>
-                        <p className="text-xs text-[#5A534E] mt-1 line-clamp-2 leading-relaxed">{pkg.description}</p>
-                        {pkg.inclusions && (
-                          <div className="text-[10px] text-[#153325] font-medium mt-2 bg-white p-2 rounded-lg border border-[#E8DFC8]">
-                            <strong className="text-[#232120]">Inclusions:</strong> {pkg.inclusions}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleImportPackageDirect(pkg.id)}
-                        disabled={importingPkgId === pkg.id}
-                        className="w-full py-2 btn-editorial-primary text-xs tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+            {/* Modal Content */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-grow space-y-5 bg-[var(--bg-app)]">
+              
+              {/* ────────────────────────────────────────────────────────
+                  STAGE 1: PACKAGE DISCOVERY & FILTERS
+                 ──────────────────────────────────────────────────────── */}
+              {!previewPackage && (
+                <div className="space-y-4">
+                  {/* Search and Filters Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 bg-[var(--bg-card)] p-3 rounded-xl border border-[var(--border-subtle)]">
+                    <div className="sm:col-span-5 relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                      <input
+                        type="text"
+                        value={pkgSearchQuery}
+                        onChange={(e) => setPkgSearchQuery(e.target.value)}
+                        placeholder="Search by package name, highlights..."
+                        className="w-full pl-8.5 pr-3 py-1.5 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--color-primary)]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-4">
+                      <select
+                        value={pkgMunicipalityFilter}
+                        onChange={(e) => setPkgMunicipalityFilter(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
                       >
-                        {importingPkgId === pkg.id ? (
-                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <option value="ALL">All Municipalities</option>
+                        {packageMunicipalities.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <select
+                        value={pkgDurationFilter}
+                        onChange={(e) => setPkgDurationFilter(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)]"
+                      >
+                        <option value="ALL">Any Duration</option>
+                        <option value="1">1 Day Trips</option>
+                        <option value="2">2 Days Trips</option>
+                        <option value="3+">3+ Days Circuits</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Packages List */}
+                  {loadingPackages ? (
+                    <div className="text-center py-16">
+                      <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      <p className="text-xs text-[var(--text-secondary)]">Loading official municipal packages...</p>
+                    </div>
+                  ) : filteredAvailablePackages.length === 0 ? (
+                    <div className="text-center py-16 bg-[var(--bg-card)] rounded-2xl border border-dashed border-[var(--border-subtle)] p-6">
+                      <Package className="w-10 h-10 mx-auto text-[var(--text-muted)] mb-2 opacity-60" />
+                      <p className="font-serif font-bold text-sm text-[var(--text-primary)]">
+                        {pkgSearchQuery || pkgMunicipalityFilter !== 'ALL' || pkgDurationFilter !== 'ALL'
+                          ? 'No matching packages found'
+                          : 'No official packages published yet'}
+                      </p>
+                      <p className="text-xs mt-1 text-[var(--text-secondary)] max-w-sm mx-auto">
+                        Municipal Tourism Offices verify and publish official tour packages here.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredAvailablePackages.map((pkg) => (
+                        <div
+                          key={pkg.id}
+                          className="border border-[var(--border-subtle)] rounded-2xl p-4 bg-[var(--bg-card)] hover:border-[var(--color-primary)] transition-all flex flex-col justify-between space-y-3 shadow-2xs hover:shadow-xs group overflow-hidden"
+                        >
+                          <div>
+                            {/* Package Cover Image */}
+                            <div className="relative h-44 -mx-4 -mt-4 mb-3.5 overflow-hidden bg-slate-100 dark:bg-stone-900">
+                              <SafeImage
+                                src={pkg.image_url || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800'}
+                                alt={pkg.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent pointer-events-none" />
+                              
+                              <div className="absolute top-2.5 left-2.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-100 bg-emerald-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                                  {pkg.municipality_name}
+                                </span>
+                              </div>
+
+                              <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-white">
+                                <span className="text-[10px] font-semibold bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/10">
+                                  ⏱️ {pkg.duration_days || 1} Day{pkg.duration_days > 1 ? 's' : ''}
+                                </span>
+                                <span className="text-xs font-bold text-[var(--color-gold-300)] bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-md border border-white/10">
+                                  ₱{parseFloat(pkg.price || 0).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+
+                            <h3 className="font-serif font-bold text-[var(--text-primary)] text-sm sm:text-base group-hover:text-[var(--color-primary)] transition-colors">
+                              {pkg.title}
+                            </h3>
+                            <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2 leading-relaxed">
+                              {pkg.description}
+                            </p>
+
+                            {pkg.inclusions && (
+                              <div className="text-[10px] text-[var(--text-secondary)] mt-2 bg-[var(--bg-app)] p-2 rounded-lg border border-[var(--border-subtle)] line-clamp-2">
+                                <strong className="text-[var(--text-primary)]">Inclusions:</strong> {pkg.inclusions}
+                              </div>
+                            )}
+
+                            {pkg.item_count > 0 && (
+                              <div className="mt-2 text-[10px] text-[var(--color-primary)] font-semibold flex items-center gap-1">
+                                <Layers className="w-3 h-3" />
+                                <span>{pkg.item_count} curated stops & waypoints</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center gap-2">
+                            <button
+                              onClick={() => handleSelectPackageForPreview(pkg)}
+                              className="btn-editorial-primary w-full py-2 text-xs font-bold tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> Preview & Select Date
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────────────────
+                  STAGE 2: PREVIEW DAY-BY-DAY STOPS & CONFIGURE START DATE
+                 ──────────────────────────────────────────────────────── */}
+              {previewPackage && (
+                <div className="space-y-5 animate-fadeIn">
+                  
+                  {/* Package Hero Banner with Cover Image */}
+                  <div className="relative h-48 sm:h-56 w-full rounded-2xl overflow-hidden border border-[var(--border-subtle)] shadow-sm">
+                    <SafeImage
+                      src={previewPackage.image_url || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200'}
+                      alt={previewPackage.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/15 pointer-events-none" />
+                    <div className="absolute bottom-4 left-4 right-4 text-white">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-100 bg-emerald-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                          {previewPackage.municipality_name} Tourism Office
+                        </span>
+                        <span className="text-[10px] font-bold bg-white/20 backdrop-blur-md px-2.5 py-0.5 rounded-full text-white">
+                          ⏱️ {previewPackage.duration_days || 1} Day{previewPackage.duration_days > 1 ? 's' : ''}
+                        </span>
+                        <span className="text-xs font-bold text-[var(--color-gold-300)] ml-auto bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/10">
+                          Package Fee: ₱{parseFloat(previewPackage.price || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <h2 className="text-lg sm:text-xl font-serif font-bold text-white leading-tight drop-shadow-sm">
+                        {previewPackage.title}
+                      </h2>
+                      <p className="text-xs text-white/85 line-clamp-2 mt-1 leading-relaxed max-w-2xl">
+                        {previewPackage.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {previewPackage.inclusions && (
+                    <div className="text-xs bg-[var(--bg-card)] p-3.5 rounded-xl border border-[var(--border-subtle)] text-[var(--text-secondary)] shadow-2xs">
+                      <strong className="text-[var(--text-primary)]">Official Inclusions: </strong>
+                      {previewPackage.inclusions}
+                    </div>
+                  )}
+
+                  {/* ── Expedition Start Date Configuration Box ── */}
+                  <div className="p-4 bg-[var(--bg-card)] rounded-2xl border-2 border-[var(--color-primary)]/40 shadow-xs space-y-3">
+                    <div className="flex items-center gap-2 text-[var(--color-primary)] font-bold text-xs uppercase tracking-wider">
+                      <Calendar className="w-4 h-4 text-[var(--color-gold)]" />
+                      <span>Choose Your Expedition Start Date *</span>
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      All day-by-day stops and milestones will be mapped out starting from this calendar date.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-wider mb-1">
+                          Start Date
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          min={new Date().toISOString().split('T')[0]}
+                          value={importStartDate}
+                          onChange={(e) => setImportStartDate(e.target.value)}
+                          className="w-full px-3 py-2 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-[var(--color-primary)] font-semibold cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="bg-[var(--bg-app)] p-3 rounded-xl border border-[var(--border-subtle)] flex flex-col justify-center">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                          Calculated Expedition Window
+                        </span>
+                        <span className="text-xs font-bold text-[var(--color-primary)] mt-0.5">
+                          {formattedStartDateString} – {calculatedEndDateString}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-secondary)]">
+                          ({previewPackage.duration_days || 1} Day schedule)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Scheduled Waypoints & Stops Preview ── */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-serif font-bold text-sm text-[var(--text-primary)] flex items-center gap-1.5">
+                        <Layers className="w-4 h-4 text-[var(--color-primary)]" />
+                        <span>Curated Waypoints & Scheduled Stops ({previewItems.length})</span>
+                      </h3>
+                      <span className="text-[11px] text-[var(--text-secondary)]">
+                        Imported as editable items into your trip
+                      </span>
+                    </div>
+
+                    {previewLoading ? (
+                      <div className="py-12 text-center bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)]">
+                        <div className="w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <p className="text-xs text-[var(--text-secondary)]">Loading stops & scheduled itinerary...</p>
+                      </div>
+                    ) : previewItems.length === 0 ? (
+                      <div className="p-6 text-center bg-[var(--bg-card)] rounded-2xl border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
+                        This package does not have pre-set item milestones. You will receive an editable {previewPackage.duration_days || 1}-day blank trip container.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {Object.keys(previewStopsByDay).sort((a,b) => a - b).map((dayNum) => (
+                          <div key={dayNum} className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden shadow-2xs">
+                            <div className="px-4 py-2.5 bg-[var(--bg-app)] border-b border-[var(--border-subtle)] flex items-center justify-between">
+                              <span className="font-serif font-bold text-xs text-[var(--color-primary)]">
+                                DAY {dayNum}
+                              </span>
+                              <span className="text-[10px] font-semibold text-[var(--text-secondary)]">
+                                {previewStopsByDay[dayNum].length} Activity / Stop{previewStopsByDay[dayNum].length > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div className="divide-y divide-[var(--border-subtle)]">
+                              {previewStopsByDay[dayNum].map((item, idx) => {
+                                const stopImage = item.attraction_image || item.homestay_image || item.guide_image;
+                                return (
+                                  <div key={idx} className="p-3.5 flex items-start gap-3.5 text-xs">
+                                    {stopImage ? (
+                                      <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-[var(--border-subtle)] bg-slate-100 dark:bg-stone-900 relative">
+                                        <SafeImage
+                                          src={stopImage}
+                                          alt={item.attraction_name || item.homestay_name || item.guide_name || 'Stop'}
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[9px] font-bold px-1 rounded">
+                                          #{idx + 1}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-xl bg-[var(--bg-app)] border border-[var(--border-subtle)] flex items-center justify-center flex-shrink-0 text-[var(--color-primary)] font-bold text-[11px]">
+                                        {idx + 1}
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-bold text-[var(--text-primary)]">
+                                          {item.attraction_name || item.homestay_name || item.guide_name || item.custom_activity_name || 'Activity'}
+                                        </span>
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--bg-app)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                                          {item.activity_type}
+                                        </span>
+                                        {item.time_slot && (
+                                          <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
+                                            <Clock className="w-3 h-3" /> {item.time_slot}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {item.notes && (
+                                        <p className="text-[11px] text-[var(--text-secondary)] mt-1 italic">
+                                          "{item.notes}"
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirmation Button Bar */}
+                  <div className="p-4 bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)] flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Ready to add <strong className="text-[var(--text-primary)]">{previewPackage.title}</strong> to your planner?
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => {
+                          setPreviewPackage(null);
+                          setPreviewItems([]);
+                        }}
+                        className="btn-editorial-ghost text-xs px-4 py-2 font-bold cursor-pointer flex-1 sm:flex-initial"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleConfirmImport}
+                        disabled={importingPkgId === previewPackage.id || !importStartDate}
+                        className="btn-editorial-primary text-xs px-6 py-2.5 font-bold tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-sm flex-1 sm:flex-initial disabled:opacity-60"
+                      >
+                        {importingPkgId === previewPackage.id ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Importing Stops...</span>
+                          </>
                         ) : (
                           <>
-                            <Sparkles className="w-3.5 h-3.5" /> Import Into Planner
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Confirm & Import Into Planner</span>
                           </>
                         )}
                       </button>
                     </div>
-                  ))}
+                  </div>
+
                 </div>
               )}
+
             </div>
           </div>
         </div>

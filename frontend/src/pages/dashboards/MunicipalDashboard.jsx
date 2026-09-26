@@ -10,7 +10,8 @@ import {
   MapPin, X, Calendar, BarChart3, MessageSquare, Star, Download,
   FileText, Tag, Send, Package, Menu, ArrowUpRight, ShieldCheck, Settings,
   Camera, Building2, QrCode, Award, Check, Clock, Shield, Lock, RefreshCw, Sparkles,
-  Film, Video, Play, Eye, EyeOff, Search, ExternalLink, Navigation, Layers, Globe, Home, ArrowRight
+  Film, Video, Play, Eye, EyeOff, Search, ExternalLink, Navigation, Layers, Globe, Home, ArrowRight,
+  UtensilsCrossed, ShoppingBag
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { jsPDF } from 'jspdf';
@@ -18,6 +19,7 @@ import * as XLSX from 'xlsx';
 import SafeImage from '../../components/common/SafeImage';
 import EyeComfortToggle from '../../components/common/EyeComfortToggle';
 import DocumentViewerModal from '../../components/common/DocumentViewerModal';
+import TourPackagesTab from './TourPackagesTab';
 
 const MunicipalDashboard = () => {
   const { token, user, logout, refreshUser } = useAuth();
@@ -161,6 +163,23 @@ const MunicipalDashboard = () => {
   const [previewPackageItems, setPreviewPackageItems] = useState([]);
   const [previewPkgLoading, setPreviewPkgLoading] = useState(false);
 
+  // ─── Local Food & Delicacies Management State ────────────────────────────
+  const [foods, setFoods] = useState([]);
+  const [foodsLoading, setFoodsLoading] = useState(false);
+  const [foodFormMode, setFoodFormMode] = useState('create'); // 'create' | 'edit'
+  const [editingFoodId, setEditingFoodId] = useState(null);
+  const [foodName, setFoodName] = useState('');
+  const [foodDesc, setFoodDesc] = useState('');
+  const [foodCategory, setFoodCategory] = useState('Signature Dish');
+  const [foodPriceRange, setFoodPriceRange] = useState('');
+  const [foodWhereToFind, setFoodWhereToFind] = useState('');
+  const [foodImageFile, setFoodImageFile] = useState(null);
+  const [foodImagePreview, setFoodImagePreview] = useState('');
+  const [foodFormLoading, setFoodFormLoading] = useState(false);
+  const [foodMsg, setFoodMsg] = useState({ type: '', text: '' });
+  const [foodSearch, setFoodSearch] = useState('');
+  const [foodCatFilter, setFoodCatFilter] = useState('ALL');
+
   // Sync profile details when user context loads
   useEffect(() => {
     if (user) {
@@ -226,6 +245,10 @@ const MunicipalDashboard = () => {
         setMunDescription(munData.municipality.description || '');
         setMunImages(munData.municipality.images || []);
         setAttractions(munData.attractions || []);
+        // Also seed foods from details if present
+        if (munData.foods && munData.foods.length > 0) {
+          setFoods(munData.foods);
+        }
       }
     } catch (err) {
       console.error('Error fetching municipality profile data:', err);
@@ -360,6 +383,7 @@ const MunicipalDashboard = () => {
     fetchComplaints();
     fetchPackages();
     fetchVideoAds();
+    fetchFoods();
   }, [token, user]);
 
   // Real-time live dashboard sync
@@ -400,6 +424,24 @@ const MunicipalDashboard = () => {
       console.error('Error fetching municipal video ads:', err);
     } finally {
       setVideoAdsLoading(false);
+    }
+  };
+
+  const fetchFoods = async () => {
+    if (!user?.municipalityId) return;
+    setFoodsLoading(true);
+    try {
+      const r = await fetch(`/api/municipalities/foods?municipality_id=${user.municipalityId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setFoods(Array.isArray(d) ? d : (d.foods || []));
+      }
+    } catch (err) {
+      console.error('Error fetching municipality foods:', err);
+    } finally {
+      setFoodsLoading(false);
     }
   };
 
@@ -1265,6 +1307,7 @@ const MunicipalDashboard = () => {
     { id: 'attractions', label: 'Local Attractions', icon: Compass },
     { id: 'packages', label: 'Tour Packages', icon: Package },
     { id: 'videoAds', label: 'Video Advertisements', icon: Film },
+    { id: 'localfood', label: 'Local Food & Delicacies', icon: UtensilsCrossed },
     { id: 'requirements', label: 'Accreditation Checklist', icon: FolderClosed },
     { id: 'review', label: 'Review Submissions', icon: CheckSquare },
     { id: 'stakeholders', label: 'Endorse Operators', icon: FileCheck },
@@ -1466,7 +1509,8 @@ const MunicipalDashboard = () => {
           <div className="bg-[var(--bg-card,#F3F8F4)] border border-[var(--border-app,#C7D7C9)] rounded-2xl shadow-sm p-4 sm:p-6 transition-colors">
 
         {/* Tour Packages Tab */}
-        {activeTab === 'packages' && (() => {
+        {activeTab === 'packages' && <TourPackagesTab />}
+        {activeTab === 'packages_legacy' && (() => {
           const totalPackages = packagesList.length;
           const avgDuration = totalPackages > 0
             ? (packagesList.reduce((sum, p) => sum + (parseInt(p.duration_days) || 1), 0) / totalPackages).toFixed(1)
@@ -4761,6 +4805,330 @@ const MunicipalDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Local Food & Delicacies Management Tab */}
+      {activeTab === 'localfood' && (() => {
+        const FOOD_CATEGORIES = [
+          'Signature Dish', 'Delicacies & Sweets', 'River Catch & Meat',
+          'Beverages & Wine', 'Agricultural Produce', 'Other'
+        ];
+        const filteredFoods = foods.filter(f => {
+          const q = foodSearch.trim().toLowerCase();
+          const matchQ = !q || f.name?.toLowerCase().includes(q) || f.description?.toLowerCase().includes(q);
+          const matchCat = foodCatFilter === 'ALL' || f.category === foodCatFilter;
+          return matchQ && matchCat;
+        });
+
+        const resetFoodForm = () => {
+          setFoodFormMode('create');
+          setEditingFoodId(null);
+          setFoodName('');
+          setFoodDesc('');
+          setFoodCategory('Signature Dish');
+          setFoodPriceRange('');
+          setFoodWhereToFind('');
+          setFoodImageFile(null);
+          setFoodImagePreview('');
+          setFoodMsg({ type: '', text: '' });
+          const fi = document.getElementById('food-img-input');
+          if (fi) fi.value = '';
+        };
+
+        const handleFoodImageChange = (e) => {
+          const file = e.target.files[0];
+          if (file) { setFoodImageFile(file); setFoodImagePreview(URL.createObjectURL(file)); }
+        };
+
+        const handleFoodSubmit = async (e) => {
+          e.preventDefault();
+          if (!foodName.trim()) return;
+          setFoodFormLoading(true);
+          setFoodMsg({ type: '', text: '' });
+          const fd = new FormData();
+          fd.append('name', foodName.trim());
+          fd.append('description', foodDesc.trim());
+          fd.append('category', foodCategory);
+          fd.append('price_range', foodPriceRange.trim());
+          fd.append('where_to_find', foodWhereToFind.trim());
+          fd.append('municipality_id', user?.municipalityId);
+          if (foodImageFile) fd.append('image', foodImageFile);
+          try {
+            const url = editingFoodId
+              ? `/api/municipalities/foods/${editingFoodId}`
+              : '/api/municipalities/foods';
+            const method = editingFoodId ? 'PUT' : 'POST';
+            const res = await fetch(url, { method, headers: { 'Authorization': `Bearer ${token}` }, body: fd });
+            const resData = await res.json();
+            if (res.ok) {
+              setFoodMsg({ type: 'success', text: editingFoodId ? 'Food item updated!' : 'Food item added!' });
+              resetFoodForm();
+              // Refresh foods list
+              const r2 = await fetch(`/api/municipalities/foods?municipality_id=${user?.municipalityId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+              if (r2.ok) { const d2 = await r2.json(); setFoods(d2.foods || d2); }
+            } else {
+              setFoodMsg({ type: 'error', text: resData.message || 'Failed to save food.' });
+            }
+          } catch (err) {
+            console.error(err);
+            setFoodMsg({ type: 'error', text: 'Server error.' });
+          } finally {
+            setFoodFormLoading(false);
+          }
+        };
+
+        const handleEditFood = (f) => {
+          setFoodFormMode('edit');
+          setEditingFoodId(f.id);
+          setFoodName(f.name || '');
+          setFoodDesc(f.description || '');
+          setFoodCategory(f.category || 'Signature Dish');
+          setFoodPriceRange(f.price_range || '');
+          setFoodWhereToFind(f.where_to_find || '');
+          setFoodImagePreview(f.image_url || '');
+          setFoodImageFile(null);
+          setFoodMsg({ type: '', text: '' });
+          document.getElementById('food-form-panel')?.scrollIntoView({ behavior: 'smooth' });
+        };
+
+        const handleDeleteFood = async (id) => {
+          const result = await Swal.fire({
+            title: 'Delete this food item?',
+            text: 'This action cannot be undone.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#153325',
+            cancelButtonColor: '#94a3b8',
+            confirmButtonText: 'Yes, delete!',
+            customClass: { popup: 'rounded-3xl' }
+          });
+          if (!result.isConfirmed) return;
+          try {
+            const res = await fetch(`/api/municipalities/foods/${id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+              showAlert('Food item deleted.', 'success');
+              setFoods(prev => prev.filter(f => f.id !== id));
+              if (editingFoodId === id) resetFoodForm();
+            } else {
+              showAlert('Failed to delete food item.', 'error');
+            }
+          } catch {
+            showAlert('Server error.', 'error');
+          }
+        };
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Form Column */}
+            <div id="food-form-panel" className="lg:col-span-4 space-y-5">
+              <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-6 shadow-xs">
+                <div className="flex items-center justify-between border-b border-[var(--border-app,#C7D7C9)] pb-3 mb-4">
+                  <div>
+                    <h3 className="font-serif font-bold text-base text-[#153325] flex items-center gap-1.5">
+                      <UtensilsCrossed className="w-4 h-4 text-[#B88B2A]" />
+                      <span>{foodFormMode === 'edit' ? 'Edit Food Item' : 'Add Local Food'}</span>
+                    </h3>
+                    <p className="text-xs text-[#5A534E] mt-0.5">
+                      {foodFormMode === 'edit' ? `Updating "${foodName}"` : 'Add authentic local dishes, delicacies, and signature flavors.'}
+                    </p>
+                  </div>
+                  {foodFormMode === 'edit' && (
+                    <button type="button" onClick={resetFoodForm} className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">Cancel</button>
+                  )}
+                </div>
+
+                {foodMsg.text && (
+                  <div className={`mb-3 p-3 rounded-xl text-xs font-semibold ${foodMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {foodMsg.text}
+                  </div>
+                )}
+
+                <form onSubmit={handleFoodSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#153325] mb-1">Food Name <span className="text-red-500">*</span></label>
+                    <input
+                      type="text" required value={foodName}
+                      onChange={e => setFoodName(e.target.value)}
+                      placeholder="e.g. Dinengdeng, Pinikpikan, Bagnet"
+                      className="w-full px-3 py-2 border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:border-[#153325] bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#153325] mb-1">Category</label>
+                    <select
+                      value={foodCategory} onChange={e => setFoodCategory(e.target.value)}
+                      className="w-full px-3 py-2 border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                    >
+                      {FOOD_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#153325] mb-1">Description</label>
+                    <textarea
+                      rows={4} value={foodDesc} onChange={e => setFoodDesc(e.target.value)}
+                      placeholder="Describe the flavor, ingredients, and cultural significance..."
+                      className="w-full px-3 py-2 border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs resize-none focus:outline-none focus:border-[#153325]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">Price Range</label>
+                      <input
+                        type="text" value={foodPriceRange} onChange={e => setFoodPriceRange(e.target.value)}
+                        placeholder="e.g. ₱50–₱150"
+                        className="w-full px-3 py-2 border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:border-[#153325] bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#153325] mb-1">Where to Find / Buy</label>
+                      <input
+                        type="text" value={foodWhereToFind} onChange={e => setFoodWhereToFind(e.target.value)}
+                        placeholder="e.g. Bangued Public Market"
+                        className="w-full px-3 py-2 border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs focus:outline-none focus:border-[#153325] bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Image Upload */}
+                  <div>
+                    <label className="block text-xs font-bold text-[#153325] mb-1">Food Photo</label>
+                    {foodImagePreview && (
+                      <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-2 bg-[#153325] border border-[var(--border-app,#C7D7C9)]">
+                        <img src={foodImagePreview} alt="preview" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => { setFoodImageFile(null); setFoodImagePreview(''); const fi = document.getElementById('food-img-input'); if (fi) fi.value = ''; }}
+                          className="absolute top-2 right-2 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                    <label htmlFor="food-img-input" className="flex items-center gap-2 px-3 py-2 bg-[#F3ECE0] border border-[#E8DFC8] rounded-xl text-xs font-semibold text-[#153325] hover:bg-[#E8DFC8] transition-colors cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{foodImageFile ? foodImageFile.name : 'Upload food photo'}</span>
+                    </label>
+                    <input id="food-img-input" type="file" accept="image/*" onChange={handleFoodImageChange} className="sr-only" />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={foodFormLoading}
+                    className="w-full py-2.5 bg-[#153325] hover:bg-[#1D4433] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  >
+                    {foodFormLoading ? (
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>Saving…</span></>
+                    ) : (
+                      <><Plus className="w-3.5 h-3.5" /><span>{foodFormMode === 'edit' ? 'Update Food Item' : 'Add Food Item'}</span></>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Directory Column */}
+            <div className="lg:col-span-8 space-y-4">
+              {/* Header + Search */}
+              <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-5 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+                  <h3 className="font-serif font-bold text-base text-[#153325] flex-1">
+                    Local Food Registry <span className="text-sm font-normal text-[#5A534E] ml-1">({filteredFoods.length} items)</span>
+                  </h3>
+                  <div className="relative w-full sm:w-52">
+                    <Search className="w-3.5 h-3.5 text-[#5A534E]/60 absolute left-2.5 top-2 pointer-events-none" />
+                    <input
+                      type="text" value={foodSearch} onChange={e => setFoodSearch(e.target.value)}
+                      placeholder="Search food…"
+                      className="w-full pl-7 pr-3 py-1.5 border border-[var(--border-app,#C7D7C9)] rounded-xl text-xs bg-[#F3ECE0] focus:outline-none focus:border-[#153325]"
+                    />
+                  </div>
+                </div>
+                {/* Category Filter */}
+                <div className="flex flex-wrap gap-1.5">
+                  {['ALL', ...FOOD_CATEGORIES].map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setFoodCatFilter(cat)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                        foodCatFilter === cat ? 'bg-[#153325] text-white' : 'bg-[#F3ECE0] text-[#5A534E] hover:bg-[#E8DFC8]'
+                      }`}
+                    >
+                      {cat === 'ALL' ? 'All' : cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Food Cards */}
+              {filteredFoods.length === 0 ? (
+                <div className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-12 text-center shadow-xs">
+                  <UtensilsCrossed className="w-10 h-10 text-[#B88B2A] mx-auto mb-3 opacity-40" />
+                  <p className="font-serif text-base font-bold text-[#153325] mb-1">No food items yet</p>
+                  <p className="text-xs text-[#5A534E]">Add local dishes and delicacies using the form to help tourists discover {user?.municipalityName}'s culinary heritage.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredFoods.map(f => (
+                    <div key={f.id} className="bg-white border border-[var(--border-app,#C7D7C9)] rounded-2xl p-4 shadow-xs flex gap-4 items-start hover:shadow-md transition-all">
+                      {/* Thumbnail */}
+                      <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-[#F3ECE0] border border-[var(--border-app,#C7D7C9)]">
+                        {f.image_url ? (
+                          <img src={f.image_url} alt={f.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-2xl">
+                            🍽️
+                          </div>
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#B88B2A]">{f.category}</span>
+                            <h4 className="font-serif font-bold text-sm text-[#153325] mt-0.5">{f.name}</h4>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={() => handleEditFood(f)}
+                              className="p-1.5 rounded-lg bg-[#F3ECE0] hover:bg-[#153325] hover:text-white text-[#153325] transition-all cursor-pointer"
+                              title="Edit"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteFood(f.id)}
+                              className="p-1.5 rounded-lg bg-red-50 hover:bg-red-500 hover:text-white text-red-600 transition-all cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-[#5A534E] line-clamp-2 mt-1">{f.description}</p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {f.price_range && (
+                            <span className="text-[10px] font-semibold text-[#153325] bg-[#F3ECE0] px-2 py-0.5 rounded-md border border-[#E8DFC8]">💰 {f.price_range}</span>
+                          )}
+                          {f.where_to_find && (
+                            <span className="text-[10px] font-semibold text-[#153325] bg-[#F3ECE0] px-2 py-0.5 rounded-md border border-[#E8DFC8] flex items-center gap-1">
+                              <ShoppingBag className="w-2.5 h-2.5" />{f.where_to_find}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tourist Inquiries Tab */}
       {activeTab === 'inquiries' && (

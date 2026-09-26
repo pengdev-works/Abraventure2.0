@@ -9,8 +9,9 @@ import {
   FileText, CheckCircle, BarChart3, Megaphone, ClipboardList,
   Download, Plus, Trash2, Edit, Bell, Image, UserPlus, X, Key, Building2,
   Settings, Menu, Globe, ArrowUpRight, Lock, Sliders, Shield,
-  Video, Film, Play, Eye, EyeOff, Sparkles, ExternalLink, RefreshCw
+  Video, Film, Play, Eye, EyeOff, Sparkles, ExternalLink, RefreshCw, Package
 } from 'lucide-react';
+import ProvincialPackagesTab from './ProvincialPackagesTab';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
 import SafeImage from '../../components/common/SafeImage';
@@ -950,6 +951,7 @@ const ProvincialDashboard = () => {
 
   const tabList = [
     { id: 'accounts', label: 'Municipal Accounts', icon: Landmark },
+    { id: 'packages', label: 'Tour Packages & Circuits', icon: Package },
     { id: 'listings', label: 'Stakeholders Review', icon: FileText },
     { id: 'analytics', label: 'Province Analytics', icon: BarChart3 },
     { id: 'announcements', label: 'Announcements', icon: Megaphone },
@@ -1199,6 +1201,9 @@ const ProvincialDashboard = () => {
 
           {/* Tab Content Card */}
           <div className="bg-white border border-[#E8DFC8] rounded-2xl shadow-sm p-4 sm:p-6">
+
+        {/* Tour Packages & Circuits Tab */}
+        {activeTab === 'packages' && <ProvincialPackagesTab />}
 
         {/* Accounts Tab */}
         {activeTab === 'accounts' && (

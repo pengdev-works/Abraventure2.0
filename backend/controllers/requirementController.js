@@ -5,6 +5,10 @@ export const createRequirement = async (req, res) => {
   const { requirementName, description, targetType, isRequired } = req.body;
   const { municipality_id } = req.user; // from JWT token
 
+  if (!municipality_id) {
+    return res.status(403).json({ message: 'Forbidden. No municipality assigned to your account.' });
+  }
+
   if (!requirementName || !targetType) {
     return res.status(400).json({ message: 'Requirement name and target type are required.' });
   }
@@ -14,7 +18,7 @@ export const createRequirement = async (req, res) => {
       `INSERT INTO municipal_requirements (municipality_id, target_type, requirement_name, description, is_required)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [municipality_id, targetType, requirementName, description, isRequired !== false]
+      [municipality_id, targetType, requirementName.trim(), description || '', isRequired !== false]
     );
 
     return res.status(201).json({
@@ -75,6 +79,7 @@ export const updateRequirement = async (req, res) => {
       return res.status(403).json({ message: 'Forbidden. You do not manage requirements for this municipality.' });
     }
 
+    const isReqVal = typeof isRequired === 'boolean' ? isRequired : null;
     const result = await pool.query(
       `UPDATE municipal_requirements 
        SET requirement_name = COALESCE($1, requirement_name),
@@ -83,7 +88,13 @@ export const updateRequirement = async (req, res) => {
            is_required = COALESCE($4, is_required)
        WHERE id = $5
        RETURNING *`,
-      [requirementName, description, targetType, isRequired, id]
+      [
+        requirementName || null,
+        description !== undefined ? description : null,
+        targetType || null,
+        isReqVal,
+        id
+      ]
     );
 
     return res.status(200).json({

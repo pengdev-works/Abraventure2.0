@@ -1,12 +1,10 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
+import { JWT_SECRET } from '../config/constants.js';
 import { emitToRole, emitToUser } from '../socket/socketManager.js';
+import { sendNotification } from '../utils/notify.js';
 
-dotenv.config();
-
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkeyforabraventure2026';
 
 // Strict Password Complexity Policy: minimum 8 characters, at least 1 uppercase, 1 lowercase, 1 number, and 1 special character
 export const validatePasswordPolicy = (password) => {
@@ -78,11 +76,13 @@ export const register = async (req, res) => {
     const user = userResult.rows[0];
 
     // Log welcome notification
-    await client.query(
-      `INSERT INTO notifications (user_id, title, message, type)
-       VALUES ($1, $2, $3, 'INFO')`,
-      [user.id, 'Welcome to AbraVenture!', 'Your tourist account is active. Start exploring Abra, building itineraries, and connecting with accredited providers.', 'INFO']
-    ).catch(() => {});
+    await sendNotification(
+      client,
+      user.id,
+      'Welcome to AbraVenture!',
+      'Your tourist account is active. Start exploring Abra, building itineraries, and connecting with accredited providers.',
+      'INFO'
+    );
 
     await client.query('COMMIT');
 
@@ -297,15 +297,13 @@ export const applyProvider = async (req, res) => {
     }
 
     // Insert pending status notification
-    await client.query(
-      `INSERT INTO notifications (user_id, title, message, type)
-       VALUES ($1, $2, $3, 'ACCREDITATION')`,
-      [
-        user.id,
-        'Application Submitted',
-        `Your accreditation application (${referenceNumber}) has been received and is currently under review by the Provincial Tourism Office.`,
-      ]
-    ).catch(() => {});
+    await sendNotification(
+      client,
+      user.id,
+      'Application Submitted',
+      `Your accreditation application (${referenceNumber}) has been received and is currently under review by the Provincial Tourism Office.`,
+      'ACCREDITATION'
+    );
 
     // Log in audit trail
     await client.query(

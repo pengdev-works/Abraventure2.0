@@ -1,8 +1,6 @@
 import pool from '../config/db.js';
-import upload from '../middleware/uploadMiddleware.js';
 import { emitToUser } from '../socket/socketManager.js';
-
-export { upload };
+import { sendNotification } from '../utils/notify.js';
 
 // Send booking inquiry (Tourist only)
 export const createInquiry = async (req, res) => {
@@ -77,10 +75,14 @@ export const createInquiry = async (req, res) => {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id=$1', [homestayId]);
       if (ownerRes.rows.length > 0) {
         const ownerId = ownerRes.rows[0].owner_id;
-        await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type, link) VALUES ($1, $2, $3, 'BOOKING', '/owner-dashboard?tab=inquiries')`,
-          [ownerId, 'New Booking Inquiry', `A tourist sent a booking inquiry for your homestay${paymentProofUrl ? ' with payment proof attached' : ''}.`]
-        ).catch(() => {});
+        await sendNotification(
+          pool,
+          ownerId,
+          'New Booking Inquiry',
+          `A tourist sent a booking inquiry for your homestay${paymentProofUrl ? ' with payment proof attached' : ''}.`,
+          'BOOKING',
+          '/owner-dashboard?tab=inquiries'
+        );
         // ── Real-time socket push ──
         emitToUser(ownerId, 'inquiry:new', { inquiry: result.rows[0] });
       }
@@ -89,10 +91,14 @@ export const createInquiry = async (req, res) => {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id=$1', [guideId]);
       if (guideRes.rows.length > 0) {
         const guideUserId = guideRes.rows[0].guide_id;
-        await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type, link) VALUES ($1, $2, $3, 'BOOKING', '/guide-dashboard?tab=inquiries')`,
-          [guideUserId, 'New Booking Inquiry', 'A tourist sent a booking inquiry for your guide services.']
-        ).catch(() => {});
+        await sendNotification(
+          pool,
+          guideUserId,
+          'New Booking Inquiry',
+          'A tourist sent a booking inquiry for your guide services.',
+          'BOOKING',
+          '/guide-dashboard?tab=inquiries'
+        );
         // ── Real-time socket push ──
         emitToUser(guideUserId, 'inquiry:new', { inquiry: result.rows[0] });
       }
@@ -121,8 +127,11 @@ export const getInquiries = async (req, res) => {
       // Tourist sees inquiries they sent
       query = `
         SELECT i.*, 
-               h.name as homestay_name, h.contact_phone as homestay_phone,
-               u.full_name as guide_name, tg.profile_picture_url as guide_pic
+               h.name as homestay_name, h.address as homestay_address, 
+               h.contact_phone as homestay_phone, h.contact_email as homestay_email,
+               (SELECT image_url FROM homestay_images hi WHERE hi.homestay_id = h.id ORDER BY hi.is_featured DESC, hi.uploaded_at ASC LIMIT 1) as homestay_image,
+               u.full_name as guide_name, u.phone_number as guide_phone, u.email as guide_email,
+               tg.profile_picture_url as guide_pic
         FROM bookings_inquiries i
         LEFT JOIN homestay_profiles h ON i.homestay_id = h.id
         LEFT JOIN tour_guide_profiles tg ON i.guide_id = tg.id
@@ -162,6 +171,9 @@ export const getInquiries = async (req, res) => {
           ORDER BY i.created_at DESC`;
         params = [];
       } else {
+        if (!req.user.municipality_id) {
+          return res.status(200).json([]);
+        }
         query = `
           SELECT i.*, u.full_name as tourist_name, 
                  h.name as homestay_name, 
@@ -231,15 +243,14 @@ export const replyInquiry = async (req, res) => {
 
     if (checkRes.rows[0]?.tourist_id) {
       const touristId = checkRes.rows[0].tourist_id;
-      await pool.query(
-        `INSERT INTO notifications (user_id, title, message, type, link)
-         VALUES ($1, $2, $3, 'BOOKING', '/tourist-dashboard?tab=bookings')`,
-        [
-          touristId,
-          `Booking Update: ${newStatus}`,
-          `Your booking inquiry has been updated to ${newStatus}.`
-        ]
-      ).catch(() => {});
+      await sendNotification(
+        pool,
+        touristId,
+        `Booking Update: ${newStatus}`,
+        `Your booking inquiry has been updated to ${newStatus}.`,
+        'BOOKING',
+        '/tourist-dashboard?tab=bookings'
+      );
       // ── Real-time: push update to tourist ──
       emitToUser(touristId, 'inquiry:updated', { inquiry: result.rows[0] });
     }
@@ -288,21 +299,27 @@ export const uploadPaymentProof = async (req, res) => {
     if (booking.homestay_id) {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id = $1', [booking.homestay_id]);
       if (ownerRes.rows.length > 0) {
-        await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type, link)
-           VALUES ($1, $2, $3, 'BOOKING', '/owner-dashboard?tab=inquiries')`,
-          [ownerRes.rows[0].owner_id, 'Payment Proof Uploaded', `A guest has uploaded proof of payment for your homestay.`]
-        ).catch(() => {});
+        await sendNotification(
+          pool,
+          ownerRes.rows[0].owner_id,
+          'Payment Proof Uploaded',
+          `A guest has uploaded proof of payment for your homestay.`,
+          'BOOKING',
+          '/owner-dashboard?tab=inquiries'
+        );
       }
     }
     if (booking.guide_id) {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id = $1', [booking.guide_id]);
       if (guideRes.rows.length > 0) {
-        await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type, link)
-           VALUES ($1, $2, $3, 'BOOKING', '/guide-dashboard?tab=inquiries')`,
-          [guideRes.rows[0].guide_id, 'Payment Proof Uploaded', `A tourist has uploaded proof of payment for your services.`]
-        ).catch(() => {});
+        await sendNotification(
+          pool,
+          guideRes.rows[0].guide_id,
+          'Payment Proof Uploaded',
+          `A tourist has uploaded proof of payment for your services.`,
+          'BOOKING',
+          '/guide-dashboard?tab=inquiries'
+        );
       }
     }
 

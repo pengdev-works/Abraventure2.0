@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { emitToUser, emitToAll } from '../socket/socketManager.js';
+import { sendNotification } from '../utils/notify.js';
 
 // GET /api/reviews?homestayId=...&guideId=...
 export const getReviews = async (req, res) => {
@@ -37,10 +38,10 @@ export const createReview = async (req, res) => {
 
   try {
     // Check if tourist already reviewed this item
-    const dupeCheck = await pool.query(
-      `SELECT id FROM reviews WHERE tourist_id=$1 AND (homestay_id=$2 OR guide_id=$3)`,
-      [req.user.id, homestayId || null, guideId || null]
-    );
+    const dupeCheck = homestayId
+      ? await pool.query('SELECT id FROM reviews WHERE tourist_id = $1 AND homestay_id = $2', [req.user.id, homestayId])
+      : await pool.query('SELECT id FROM reviews WHERE tourist_id = $1 AND guide_id = $2', [req.user.id, guideId]);
+
     if (dupeCheck.rows.length > 0) {
       return res.status(400).json({ message: 'You have already reviewed this listing.' });
     }
@@ -55,23 +56,31 @@ export const createReview = async (req, res) => {
     if (homestayId) {
       const ownerRes = await pool.query('SELECT owner_id FROM homestay_profiles WHERE id=$1', [homestayId]);
       if (ownerRes.rows.length > 0) {
-        emitToUser(ownerRes.rows[0].owner_id, 'review:new', { review: result.rows[0], homestayId });
-        await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type, link)
-           VALUES ($1, $2, $3, 'REVIEW', '/owner-dashboard?tab=reviews')`,
-          [ownerRes.rows[0].owner_id, 'New Review Received', `A tourist left a ${rating}-star review on your homestay.`]
-        ).catch(() => {});
+        const ownerId = ownerRes.rows[0].owner_id;
+        emitToUser(ownerId, 'review:new', { review: result.rows[0], homestayId });
+        await sendNotification(
+          pool,
+          ownerId,
+          'New Review Received',
+          `A tourist left a ${rating}-star review on your homestay.`,
+          'REVIEW',
+          '/owner-dashboard?tab=reviews'
+        );
       }
     }
     if (guideId) {
       const guideRes = await pool.query('SELECT guide_id FROM tour_guide_profiles WHERE id=$1', [guideId]);
       if (guideRes.rows.length > 0) {
-        emitToUser(guideRes.rows[0].guide_id, 'review:new', { review: result.rows[0], guideId });
-        await pool.query(
-          `INSERT INTO notifications (user_id, title, message, type, link)
-           VALUES ($1, $2, $3, 'REVIEW', '/guide-dashboard?tab=reviews')`,
-          [guideRes.rows[0].guide_id, 'New Review Received', `A tourist left a ${rating}-star review on your guide profile.`]
-        ).catch(() => {});
+        const guideOwnerId = guideRes.rows[0].guide_id;
+        emitToUser(guideOwnerId, 'review:new', { review: result.rows[0], guideId });
+        await sendNotification(
+          pool,
+          guideOwnerId,
+          'New Review Received',
+          `A tourist left a ${rating}-star review on your guide profile.`,
+          'REVIEW',
+          '/guide-dashboard?tab=reviews'
+        );
       }
     }
 

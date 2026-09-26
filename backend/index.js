@@ -22,6 +22,7 @@ import announcementRoutes from './routes/announcementRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
 import backupRoutes from './routes/backupRoutes.js';
 import packageRoutes from './routes/packageRoutes.js';
+import tourPackageRoutes from './routes/tourPackageRoutes.js';
 import advertisementRoutes from './routes/advertisementRoutes.js';
 import { initOverdueCronJob, checkOverdueAssetsAndNotify } from './jobs/overdueAssetsCron.js';
 import { setSecurityHeaders, sanitizeInput, globalApiRateLimiter } from './middleware/securityMiddleware.js';
@@ -242,6 +243,96 @@ pool.query(`
   ALTER TABLE tour_guide_profiles ADD COLUMN IF NOT EXISTS years_of_experience INT DEFAULT 0;
   ALTER TABLE tour_guide_profiles ADD COLUMN IF NOT EXISTS specializations TEXT;
   ALTER TABLE tour_guide_profiles ADD COLUMN IF NOT EXISTS reference_number VARCHAR(50);
+
+  -- ── Tour Package & Multi-Municipality Booking Module ──────────────────────
+  -- Extend existing packages table with new workflow columns
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'APPROVED';
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS package_type VARCHAR(20) DEFAULT 'MUNICIPAL';
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS max_capacity INT DEFAULT 30;
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS transport_option VARCHAR(20) DEFAULT 'BOTH';
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS homestay_included BOOLEAN DEFAULT false;
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS review_remarks TEXT;
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES user_accounts(id) ON DELETE SET NULL;
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE;
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE;
+  ALTER TABLE packages ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;
+
+  -- Multi-municipality coordination
+  CREATE TABLE IF NOT EXISTS package_municipalities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    package_id UUID REFERENCES packages(id) ON DELETE CASCADE,
+    municipality_id INT REFERENCES municipalities(id) ON DELETE CASCADE,
+    status VARCHAR(30) DEFAULT 'PENDING',
+    confirmed_by UUID REFERENCES user_accounts(id) ON DELETE SET NULL,
+    confirmed_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Per-date capacity slots
+  CREATE TABLE IF NOT EXISTS package_schedules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    package_id UUID REFERENCES packages(id) ON DELETE CASCADE,
+    travel_date DATE NOT NULL,
+    max_capacity INT NOT NULL DEFAULT 30,
+    reserved_count INT NOT NULL DEFAULT 0,
+    is_available BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(package_id, travel_date)
+  );
+
+  -- Vehicle / transportation slots
+  CREATE TABLE IF NOT EXISTS package_transport_schedules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    package_id UUID REFERENCES packages(id) ON DELETE CASCADE,
+    travel_date DATE NOT NULL,
+    vehicle_label VARCHAR(100) NOT NULL,
+    departure_time TIME,
+    total_seats INT NOT NULL DEFAULT 10,
+    reserved_seats INT NOT NULL DEFAULT 0,
+    driver_name VARCHAR(255),
+    route_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Tourist tour package bookings (separate from homestay/guide inquiries)
+  CREATE TABLE IF NOT EXISTS tour_package_bookings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_reference VARCHAR(30) UNIQUE NOT NULL,
+    tourist_id UUID REFERENCES user_accounts(id) ON DELETE SET NULL,
+    package_id UUID REFERENCES packages(id) ON DELETE SET NULL,
+    schedule_id UUID REFERENCES package_schedules(id) ON DELETE SET NULL,
+    transport_schedule_id UUID REFERENCES package_transport_schedules(id) ON DELETE SET NULL,
+    travel_date DATE NOT NULL,
+    end_date DATE,
+    number_of_tourists INT NOT NULL DEFAULT 1,
+    transport_choice VARCHAR(20) NOT NULL DEFAULT 'OWN',
+    homestay_id UUID REFERENCES homestay_profiles(id) ON DELETE SET NULL,
+    homestay_checkin DATE,
+    homestay_checkout DATE,
+    homestay_rooms INT DEFAULT 0,
+    assigned_guide_id UUID REFERENCES tour_guide_profiles(id) ON DELETE SET NULL,
+    status VARCHAR(30) DEFAULT 'PENDING',
+    payment_status VARCHAR(30) DEFAULT 'UNPAID',
+    payment_proof_url TEXT,
+    total_amount DECIMAL(10,2),
+    special_requests TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Municipality Local Food & Delicacies
+  CREATE TABLE IF NOT EXISTS municipality_foods (
+    id SERIAL PRIMARY KEY,
+    municipality_id INT REFERENCES municipalities(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'Delicacy',
+    description TEXT NOT NULL,
+    image_url TEXT,
+    price_range VARCHAR(100),
+    where_to_find TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 `)
   .then(async () => {
     try {
@@ -259,6 +350,26 @@ pool.query(`
     } catch (err) {
       console.warn('[DATABASE] ALTER TYPE account_status (INACTIVE):', err.message);
     }
+
+    // Auto-seed municipality local foods if table is empty
+    try {
+      const foodCountRes = await pool.query('SELECT COUNT(*) FROM municipality_foods');
+      if (parseInt(foodCountRes.rows[0].count, 10) === 0) {
+        console.log('[DATABASE] Seeding authentic local foods for all 27 Abra municipalities...');
+        const { DEFAULT_MUNICIPALITY_FOODS } = await import('./data/municipalityFoodsData.js');
+        for (const food of DEFAULT_MUNICIPALITY_FOODS) {
+          await pool.query(
+            `INSERT INTO municipality_foods (municipality_id, name, category, description, image_url, price_range, where_to_find)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [food.municipality_id, food.name, food.category, food.description, food.image_url, food.price_range, food.where_to_find]
+          );
+        }
+        console.log('[DATABASE] Successfully seeded authentic local foods.');
+      }
+    } catch (foodErr) {
+      console.warn('[DATABASE] Food seeding check/migration:', foodErr.message);
+    }
+
     console.log('[DATABASE] All migrations verified successfully.');
   })
   .catch(err => console.error('[DATABASE] Migration error:', err.message || err));
@@ -484,6 +595,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/packages', packageRoutes);
+app.use('/api/tour-packages', tourPackageRoutes);
 app.use('/api/advertisements', advertisementRoutes);
 
 // Health check

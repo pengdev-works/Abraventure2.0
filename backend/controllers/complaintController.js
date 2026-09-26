@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import { emitToMunicipality, emitToUser, emitToRole } from '../socket/socketManager.js';
+import { sendNotification } from '../utils/notify.js';
 
 // POST /api/complaints - Create a complaint (Tourist only)
 export const createComplaint = async (req, res) => {
@@ -34,15 +35,14 @@ export const createComplaint = async (req, res) => {
     );
 
     for (const officer of officers.rows) {
-      await pool.query(
-        `INSERT INTO notifications (user_id, title, message, type, link)
-         VALUES ($1, $2, $3, 'COMPLAINT', '/municipal-dashboard?tab=complaints')`,
-        [
-          officer.id,
-          'New Complaint Submitted',
-          `A new complaint titled "${title}" has been submitted for your municipality.`
-        ]
-      ).catch(() => {});
+      await sendNotification(
+        pool,
+        officer.id,
+        'New Complaint Submitted',
+        `A new complaint titled "${title}" has been submitted for your municipality.`,
+        'COMPLAINT',
+        '/municipal-dashboard?tab=complaints'
+      );
     }
 
     emitToMunicipality(parseInt(municipalityId), 'complaint:new', newComplaint);
@@ -150,15 +150,14 @@ export const resolveComplaint = async (req, res) => {
 
     // Notify the tourist who submitted the complaint
     if (complaint.tourist_id) {
-      await pool.query(
-        `INSERT INTO notifications (user_id, title, message, type, link)
-         VALUES ($1, $2, $3, 'COMPLAINT', '/tourist-dashboard?tab=complaints')`,
-        [
-          complaint.tourist_id,
-          'Complaint Status Updated',
-          `Your complaint titled "${complaint.title}" has been updated to "${updatedStatus}" by the Tourism Office.`
-        ]
-      ).catch(() => {});
+      await sendNotification(
+        pool,
+        complaint.tourist_id,
+        'Complaint Status Updated',
+        `Your complaint titled "${complaint.title}" has been updated to "${updatedStatus}" by the Tourism Office.`,
+        'COMPLAINT',
+        '/tourist-dashboard?tab=complaints'
+      );
     }
 
     if (complaint.tourist_id) {

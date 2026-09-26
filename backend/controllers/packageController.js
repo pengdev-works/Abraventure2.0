@@ -104,8 +104,11 @@ export const createPackage = async (req, res) => {
     return res.status(400).json({ message: 'Title and Municipality are required.' });
   }
 
+  const client = await pool.connect();
   try {
-    const pkgRes = await pool.query(
+    await client.query('BEGIN');
+
+    const pkgRes = await client.query(
       `INSERT INTO packages (municipality_id, created_by, title, description, price, duration_days, image_url, inclusions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
@@ -126,7 +129,7 @@ export const createPackage = async (req, res) => {
     if (Array.isArray(items) && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        await pool.query(
+        await client.query(
           `INSERT INTO package_items 
            (package_id, day_number, time_slot, activity_type, attraction_id, homestay_id, guide_id, custom_activity_name, notes, sequence_order)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -146,13 +149,18 @@ export const createPackage = async (req, res) => {
       }
     }
 
+    await client.query('COMMIT');
+
     return res.status(201).json({
       message: 'Package created successfully.',
       package: createdPackage,
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error creating package:', err.message || err);
     return res.status(500).json({ message: 'Internal server error creating package.' });
+  } finally {
+    client.release();
   }
 };
 
@@ -174,18 +182,23 @@ export const updatePackage = async (req, res) => {
     return res.status(403).json({ message: 'Forbidden.' });
   }
 
+  const client = await pool.connect();
   try {
-    const checkRes = await pool.query('SELECT * FROM packages WHERE id = $1', [id]);
+    await client.query('BEGIN');
+
+    const checkRes = await client.query('SELECT * FROM packages WHERE id = $1', [id]);
     if (checkRes.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Package not found.' });
     }
 
     const currentPkg = checkRes.rows[0];
     if (role === 'MUNICIPAL_DOT' && currentPkg.municipality_id !== municipality_id) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ message: 'Unauthorized for this municipality.' });
     }
 
-    const updatedRes = await pool.query(
+    const updatedRes = await client.query(
       `UPDATE packages 
        SET title = $1, description = $2, price = $3, duration_days = $4, inclusions = $5, image_url = $6, is_published = $7, updated_at = CURRENT_TIMESTAMP
        WHERE id = $8 RETURNING *`,
@@ -203,10 +216,10 @@ export const updatePackage = async (req, res) => {
 
     // Replace items if provided
     if (Array.isArray(items)) {
-      await pool.query('DELETE FROM package_items WHERE package_id = $1', [id]);
+      await client.query('DELETE FROM package_items WHERE package_id = $1', [id]);
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        await pool.query(
+        await client.query(
           `INSERT INTO package_items 
            (package_id, day_number, time_slot, activity_type, attraction_id, homestay_id, guide_id, custom_activity_name, notes, sequence_order)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -226,13 +239,18 @@ export const updatePackage = async (req, res) => {
       }
     }
 
+    await client.query('COMMIT');
+
     return res.status(200).json({
       message: 'Package updated successfully.',
       package: updatedRes.rows[0],
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error updating package:', err.message || err);
     return res.status(500).json({ message: 'Internal server error updating package.' });
+  } finally {
+    client.release();
   }
 };
 
@@ -269,50 +287,67 @@ export const importPackageToItinerary = async (req, res) => {
   const { id: packageId } = req.params;
   const { startDate } = req.body;
 
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     // 1. Fetch package metadata
-    const pkgRes = await pool.query(
+    const pkgRes = await client.query(
       `SELECT p.*, m.name as municipality_name FROM packages p JOIN municipalities m ON p.municipality_id = m.id WHERE p.id = $1`,
       [packageId]
     );
 
     if (pkgRes.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Package not found.' });
     }
 
     const pkg = pkgRes.rows[0];
 
-    // Calculate dates
-    const start = startDate ? new Date(startDate) : new Date();
-    const end = new Date(start);
-    end.setDate(end.getDate() + Math.max(0, (pkg.duration_days || 1) - 1));
+    // Calculate dates cleanly avoiding UTC date shift
+    let startStr;
+    let endStr;
+    if (startDate && typeof startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startDate.trim())) {
+      const parts = startDate.trim().split('-').map(Number);
+      const startD = new Date(parts[0], parts[1] - 1, parts[2]);
+      const endD = new Date(parts[0], parts[1] - 1, parts[2] + Math.max(0, (pkg.duration_days || 1) - 1));
+      const pad = (n) => String(n).padStart(2, '0');
+      startStr = `${startD.getFullYear()}-${pad(startD.getMonth() + 1)}-${pad(startD.getDate())}`;
+      endStr = `${endD.getFullYear()}-${pad(endD.getMonth() + 1)}-${pad(endD.getDate())}`;
+    } else {
+      const now = new Date();
+      const endD = new Date(now);
+      endD.setDate(endD.getDate() + Math.max(0, (pkg.duration_days || 1) - 1));
+      startStr = now.toISOString().split('T')[0];
+      endStr = endD.toISOString().split('T')[0];
+    }
 
     const itineraryTitle = `${pkg.title} (${pkg.municipality_name})`;
     const itineraryDesc = `Imported from official Municipal Tour Package: ${pkg.title}. Inclusions: ${pkg.inclusions || 'Standard municipal experience'}`;
 
     // 2. Create Itinerary
-    const itinRes = await pool.query(
+    const itinRes = await client.query(
       `INSERT INTO itineraries (tourist_id, title, description, start_date, end_date)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [
         touristId,
         itineraryTitle,
         itineraryDesc,
-        start.toISOString().split('T')[0],
-        end.toISOString().split('T')[0]
+        startStr,
+        endStr
       ]
     );
 
     const newItinerary = itinRes.rows[0];
 
     // 3. Fetch package items and copy them into itinerary_items
-    const itemsRes = await pool.query(
+    const itemsRes = await client.query(
       `SELECT * FROM package_items WHERE package_id = $1 ORDER BY day_number ASC, sequence_order ASC`,
       [packageId]
     );
 
     for (const pItem of itemsRes.rows) {
-      await pool.query(
+      await client.query(
         `INSERT INTO itinerary_items
          (itinerary_id, day_number, time_slot, activity_type, attraction_id, homestay_id, guide_id, custom_activity_name, notes, sequence_order)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -331,12 +366,17 @@ export const importPackageToItinerary = async (req, res) => {
       );
     }
 
+    await client.query('COMMIT');
+
     return res.status(201).json({
       message: 'Package imported successfully into your itinerary!',
       itinerary: newItinerary,
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error importing package to itinerary:', err.message || err);
     return res.status(500).json({ message: 'Internal server error importing package.' });
+  } finally {
+    client.release();
   }
 };

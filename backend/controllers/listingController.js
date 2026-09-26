@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import bcrypt from 'bcryptjs';
 import { emitToUser, emitToRole, emitToAll } from '../socket/socketManager.js';
 
 // --- HOMESTAY PROFILE MANAGEMENT ---
@@ -123,6 +124,16 @@ export const addRoom = async (req, res) => {
   const userId = req.user.id;
   const { roomType, pricePerNight, capacity, description } = req.body;
 
+  if (!roomType || pricePerNight === undefined || capacity === undefined) {
+    return res.status(400).json({ message: 'Room type, price per night, and capacity are required.' });
+  }
+
+  const parsedPrice = parseFloat(pricePerNight);
+  const parsedCapacity = parseInt(capacity, 10);
+  if (isNaN(parsedPrice) || parsedPrice < 0 || isNaN(parsedCapacity) || parsedCapacity < 1) {
+    return res.status(400).json({ message: 'Valid non-negative price and capacity (at least 1) are required.' });
+  }
+
   try {
     const hsRes = await pool.query('SELECT id FROM homestay_profiles WHERE owner_id = $1', [userId]);
     if (hsRes.rows.length === 0) {
@@ -133,7 +144,7 @@ export const addRoom = async (req, res) => {
     const result = await pool.query(
       `INSERT INTO homestay_rooms (homestay_id, room_type, price_per_night, capacity, description)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [homestayId, roomType, parseFloat(pricePerNight), parseInt(capacity), description]
+      [homestayId, roomType.trim(), parsedPrice, parsedCapacity, description || '']
     );
 
     return res.status(201).json({
@@ -342,29 +353,35 @@ export const getApplications = async (req, res) => {
     const homestaysRes = await pool.query(homestaysQuery, params);
     const guidesRes = await pool.query(guidesQuery, params);
 
-    // Fetch submitted documents status for each application to show completeness
+    // Fetch submitted documents status in a single batch query to avoid N+1 overhead
     const homestays = homestaysRes.rows;
-    for (const h of homestays) {
+    const guides = guidesRes.rows;
+
+    const allUserIds = [
+      ...homestays.map(h => h.owner_id),
+      ...guides.map(g => g.guide_id)
+    ].filter(Boolean);
+
+    const docsByUserId = {};
+    if (allUserIds.length > 0) {
       const docRes = await pool.query(
         `SELECT sd.*, mr.requirement_name, mr.is_required
          FROM submitted_documents sd
          JOIN municipal_requirements mr ON sd.requirement_id = mr.id
-         WHERE sd.user_id = $1`,
-        [h.owner_id]
+         WHERE sd.user_id = ANY($1::int[])`,
+        [allUserIds]
       );
-      h.documents = docRes.rows;
+      for (const doc of docRes.rows) {
+        if (!docsByUserId[doc.user_id]) docsByUserId[doc.user_id] = [];
+        docsByUserId[doc.user_id].push(doc);
+      }
     }
 
-    const guides = guidesRes.rows;
+    for (const h of homestays) {
+      h.documents = docsByUserId[h.owner_id] || [];
+    }
     for (const g of guides) {
-      const docRes = await pool.query(
-        `SELECT sd.*, mr.requirement_name, mr.is_required
-         FROM submitted_documents sd
-         JOIN municipal_requirements mr ON sd.requirement_id = mr.id
-         WHERE sd.user_id = $1`,
-        [g.guide_id]
-      );
-      g.documents = docRes.rows;
+      g.documents = docsByUserId[g.guide_id] || [];
     }
 
     // Get Municipal DOT Accounts needing approval (Provincial DOT only)
@@ -399,6 +416,10 @@ export const endorseStakeholder = async (req, res) => {
   const reviewerMun = req.user.municipality_id;
 
   try {
+    if (!['HOMESTAY', 'GUIDE'].includes(type)) {
+      return res.status(400).json({ message: 'Invalid stakeholder type. Must be HOMESTAY or GUIDE.' });
+    }
+
     let applicantId;
     let table = type === 'HOMESTAY' ? 'homestay_profiles' : 'tour_guide_profiles';
     let idColumn = type === 'HOMESTAY' ? 'owner_id' : 'guide_id';
@@ -445,6 +466,10 @@ export const approveAccount = async (req, res) => {
 
   if (!status || !['APPROVED', 'REJECTED'].includes(status)) {
     return res.status(400).json({ message: 'Invalid status. Must be APPROVED or REJECTED.' });
+  }
+
+  if (!type || !['MUNICIPAL_DOT', 'HOMESTAY', 'GUIDE'].includes(type)) {
+    return res.status(400).json({ message: 'Invalid type. Must be MUNICIPAL_DOT, HOMESTAY, or GUIDE.' });
   }
 
   const client = await pool.connect();
@@ -598,7 +623,6 @@ export const createDotUser = async (req, res) => {
     }
 
     // Hash password
-    const bcrypt = (await import('bcryptjs')).default;
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 

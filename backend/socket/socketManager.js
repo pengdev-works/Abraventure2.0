@@ -1,9 +1,6 @@
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
-dotenv.config();
+import { JWT_SECRET } from '../config/constants.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkeyforabraventure2026';
 
 let io = null;
 

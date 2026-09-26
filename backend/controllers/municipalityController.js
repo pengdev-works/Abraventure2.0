@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { DEFAULT_MUNICIPALITY_FOODS } from '../data/municipalityFoodsData.js';
 
 const FALLBACK_MUNICIPALITIES = [
   { id: 1, name: 'Bangued', description: 'The capital municipality of Abra, known for its Victoria Park and San Lorenzo Climaco Shrine.' },
@@ -32,6 +33,19 @@ const FALLBACK_MUNICIPALITIES = [
 
 let cachedMunicipalities = [...FALLBACK_MUNICIPALITIES];
 
+// Helper to attach signature food highlights to municipality objects
+const attachSignatureFoods = (munList) => {
+  return munList.map(m => {
+    const foods = DEFAULT_MUNICIPALITY_FOODS.filter(f => f.municipality_id === m.id);
+    const signatureNames = foods.slice(0, 2).map(f => f.name);
+    return {
+      ...m,
+      signature_foods: signatureNames,
+      foods_count: foods.length
+    };
+  });
+};
+
 // Get all municipalities
 export const getMunicipalities = async (req, res) => {
   try {
@@ -50,18 +64,19 @@ export const getMunicipalities = async (req, res) => {
     );
     if (result.rows && result.rows.length > 0) {
       cachedMunicipalities = result.rows;
+      return res.status(200).json(attachSignatureFoods(result.rows));
     }
-    return res.status(200).json(result.rows);
+    return res.status(200).json(attachSignatureFoods(cachedMunicipalities));
   } catch (err) {
     console.error('Error fetching municipalities (serving cached fallback):', err.message || err);
     if (cachedMunicipalities && cachedMunicipalities.length > 0) {
-      return res.status(200).json(cachedMunicipalities);
+      return res.status(200).json(attachSignatureFoods(cachedMunicipalities));
     }
     return res.status(500).json({ message: 'Internal server error fetching municipalities.' });
   }
 };
 
-// Get details for a specific municipality (Attractions, Approved Homestays, Approved Guides)
+// Get details for a specific municipality (Attractions, Approved Homestays, Approved Guides, Local Foods)
 export const getMunicipalityDetails = async (req, res) => {
   const { id } = req.params;
 
@@ -133,12 +148,28 @@ export const getMunicipalityDetails = async (req, res) => {
     );
     const localDOT = dotResult.rows[0] || null;
 
+    // 6. Get Local Food and Delicacies
+    let foods = [];
+    try {
+      const foodsResult = await pool.query(
+        'SELECT * FROM municipality_foods WHERE municipality_id = $1 ORDER BY id ASC',
+        [id]
+      );
+      foods = foodsResult.rows;
+    } catch (foodDbErr) {
+      console.warn('Database error querying municipality_foods, using fallback:', foodDbErr.message);
+    }
+    if (!foods || foods.length === 0) {
+      foods = DEFAULT_MUNICIPALITY_FOODS.filter(f => f.municipality_id === parseInt(id, 10));
+    }
+
     return res.status(200).json({
       municipality,
       attractions: attractionsResult.rows,
       homestays,
       guides: guidesResult.rows,
       localDOT,
+      foods,
     });
   } catch (err) {
     console.error('Error fetching municipality details:', err);
@@ -432,6 +463,156 @@ export const getMapData = async (req, res) => {
   } catch (err) {
     console.error('Error fetching map data:', err);
     return res.status(500).json({ message: 'Internal server error fetching map data.' });
+  }
+};
+
+// ─── Local Foods & Delicacies Management ─────────────────────────────────────
+
+// Get foods for a municipality or all foods
+export const getMunicipalityFoods = async (req, res) => {
+  const municipalityId = req.query.municipalityId || req.query.municipality_id;
+
+  try {
+    let result;
+    if (municipalityId) {
+      result = await pool.query(
+        'SELECT * FROM municipality_foods WHERE municipality_id = $1 ORDER BY id ASC',
+        [municipalityId]
+      );
+      if (result.rows.length === 0) {
+        const fallbacks = DEFAULT_MUNICIPALITY_FOODS.filter(f => f.municipality_id === parseInt(municipalityId, 10));
+        return res.status(200).json(fallbacks);
+      }
+    } else {
+      result = await pool.query('SELECT * FROM municipality_foods ORDER BY municipality_id ASC, id ASC');
+      if (result.rows.length === 0) {
+        return res.status(200).json(DEFAULT_MUNICIPALITY_FOODS);
+      }
+    }
+    return res.status(200).json(result.rows);
+  } catch (err) {
+    console.error('Error fetching municipality foods:', err);
+    if (municipalityId) {
+      const fallbacks = DEFAULT_MUNICIPALITY_FOODS.filter(f => f.municipality_id === parseInt(municipalityId, 10));
+      return res.status(200).json(fallbacks);
+    }
+    return res.status(200).json(DEFAULT_MUNICIPALITY_FOODS);
+  }
+};
+
+// Add Food item (Municipal DOT / Provincial DOT)
+export const addMunicipalityFood = async (req, res) => {
+  const { name, category, description, priceRange, whereToFind, municipalityId } = req.body;
+  const { role } = req.user;
+  const targetMunId = role === 'PROVINCIAL_DOT' ? (municipalityId || req.user.municipality_id) : req.user.municipality_id;
+
+  if (!targetMunId) {
+    return res.status(400).json({ message: 'Municipality ID is required.' });
+  }
+
+  if (!name || !description) {
+    return res.status(400).json({ message: 'Food name and description are required.' });
+  }
+
+  let imageUrl = req.body.imageUrl || null;
+  if (req.file) {
+    imageUrl = req.file.path;
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO municipality_foods (municipality_id, name, category, description, image_url, price_range, where_to_find)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        targetMunId,
+        name,
+        category || 'Delicacy',
+        description,
+        imageUrl,
+        priceRange || null,
+        whereToFind || null
+      ]
+    );
+
+    return res.status(201).json({
+      message: 'Local food / delicacy added successfully.',
+      food: result.rows[0],
+    });
+  } catch (err) {
+    console.error('Error adding municipality food:', err);
+    return res.status(500).json({ message: 'Internal server error adding local food.' });
+  }
+};
+
+// Update Food item (Municipal DOT / Provincial DOT)
+export const updateMunicipalityFood = async (req, res) => {
+  const { id } = req.params;
+  const { name, category, description, priceRange, whereToFind, imageUrl } = req.body;
+  const { role, municipality_id } = req.user;
+
+  try {
+    const checkRes = await pool.query('SELECT * FROM municipality_foods WHERE id = $1', [id]);
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Food item not found.' });
+    }
+
+    const existing = checkRes.rows[0];
+    if (role !== 'PROVINCIAL_DOT' && existing.municipality_id !== municipality_id) {
+      return res.status(403).json({ message: 'Forbidden. You do not manage food for this municipality.' });
+    }
+
+    let finalImageUrl = existing.image_url;
+    if (req.file) {
+      finalImageUrl = req.file.path;
+    } else if (imageUrl !== undefined) {
+      finalImageUrl = imageUrl;
+    }
+
+    const result = await pool.query(
+      `UPDATE municipality_foods
+       SET name = COALESCE($1, name),
+           category = COALESCE($2, category),
+           description = COALESCE($3, description),
+           image_url = $4,
+           price_range = COALESCE($5, price_range),
+           where_to_find = COALESCE($6, where_to_find)
+       WHERE id = $7
+       RETURNING *`,
+      [name, category, description, finalImageUrl, priceRange, whereToFind, id]
+    );
+
+    return res.status(200).json({
+      message: 'Local food / delicacy updated successfully.',
+      food: result.rows[0],
+    });
+  } catch (err) {
+    console.error('Error updating municipality food:', err);
+    return res.status(500).json({ message: 'Internal server error updating local food.' });
+  }
+};
+
+// Delete Food item (Municipal DOT / Provincial DOT)
+export const deleteMunicipalityFood = async (req, res) => {
+  const { id } = req.params;
+  const { role, municipality_id } = req.user;
+
+  try {
+    const checkRes = await pool.query('SELECT * FROM municipality_foods WHERE id = $1', [id]);
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Food item not found.' });
+    }
+
+    const existing = checkRes.rows[0];
+    if (role !== 'PROVINCIAL_DOT' && existing.municipality_id !== municipality_id) {
+      return res.status(403).json({ message: 'Forbidden. You do not manage food for this municipality.' });
+    }
+
+    await pool.query('DELETE FROM municipality_foods WHERE id = $1', [id]);
+    return res.status(200).json({ message: 'Local food / delicacy deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting municipality food:', err);
+    return res.status(500).json({ message: 'Internal server error deleting local food.' });
   }
 };
 

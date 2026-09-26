@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Placeholders keyed by aspect ratio hint
 const PLACEHOLDERS = {
@@ -38,6 +38,10 @@ const SafeImage = ({
   ...rest
 }) => {
   const [errored, setErrored] = useState(false);
+
+  useEffect(() => {
+    setErrored(false);
+  }, [src]);
 
   const fallbackSrc =
     PLACEHOLDERS[fallback] ??

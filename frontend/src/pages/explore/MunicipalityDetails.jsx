@@ -7,7 +7,8 @@ import {
   Landmark, Star, MessageSquare, Upload, Image, Home, BedDouble, Users, 
   Package, Sparkles, Send, Clock, ChevronDown, ChevronUp, Film, Video, 
   Play, ExternalLink, Compass, Navigation, Plus, Search, X, ShieldCheck, 
-  Check, Share2, Eye, Map, AlertTriangle, ArrowRight, ArrowLeft, Tag, CheckSquare, Layers, DollarSign 
+  Check, Share2, Eye, Map, AlertTriangle, ArrowRight, ArrowLeft, Tag, CheckSquare, Layers, DollarSign,
+  UtensilsCrossed, ShoppingBag
 } from 'lucide-react';
 import SafeImage, { formatMediaUrl } from '../../components/common/SafeImage';
 
@@ -57,6 +58,11 @@ const MunicipalityDetails = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('attractions');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Local Food state
+  const [foodSearch, setFoodSearch] = useState('');
+  const [foodCategoryFilter, setFoodCategoryFilter] = useState('ALL');
+  const [selectedFoodModal, setSelectedFoodModal] = useState(null);
 
   // Tour Packages state
   const [packages, setPackages] = useState([]);
@@ -291,19 +297,37 @@ const MunicipalityDetails = () => {
       return;
     }
 
+    const todayStr = new Date().toISOString().split('T')[0];
     const confirmResult = await Swal.fire({
       title: 'Import Curated Package?',
-      text: 'This will add this package and its day-by-day scheduled stops into your personal trip planner as an editable base itinerary.',
+      html: `
+        <p style="text-align: left; font-size: 0.92rem; color: #475569; margin-bottom: 14px;">
+          This will add this package and its day-by-day scheduled stops into your personal trip planner as an editable itinerary.
+        </p>
+        <div style="text-align: left;">
+          <label style="display:block; font-size:0.85rem; font-weight:600; color:#1e293b; margin-bottom:6px;">
+            Choose Expedition Start Date:
+          </label>
+          <input type="date" id="swal-pkg-start-date" class="swal2-input" value="${todayStr}" min="${todayStr}" style="margin:0; width:100%; box-sizing:border-box; font-size:0.95rem;">
+        </div>
+      `,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Import to Planner',
+      confirmButtonText: 'Import to Planner',
       cancelButtonText: 'Keep Browsing',
       confirmButtonColor: '#153325',
       cancelButtonColor: '#78716c',
+      preConfirm: () => {
+        const input = document.getElementById('swal-pkg-start-date');
+        return {
+          startDate: input?.value || todayStr
+        };
+      }
     });
 
     if (!confirmResult.isConfirmed) return;
 
+    const chosenStartDate = confirmResult.value?.startDate || todayStr;
     setImportingPkgId(pkgId);
     try {
       const res = await fetch(`/api/packages/${pkgId}/import`, {
@@ -312,13 +336,13 @@ const MunicipalityDetails = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({ startDate: chosenStartDate })
       });
       const data = await res.json();
       if (res.ok) {
         Swal.fire({
           title: 'Package Imported!',
-          text: 'The curated tour package has been successfully copied to your itinerary planner. Redirecting...',
+          text: 'The curated tour package has been successfully scheduled and copied to your itinerary planner. Redirecting...',
           icon: 'success',
           timer: 1800,
           showConfirmButton: false,
@@ -481,6 +505,8 @@ const MunicipalityDetails = () => {
 
   const { municipality, attractions, homestays, guides, localDOT } = data;
 
+  const { foods = [] } = data || {};
+
   const TABS = [
     { id: 'packages', label: `Tour Packages (${packages.length})` },
     { id: 'attractions', label: `Attractions (${attractions.length})` },
@@ -488,6 +514,7 @@ const MunicipalityDetails = () => {
     { id: 'homestays', label: `Homestays (${homestays.length})` },
     { id: 'guides', label: `Guides (${guides.length})` },
     { id: 'events', label: `Events (${events.length})` },
+    { id: 'localfood', label: `Local Food (${foods.length})` },
     { id: 'gallery', label: 'Photo Gallery' },
     { id: 'reviews', label: 'Reviews' },
   ];
@@ -1368,6 +1395,195 @@ const MunicipalityDetails = () => {
               </div>
             )}
 
+            {/* Local Food & Delicacies Tab */}
+            {activeTab === 'localfood' && (() => {
+              const foodCategories = [
+                { id: 'ALL', label: 'All', icon: '🍽️' },
+                { id: 'Signature Dish', label: 'Signature Dishes', icon: '🌟' },
+                { id: 'Delicacies & Sweets', label: 'Sweets & Delicacies', icon: '🍬' },
+                { id: 'River Catch & Meat', label: 'River Catch & Meat', icon: '🐟' },
+                { id: 'Beverages & Wine', label: 'Beverages & Wine', icon: '🍵' },
+                { id: 'Agricultural Produce', label: 'Farm Produce', icon: '🌾' },
+              ];
+
+              const filteredFoods = foods.filter(f => {
+                const q = foodSearch.trim().toLowerCase();
+                const matchesSearch = !q ||
+                  f.name?.toLowerCase().includes(q) ||
+                  f.description?.toLowerCase().includes(q) ||
+                  f.where_to_find?.toLowerCase().includes(q);
+                if (!matchesSearch) return false;
+                if (foodCategoryFilter === 'ALL') return true;
+                return f.category === foodCategoryFilter;
+              });
+
+              const getCategoryIcon = (cat) => {
+                const found = foodCategories.find(c => c.id === cat);
+                return found ? found.icon : '🍽️';
+              };
+              const getCategoryBadgeStyle = (cat) => {
+                if (cat === 'Signature Dish') return 'bg-amber-500/10 text-amber-800 border-amber-400/30';
+                if (cat === 'Delicacies & Sweets') return 'bg-pink-500/10 text-pink-800 border-pink-400/30';
+                if (cat === 'River Catch & Meat') return 'bg-sky-500/10 text-sky-800 border-sky-400/30';
+                if (cat === 'Beverages & Wine') return 'bg-violet-500/10 text-violet-800 border-violet-400/30';
+                if (cat === 'Agricultural Produce') return 'bg-emerald-500/10 text-emerald-800 border-emerald-400/30';
+                return 'bg-[#153325]/10 text-[#153325] border-[#153325]/30';
+              };
+
+              return (
+                <div className="space-y-6">
+                  {/* Header Banner */}
+                  <div className="bg-gradient-to-r from-[#153325] via-[#1D4433] to-[#153325] rounded-3xl p-6 text-white shadow-xl border border-[#B88B2A]/30 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-[#B88B2A]/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">🍽️</span>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#D4A942]">Culinary Heritage</span>
+                      </div>
+                      <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white leading-tight">
+                        Local Food & Delicacies of {municipality.name}
+                      </h2>
+                      <p className="text-white/80 text-xs mt-2 leading-relaxed max-w-2xl">
+                        Authentic traditional dishes, heirloom delicacies, and signature flavors that define the culinary soul of {municipality.name}, Abra — from seasonal river catches to colonial-era sweets.
+                      </p>
+                      <div className="flex flex-wrap gap-3 mt-4">
+                        {['Signature Dish','Delicacies & Sweets','River Catch & Meat'].map(cat => {
+                          const count = foods.filter(f => f.category === cat).length;
+                          if (!count) return null;
+                          return (
+                            <span key={cat} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-white/90 text-[11px] font-semibold">
+                              <span>{getCategoryIcon(cat)}</span>
+                              <span>{count} {cat}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Search & Category Filters */}
+                  <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#E8DFC8] space-y-3 shadow-xs">
+                    <div className="relative w-full">
+                      <Search className="w-4 h-4 text-[#5A534E]/60 absolute left-3 top-2.5 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={foodSearch}
+                        onChange={e => setFoodSearch(e.target.value)}
+                        placeholder="Search dishes, flavors, ingredients…"
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-[#E8DFC8] rounded-xl text-xs text-[#232120] placeholder:text-[#5A534E]/60 focus:outline-none focus:border-[#153325] shadow-2xs"
+                      />
+                      {foodSearch && (
+                        <button onClick={() => setFoodSearch('')} className="absolute right-2.5 top-2.5 text-[#5A534E] hover:text-[#153325] cursor-pointer">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                      {foodCategories.map(cat => {
+                        const count = cat.id === 'ALL' ? foods.length : foods.filter(f => f.category === cat.id).length;
+                        if (cat.id !== 'ALL' && count === 0) return null;
+                        const isActive = foodCategoryFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            onClick={() => setFoodCategoryFilter(cat.id)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer flex-shrink-0 ${
+                              isActive ? 'bg-[#153325] text-white shadow-xs font-bold' : 'bg-white text-[#5A534E] hover:text-[#153325] hover:bg-[#F3ECE0] border border-[#E8DFC8]'
+                            }`}
+                          >
+                            <span>{cat.icon}</span>
+                            <span>{cat.label}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                              isActive ? 'bg-white/20 text-white' : 'bg-black/5 text-[#5A534E]'
+                            }`}>{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Food Cards Grid */}
+                  {filteredFoods.length === 0 ? (
+                    <div className="text-center py-16 bg-[#FAF7F2] rounded-2xl border border-[#E8DFC8] p-8">
+                      <UtensilsCrossed className="w-10 h-10 text-[#B88B2A] mx-auto mb-3 opacity-60" />
+                      <p className="font-serif text-lg font-bold text-[#153325] mb-1">No local food found</p>
+                      <p className="text-xs text-[#5A534E]">Try adjusting your search or category filter.</p>
+                      <button onClick={() => { setFoodSearch(''); setFoodCategoryFilter('ALL'); }} className="mt-4 px-4 py-2 bg-[#153325] text-white rounded-xl text-xs font-bold hover:bg-[#1D4433] transition-colors cursor-pointer">
+                        Show All Food
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {filteredFoods.map(food => (
+                        <div
+                          key={food.id || food.name}
+                          className="bg-white rounded-2xl border border-[#E8DFC8] overflow-hidden shadow-2xs hover:shadow-lg transition-all group flex flex-col"
+                        >
+                          {/* Food Photo */}
+                          <div className="relative aspect-[16/10] bg-[#153325] overflow-hidden">
+                            <SafeImage
+                              src={food.image_url}
+                              alt={food.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              fallback="landscape"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/10 pointer-events-none" />
+                            {/* Category Badge */}
+                            <div className="absolute top-3 left-3">
+                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-sm border flex items-center gap-1 ${getCategoryBadgeStyle(food.category)}`}>
+                                <span>{getCategoryIcon(food.category)}</span>
+                                <span>{food.category || 'Delicacy'}</span>
+                              </span>
+                            </div>
+                            {/* Price Badge */}
+                            {food.price_range && (
+                              <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white/90 text-[10px] px-2.5 py-1 rounded-md border border-white/15 font-semibold flex items-center gap-1.5">
+                                <span>💰</span>
+                                <span>{food.price_range}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Food Info */}
+                          <div className="p-5 flex-1 flex flex-col justify-between">
+                            <div>
+                              <h3 className="font-serif text-xl font-bold text-[#153325] group-hover:text-[#B88B2A] transition-colors mb-2 leading-snug">{food.name}</h3>
+                              <p className="text-[#5A534E] text-xs leading-relaxed line-clamp-3 mb-3">{food.description}</p>
+                              {food.where_to_find && (
+                                <div className="flex items-start gap-2 text-xs text-[#5A534E] bg-[#F3ECE0] p-2.5 rounded-xl border border-[#E8DFC8]">
+                                  <ShoppingBag className="w-3.5 h-3.5 text-[#B88B2A] flex-shrink-0 mt-0.5" />
+                                  <span><span className="font-semibold text-[#153325]">Where to taste: </span>{food.where_to_find}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action */}
+                            <div className="mt-4 flex items-center gap-2">
+                              <button
+                                onClick={() => setSelectedFoodModal(food)}
+                                className="flex-1 py-2 px-4 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Full Description</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenAddItin({ id: food.id || food.name, name: `Taste: ${food.name}` })}
+                                className="py-2 px-3.5 bg-[#B88B2A] hover:bg-[#946E1D] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                                title="Pin to Trip Planner"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Pin to Trip</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Gallery Tab */}
             {activeTab === 'gallery' && (
               <div>
@@ -2098,6 +2314,78 @@ const MunicipalityDetails = () => {
                 >
                   <Sparkles className="w-3.5 h-3.5 text-[#B88B2A]" />
                   <span>Save to Trip Planner</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Food Detail Modal */}
+      {selectedFoodModal && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setSelectedFoodModal(null)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden relative"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Photo header */}
+            <div className="relative aspect-[16/9] bg-[#153325]">
+              <SafeImage
+                src={selectedFoodModal.image_url}
+                alt={selectedFoodModal.name}
+                className="w-full h-full object-cover"
+                fallback="landscape"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+              <button
+                onClick={() => setSelectedFoodModal(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm flex items-center justify-center text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-4 left-4 right-4">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#D4A942] block mb-1">
+                  {selectedFoodModal.category || 'Local Delicacy'} · {municipality.name}
+                </span>
+                <h3 className="font-serif text-2xl font-bold text-white leading-tight">{selectedFoodModal.name}</h3>
+                {selectedFoodModal.price_range && (
+                  <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-[#B88B2A]/90 text-white text-xs font-semibold">
+                    💰 {selectedFoodModal.price_range}
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* Info body */}
+            <div className="p-6 space-y-4">
+              <p className="text-[#5A534E] text-sm leading-relaxed">{selectedFoodModal.description}</p>
+              {selectedFoodModal.where_to_find && (
+                <div className="flex items-start gap-3 text-sm text-[#5A534E] bg-[#F3ECE0] p-3.5 rounded-xl border border-[#E8DFC8]">
+                  <ShoppingBag className="w-4 h-4 text-[#B88B2A] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-bold text-[#153325] uppercase tracking-wider mb-0.5">Where to Taste or Buy</p>
+                    <p className="text-xs">{selectedFoodModal.where_to_find}</p>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    setSelectedFoodModal(null);
+                    handleOpenAddItin({ id: selectedFoodModal.id || selectedFoodModal.name, name: `Taste: ${selectedFoodModal.name}` });
+                  }}
+                  className="flex-1 py-2.5 bg-[#B88B2A] hover:bg-[#946E1D] text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Pin to Trip Planner</span>
+                </button>
+                <button
+                  onClick={() => setSelectedFoodModal(null)}
+                  className="py-2.5 px-4 bg-[#F3ECE0] hover:bg-[#E8DFC8] text-[#153325] font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Close
                 </button>
               </div>
             </div>

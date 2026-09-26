@@ -58,9 +58,14 @@ export const updateAnnouncement = async (req, res) => {
   const { id } = req.params;
   const { title, content, isPublished } = req.body;
   try {
+    const isPubVal = typeof isPublished === 'boolean' ? isPublished : null;
     const result = await pool.query(
-      `UPDATE announcements SET title=$1, content=$2, is_published=$3 WHERE id=$4 RETURNING *`,
-      [title, content, isPublished, id]
+      `UPDATE announcements 
+       SET title = COALESCE($1, title), 
+           content = COALESCE($2, content), 
+           is_published = COALESCE($3, is_published) 
+       WHERE id = $4 RETURNING *`,
+      [title || null, content || null, isPubVal, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ message: 'Not found.' });
     const ann = result.rows[0];

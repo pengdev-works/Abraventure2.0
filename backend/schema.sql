@@ -259,3 +259,16 @@ CREATE TABLE IF NOT EXISTS package_items (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 17. MUNICIPALITY LOCAL FOOD & DELICACIES
+CREATE TABLE IF NOT EXISTS municipality_foods (
+    id SERIAL PRIMARY KEY,
+    municipality_id INT REFERENCES municipalities(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) DEFAULT 'Delicacy',
+    description TEXT NOT NULL,
+    image_url TEXT,
+    price_range VARCHAR(100),
+    where_to_find TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+

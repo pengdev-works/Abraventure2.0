@@ -1,5 +1,4 @@
 import pool from '../config/db.js';
-import upload from '../middleware/uploadMiddleware.js';
 
 // GET /api/events — public, optionally filter by municipality_id or month
 export const getEvents = async (req, res) => {
@@ -97,5 +96,3 @@ export const deleteEvent = async (req, res) => {
     res.status(500).json({ message: 'Server error deleting event.' });
   }
 };
-
-export { upload };

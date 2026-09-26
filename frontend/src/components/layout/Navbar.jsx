@@ -352,6 +352,7 @@ const Navbar = () => {
           <div className="hidden lg:flex items-center gap-1">
             <Link to="/" onClick={(e) => handleNavClick(e, '/', 'explore')} className={navLinkClasses('/')}>Explore</Link>
             <Link to="/municipalities" onClick={(e) => handleNavClick(e, '/municipalities', 'destinations')} className={navLinkClasses('/municipalities')}>Destinations</Link>
+            <Link to="/tour-packages" className={navLinkClasses('/tour-packages')}>Tour Packages</Link>
             <Link to="/map" onClick={(e) => handleNavClick(e, '/map', 'map')} className={navLinkClasses('/map')}>Interactive Map</Link>
             <Link to="/itinerary" onClick={(e) => handleNavClick(e, '/itinerary', 'itinerary')} className={navLinkClasses('/itinerary')}>Plan Itinerary</Link>
             <Link to="/events" onClick={(e) => handleNavClick(e, '/events', 'events')} className={navLinkClasses('/events')}>Events</Link>
@@ -564,6 +565,15 @@ const Navbar = () => {
             }`}
           >
             Destinations (27 Municipalities)
+          </Link>
+          <Link
+            to="/tour-packages"
+            onClick={() => setIsOpen(false)}
+            className={`block px-4 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors touch-target flex items-center ${
+              isActive('/tour-packages') ? 'bg-[#153325] text-white font-bold' : 'text-[#153325] hover:bg-[#F3ECE0]'
+            }`}
+          >
+            Tour Packages & Circuits
           </Link>
           <Link
             to="/map"

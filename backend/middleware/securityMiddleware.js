@@ -28,8 +28,32 @@ const sanitizeObject = (obj) => {
   return sanitized;
 };
 
+// Fields that must never be sanitized (passwords should not be altered before bcrypt comparison)
+const SKIP_SANITIZE_FIELDS = new Set(['password', 'password_hash', 'confirmPassword', 'currentPassword', 'newPassword']);
+
+const sanitizeObjectSafe = (obj) => {
+  if (obj === null || typeof obj !== 'object') {
+    return typeof obj === 'string' ? sanitizeString(obj) : obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeObjectSafe);
+  }
+
+  const sanitized = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // Never mutate password fields — bcrypt relies on exact string matching
+    if (SKIP_SANITIZE_FIELDS.has(key)) {
+      sanitized[key] = value;
+    } else {
+      sanitized[key] = sanitizeObjectSafe(value);
+    }
+  }
+  return sanitized;
+};
+
 export const sanitizeInput = (req, res, next) => {
-  if (req.body) req.body = sanitizeObject(req.body);
+  if (req.body) req.body = sanitizeObjectSafe(req.body);
   if (req.query) req.query = sanitizeObject(req.query);
   if (req.params) req.params = sanitizeObject(req.params);
   next();

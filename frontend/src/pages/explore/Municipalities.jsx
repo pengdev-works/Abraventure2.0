@@ -174,9 +174,29 @@ const Municipalities = () => {
                     <h3 className="font-serif text-2xl font-bold text-[#153325] mb-2 group-hover:text-[#B88B2A] transition-colors">
                       {m.name}
                     </h3>
-                    <p className="text-xs text-[#5A534E] leading-relaxed line-clamp-3 mb-6">
+                    <p className="text-xs text-[#5A534E] leading-relaxed line-clamp-3 mb-4">
                       {m.description || `Explore natural mountain landscapes, eco-tourism sites, and cultural heritage in ${m.name}, Abra.`}
                     </p>
+
+                    {/* Signature Food Tags */}
+                    {m.signature_foods && m.signature_foods.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        <span className="text-[10px] font-bold text-[#B88B2A] uppercase tracking-wider mr-0.5 self-center">🍽️</span>
+                        {m.signature_foods.slice(0, 3).map((food, fi) => (
+                          <span
+                            key={fi}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#F3ECE0] border border-[#E8DFC8] text-[#5A534E] text-[10px] font-semibold"
+                          >
+                            {food}
+                          </span>
+                        ))}
+                        {m.signature_foods.length > 3 && (
+                          <span className="px-2 py-0.5 rounded-md bg-[#153325]/10 text-[#153325] text-[10px] font-bold border border-[#153325]/15">
+                            +{m.signature_foods.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 border-t border-[#E8DFC8] flex items-center justify-between text-xs font-bold text-[#153325]">
@@ -184,6 +204,7 @@ const Municipalities = () => {
                     <ArrowRight className="w-4 h-4 text-[#B88B2A] group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
+
               </Link>
             );
           })}

@@ -3,83 +3,87 @@ import pool from '../config/db.js';
 // GET /api/analytics/overview — PROVINCIAL_DOT
 export const getOverview = async (req, res) => {
   try {
-    // Monthly bookings for current year
-    const monthlyBookings = await pool.query(`
-      SELECT 
-        TO_CHAR(DATE_TRUNC('month', created_at), 'Mon') AS month,
-        EXTRACT(MONTH FROM created_at) AS month_num,
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE status = 'CONFIRMED') AS confirmed,
-        COUNT(*) FILTER (WHERE status = 'CANCELLED') AS cancelled
-      FROM bookings_inquiries
-      WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())
-      GROUP BY DATE_TRUNC('month', created_at), EXTRACT(MONTH FROM created_at)
-      ORDER BY month_num
-    `);
-
-    // Top municipalities by bookings
-    const topMunicipalities = await pool.query(`
-      SELECT 
-        m.name AS municipality,
-        COUNT(bi.id) AS bookings
-      FROM bookings_inquiries bi
-      JOIN homestay_profiles hp ON bi.homestay_id = hp.id
-      JOIN user_accounts ua ON hp.owner_id = ua.id
-      JOIN municipalities m ON ua.municipality_id = m.id
-      WHERE bi.homestay_id IS NOT NULL
-      GROUP BY m.name
-      ORDER BY bookings DESC
-      LIMIT 10
-    `);
-
-    // Homestay counts
-    const homestayStats = await pool.query(`
-      SELECT 
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE status = 'APPROVED') AS approved,
-        COUNT(*) FILTER (WHERE status = 'PENDING') AS pending
-      FROM homestay_profiles
-    `);
-
-    // Guide counts
-    const guideStats = await pool.query(`
-      SELECT 
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE status = 'APPROVED') AS approved,
-        COUNT(*) FILTER (WHERE status = 'PENDING') AS pending
-      FROM tour_guide_profiles
-    `);
-
-    // Attraction counts per municipality
-    const attractionsByMun = await pool.query(`
-      SELECT m.name AS municipality, COUNT(ta.id) AS attractions
-      FROM tourist_attractions ta
-      JOIN municipalities m ON ta.municipality_id = m.id
-      GROUP BY m.name
-      ORDER BY attractions DESC
-      LIMIT 10
-    `);
-
-    // Booking status distribution
-    const statusDist = await pool.query(`
-      SELECT status, COUNT(*) AS count
-      FROM bookings_inquiries
-      GROUP BY status
-    `);
-
-    // Total tourist accounts
-    const touristCount = await pool.query(`
-      SELECT COUNT(*) FROM user_accounts WHERE role='TOURIST' AND status='APPROVED'
-    `);
-
-    // Recent activity logs
-    const recentLogs = await pool.query(`
-      SELECT al.*, ua.full_name AS actor_name, ua.role AS actor_role
-      FROM activity_logs al
-      LEFT JOIN user_accounts ua ON al.user_id = ua.id
-      ORDER BY al.created_at DESC
-      LIMIT 50
-    `);
+    const [
+      monthlyBookings,
+      topMunicipalities,
+      homestayStats,
+      guideStats,
+      attractionsByMun,
+      statusDist,
+      touristCount,
+      recentLogs
+    ] = await Promise.all([
+      // Monthly bookings for current year
+      pool.query(`
+        SELECT 
+          TO_CHAR(DATE_TRUNC('month', created_at), 'Mon') AS month,
+          EXTRACT(MONTH FROM created_at) AS month_num,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE status = 'CONFIRMED') AS confirmed,
+          COUNT(*) FILTER (WHERE status = 'CANCELLED') AS cancelled
+        FROM bookings_inquiries
+        WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())
+        GROUP BY DATE_TRUNC('month', created_at), EXTRACT(MONTH FROM created_at)
+        ORDER BY month_num
+      `),
+      // Top municipalities by bookings
+      pool.query(`
+        SELECT 
+          m.name AS municipality,
+          COUNT(bi.id) AS bookings
+        FROM bookings_inquiries bi
+        JOIN homestay_profiles hp ON bi.homestay_id = hp.id
+        JOIN user_accounts ua ON hp.owner_id = ua.id
+        JOIN municipalities m ON ua.municipality_id = m.id
+        WHERE bi.homestay_id IS NOT NULL
+        GROUP BY m.name
+        ORDER BY bookings DESC
+        LIMIT 10
+      `),
+      // Homestay counts
+      pool.query(`
+        SELECT 
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE status = 'APPROVED') AS approved,
+          COUNT(*) FILTER (WHERE status = 'PENDING') AS pending
+        FROM homestay_profiles
+      `),
+      // Guide counts
+      pool.query(`
+        SELECT 
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE status = 'APPROVED') AS approved,
+          COUNT(*) FILTER (WHERE status = 'PENDING') AS pending
+        FROM tour_guide_profiles
+      `),
+      // Attraction counts per municipality
+      pool.query(`
+        SELECT m.name AS municipality, COUNT(ta.id) AS attractions
+        FROM tourist_attractions ta
+        JOIN municipalities m ON ta.municipality_id = m.id
+        GROUP BY m.name
+        ORDER BY attractions DESC
+        LIMIT 10
+      `),
+      // Booking status distribution
+      pool.query(`
+        SELECT status, COUNT(*) AS count
+        FROM bookings_inquiries
+        GROUP BY status
+      `),
+      // Total tourist accounts
+      pool.query(`
+        SELECT COUNT(*) FROM user_accounts WHERE role='TOURIST' AND status='APPROVED'
+      `),
+      // Recent activity logs
+      pool.query(`
+        SELECT al.*, ua.full_name AS actor_name, ua.role AS actor_role
+        FROM activity_logs al
+        LEFT JOIN user_accounts ua ON al.user_id = ua.id
+        ORDER BY al.created_at DESC
+        LIMIT 50
+      `)
+    ]);
 
     res.json({
       monthlyBookings: monthlyBookings.rows,
@@ -100,39 +104,43 @@ export const getOverview = async (req, res) => {
 // GET /api/analytics/municipal — MUNICIPAL_DOT scoped
 export const getMunicipalAnalytics = async (req, res) => {
   const municipalityId = req.user.municipality_id;
+  if (!municipalityId) {
+    return res.status(400).json({ message: 'No municipality assigned to this officer account.' });
+  }
+
   try {
-    // Monthly bookings for this municipality's homestays
-    const monthlyBookings = await pool.query(`
-      SELECT 
-        TO_CHAR(DATE_TRUNC('month', bi.created_at), 'Mon') AS month,
-        EXTRACT(MONTH FROM bi.created_at) AS month_num,
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE bi.status = 'CONFIRMED') AS confirmed
-      FROM bookings_inquiries bi
-      JOIN homestay_profiles hp ON bi.homestay_id = hp.id
-      JOIN user_accounts ua ON hp.owner_id = ua.id
-      WHERE ua.municipality_id = $1
-        AND EXTRACT(YEAR FROM bi.created_at) = EXTRACT(YEAR FROM NOW())
-      GROUP BY DATE_TRUNC('month', bi.created_at), EXTRACT(MONTH FROM bi.created_at)
-      ORDER BY month_num
-    `, [municipalityId]);
-
-    // Attractions count
-    const attractionCount = await pool.query(
-      `SELECT COUNT(*) FROM tourist_attractions WHERE municipality_id = $1`, [municipalityId]
-    );
-
-    // Homestay occupancy: rooms booked vs total
-    const homestayOccupancy = await pool.query(`
-      SELECT 
-        hp.name AS homestay,
-        COUNT(DISTINCT bi.id) AS bookings
-      FROM homestay_profiles hp
-      JOIN user_accounts ua ON hp.owner_id = ua.id
-      LEFT JOIN bookings_inquiries bi ON bi.homestay_id = hp.id AND bi.status = 'CONFIRMED'
-      WHERE ua.municipality_id = $1
-      GROUP BY hp.name
-    `, [municipalityId]);
+    const [monthlyBookings, attractionCount, homestayOccupancy] = await Promise.all([
+      // Monthly bookings for this municipality's homestays
+      pool.query(`
+        SELECT 
+          TO_CHAR(DATE_TRUNC('month', bi.created_at), 'Mon') AS month,
+          EXTRACT(MONTH FROM bi.created_at) AS month_num,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE bi.status = 'CONFIRMED') AS confirmed
+        FROM bookings_inquiries bi
+        JOIN homestay_profiles hp ON bi.homestay_id = hp.id
+        JOIN user_accounts ua ON hp.owner_id = ua.id
+        WHERE ua.municipality_id = $1
+          AND EXTRACT(YEAR FROM bi.created_at) = EXTRACT(YEAR FROM NOW())
+        GROUP BY DATE_TRUNC('month', bi.created_at), EXTRACT(MONTH FROM bi.created_at)
+        ORDER BY month_num
+      `, [municipalityId]),
+      // Attractions count
+      pool.query(
+        `SELECT COUNT(*) FROM tourist_attractions WHERE municipality_id = $1`, [municipalityId]
+      ),
+      // Homestay occupancy: rooms booked vs total
+      pool.query(`
+        SELECT 
+          hp.name AS homestay,
+          COUNT(DISTINCT bi.id) AS bookings
+        FROM homestay_profiles hp
+        JOIN user_accounts ua ON hp.owner_id = ua.id
+        LEFT JOIN bookings_inquiries bi ON bi.homestay_id = hp.id AND bi.status = 'CONFIRMED'
+        WHERE ua.municipality_id = $1
+        GROUP BY hp.name
+      `, [municipalityId])
+    ]);
 
     res.json({
       monthlyBookings: monthlyBookings.rows,
