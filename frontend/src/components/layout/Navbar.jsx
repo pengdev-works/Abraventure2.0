@@ -218,8 +218,8 @@ const Navbar = () => {
 
     // Booking or inquiry
     if (type === 'BOOKING' || title.includes('booking') || title.includes('inquiry') || msg.includes('inquiry') || msg.includes('booking')) {
-      if (role === 'HOMESTAY_OWNER') return '/owner-dashboard?tab=inquiries';
-      if (role === 'TOUR_GUIDE') return '/guide-dashboard?tab=inquiries';
+      if (role === 'HOMESTAY_OWNER') return '/owner-dashboard?tab=bookings';
+      if (role === 'TOUR_GUIDE') return '/guide-dashboard?tab=bookings';
       if (role === 'TOURIST') return '/tourist-dashboard?tab=bookings';
       if (role === 'MUNICIPAL_DOT') return '/municipal-dashboard?tab=inquiries';
       if (role === 'PROVINCIAL_DOT') return '/provincial-dashboard?tab=listings';

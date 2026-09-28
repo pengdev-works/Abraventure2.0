@@ -6,6 +6,8 @@ import {
   addRoom,
   updateRoom,
   deleteRoom,
+  addRoomImage,
+  deleteRoomImage,
   updateTourGuideProfile,
   updateMunicipalDotProfile,
   getApplications,
@@ -28,6 +30,9 @@ router.delete('/homestay/images/:id', verifyToken, requireRoles(['HOMESTAY_OWNER
 router.post('/homestay/rooms', verifyToken, requireRoles(['HOMESTAY_OWNER']), addRoom);
 router.put('/homestay/rooms/:id', verifyToken, requireRoles(['HOMESTAY_OWNER']), updateRoom);
 router.delete('/homestay/rooms/:id', verifyToken, requireRoles(['HOMESTAY_OWNER']), deleteRoom);
+// Room image routes
+router.post('/homestay/rooms/:roomId/images', verifyToken, requireRoles(['HOMESTAY_OWNER']), upload.single('roomImage'), addRoomImage);
+router.delete('/homestay/room-images/:imageId', verifyToken, requireRoles(['HOMESTAY_OWNER']), deleteRoomImage);
 
 // Tour guide routes
 router.put('/guide', verifyToken, requireRoles(['TOUR_GUIDE']), upload.single('profilePicture'), updateTourGuideProfile);

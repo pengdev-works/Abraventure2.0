@@ -24,8 +24,11 @@ const TouristDashboard = () => {
 
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (t && t !== activeTab) {
-      setActiveTab(t);
+    if (t) {
+      const normalized = t === 'tour-bookings' ? 'tour-packages' : t;
+      if (normalized !== activeTab) {
+        setActiveTab(normalized);
+      }
     }
   }, [searchParams]);
 
@@ -905,7 +908,7 @@ const TouristDashboard = () => {
                         )}
 
                         <Link
-                          to={`/tour-packages/${b.tour_package_id}`}
+                          to={`/tour-packages/${b.package_id || b.tour_package_id}`}
                           className="text-xs text-[var(--color-primary)] hover:underline font-semibold ml-auto flex items-center gap-1"
                         >
                           Details <ExternalLink className="w-3 h-3" />
@@ -1476,6 +1479,7 @@ const TouristDashboard = () => {
                 try {
                   const fd = new FormData();
                   fd.append('proof_image', pkgProofFile);
+                  fd.append('paymentProof', pkgProofFile);
                   const res = await fetch(`/api/tour-packages/bookings/${pkgProofModal.id}/payment-proof`, {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${token}` },

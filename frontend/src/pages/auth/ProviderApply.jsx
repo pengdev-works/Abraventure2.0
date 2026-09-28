@@ -165,6 +165,25 @@ const ProviderApply = () => {
       return;
     }
 
+    if (providerType === 'municipal_office') {
+      if (!officeName.trim() || !officeAddress.trim()) {
+        setError('Please provide the LGU / Office Name and Office Address.');
+        return;
+      }
+      if (!validIdFile) {
+        setError('Document #1 is required: Please upload the Valid Government ID of the Tourism Officer.');
+        return;
+      }
+      if (!accreditationDocFile) {
+        setError('Document #2 is required: Please upload the Official Appointment Paper or LGU Designation Letter.');
+        return;
+      }
+      if (!supportingDocFile) {
+        setError('Document #3 is required: Please upload Supporting Document or Office Verification Proof.');
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -965,28 +984,45 @@ const ProviderApply = () => {
 
                   {/* Section C: Accreditation & Documents */}
                   <div>
-                    <h3 className="font-serif text-base font-bold text-[#153325] flex items-center gap-2 pb-2 border-b border-[#F3ECE0]">
-                      <FileText className="w-4 h-4 text-[#B88B2A]" />
-                      <span>Documents & Accreditation Proof</span>
-                    </h3>
-                    <p className="text-xs text-[#5A534E] mt-1 mb-4">
-                      Upload clear photo copies or PDF files (max 10MB each) to expedite municipal validation.
+                    <div className="flex items-center justify-between pb-2 border-b border-[#F3ECE0]">
+                      <h3 className="font-serif text-base font-bold text-[#153325] flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-[#B88B2A]" />
+                        <span>Documents & Accreditation Proof</span>
+                      </h3>
+                      {providerType === 'municipal_office' && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full">
+                          All 3 Proofs Mandatory
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[#5A534E] mt-1.5 mb-4">
+                      {providerType === 'municipal_office'
+                        ? 'The Provincial Tourism Office requires all 3 official proof documents below to validate and activate your Municipal Tourism Office account.'
+                        : 'Upload clear photo copies or PDF files (max 10MB each) to expedite municipal validation.'}
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {/* Doc 1: Valid Identification */}
-                      <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E8DFC8] flex flex-col justify-between">
+                      <div className={`p-3 bg-[#FAF7F2] rounded-xl border flex flex-col justify-between transition-colors ${validIdFile ? 'border-emerald-400 bg-emerald-50/20' : 'border-[#E8DFC8]'}`}>
                         <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#153325] block mb-1">
-                            1. Valid Government ID
-                          </span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#153325] block">
+                              1. Valid Government ID <span className="text-red-500 font-bold">*</span>
+                            </span>
+                          </div>
                           <p className="text-[11px] text-[#5A534E] leading-tight mb-2">
-                            Passport, Driver's License, or PhilID.
+                            {providerType === 'municipal_office'
+                              ? "PhilID, Passport, Driver's License, or PRC ID of the Tourism Officer."
+                              : "Passport, Driver's License, or PhilID."}
                           </p>
                         </div>
                         <label className="block">
-                          <span className="text-[10px] font-semibold text-[#153325] bg-white border border-[#DCD5C9] py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer hover:bg-[#FAF7F2] transition-colors truncate">
-                            <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className={`text-[10px] font-semibold py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors truncate border ${
+                            validIdFile
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-white text-[#153325] border-[#DCD5C9] hover:bg-[#FAF7F2]'
+                          }`}>
+                            {validIdFile ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" /> : <Upload className="w-3.5 h-3.5 flex-shrink-0" />}
                             <span className="truncate">{validIdFile ? validIdFile.name : 'Choose File'}</span>
                           </span>
                           <input
@@ -1006,19 +1042,29 @@ const ProviderApply = () => {
                         </label>
                       </div>
 
-                      {/* Doc 2: Accreditation Certificate / License */}
-                      <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E8DFC8] flex flex-col justify-between">
+                      {/* Doc 2: Accreditation Certificate / License / Appointment */}
+                      <div className={`p-3 bg-[#FAF7F2] rounded-xl border flex flex-col justify-between transition-colors ${accreditationDocFile ? 'border-emerald-400 bg-emerald-50/20' : 'border-[#E8DFC8]'}`}>
                         <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#153325] block mb-1">
-                            2. Accreditation Document
-                          </span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#153325] block">
+                              {providerType === 'municipal_office' ? '2. Appointment / Designation' : '2. Accreditation Document'} <span className="text-red-500 font-bold">*</span>
+                            </span>
+                          </div>
                           <p className="text-[11px] text-[#5A534E] leading-tight mb-2">
-                            {providerType === 'homestay' ? "DOT Accreditation / Mayor's Permit." : "DOT Guide License / Certificate."}
+                            {providerType === 'municipal_office'
+                              ? "Mayor's Executive Order, Appointment Paper, or Resolution."
+                              : providerType === 'homestay'
+                              ? "DOT Accreditation / Mayor's Permit."
+                              : "DOT Guide License / Certificate."}
                           </p>
                         </div>
                         <label className="block">
-                          <span className="text-[10px] font-semibold text-[#153325] bg-white border border-[#DCD5C9] py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer hover:bg-[#FAF7F2] transition-colors truncate">
-                            <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className={`text-[10px] font-semibold py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors truncate border ${
+                            accreditationDocFile
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-white text-[#153325] border-[#DCD5C9] hover:bg-[#FAF7F2]'
+                          }`}>
+                            {accreditationDocFile ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" /> : <Upload className="w-3.5 h-3.5 flex-shrink-0" />}
                             <span className="truncate">{accreditationDocFile ? accreditationDocFile.name : 'Choose File'}</span>
                           </span>
                           <input
@@ -1027,7 +1073,7 @@ const ProviderApply = () => {
                             onChange={(e) => {
                               const file = e.target.files[0];
                               if (file && file.size > 10 * 1024 * 1024) {
-                                setError('Accreditation document must be under 10 MB.');
+                                setError('Appointment / Accreditation document must be under 10 MB.');
                                 e.target.value = '';
                                 return;
                               }
@@ -1038,19 +1084,27 @@ const ProviderApply = () => {
                         </label>
                       </div>
 
-                      {/* Doc 3: Supporting Documents */}
-                      <div className="p-3 bg-[#FAF7F2] rounded-xl border border-[#E8DFC8] flex flex-col justify-between">
+                      {/* Doc 3: Supporting Documents / Office Proof */}
+                      <div className={`p-3 bg-[#FAF7F2] rounded-xl border flex flex-col justify-between transition-colors ${supportingDocFile ? 'border-emerald-400 bg-emerald-50/20' : 'border-[#E8DFC8]'}`}>
                         <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#153325] block mb-1">
-                            3. Supporting Documents
-                          </span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#153325] block">
+                              {providerType === 'municipal_office' ? '3. Supporting Document / Office Proof' : '3. Supporting Documents'} <span className="text-red-500 font-bold">*</span>
+                            </span>
+                          </div>
                           <p className="text-[11px] text-[#5A534E] leading-tight mb-2">
-                            Barangay clearance, photos, or training cert.
+                            {providerType === 'municipal_office'
+                              ? 'Tourism Office photo, official endorsement, or accreditation cert.'
+                              : 'Barangay clearance, photos, or training cert.'}
                           </p>
                         </div>
                         <label className="block">
-                          <span className="text-[10px] font-semibold text-[#153325] bg-white border border-[#DCD5C9] py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer hover:bg-[#FAF7F2] transition-colors truncate">
-                            <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className={`text-[10px] font-semibold py-1.5 px-2.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors truncate border ${
+                            supportingDocFile
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-white text-[#153325] border-[#DCD5C9] hover:bg-[#FAF7F2]'
+                          }`}>
+                            {supportingDocFile ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" /> : <Upload className="w-3.5 h-3.5 flex-shrink-0" />}
                             <span className="truncate">{supportingDocFile ? supportingDocFile.name : 'Choose File'}</span>
                           </span>
                           <input

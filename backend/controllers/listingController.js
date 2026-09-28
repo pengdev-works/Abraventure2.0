@@ -216,6 +216,74 @@ export const deleteRoom = async (req, res) => {
   }
 };
 
+// --- HOMESTAY ROOM IMAGE MANAGEMENT ---
+
+export const addRoomImage = async (req, res) => {
+  const userId = req.user.id;
+  const { roomId } = req.params;
+  const { caption } = req.body;
+
+  if (!req.file) {
+    return res.status(400).json({ message: 'No image file uploaded.' });
+  }
+
+  try {
+    // Verify ownership via chain: room → homestay → owner
+    const roomCheck = await pool.query(
+      `SELECT r.id FROM homestay_rooms r
+       JOIN homestay_profiles h ON r.homestay_id = h.id
+       WHERE r.id = $1 AND h.owner_id = $2`,
+      [roomId, userId]
+    );
+    if (roomCheck.rows.length === 0) {
+      return res.status(403).json({ message: 'Forbidden or room not found.' });
+    }
+
+    // Get current max sort_order for this room
+    const orderRes = await pool.query(
+      'SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM homestay_room_images WHERE room_id = $1',
+      [roomId]
+    );
+    const nextOrder = (orderRes.rows[0].max_order ?? -1) + 1;
+
+    const result = await pool.query(
+      `INSERT INTO homestay_room_images (room_id, image_url, caption, sort_order)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [roomId, req.file.path, caption?.trim() || null, nextOrder]
+    );
+
+    return res.status(201).json({ message: 'Room image added.', image: result.rows[0] });
+  } catch (err) {
+    console.error('Error adding room image:', err);
+    return res.status(500).json({ message: 'Internal server error adding room image.' });
+  }
+};
+
+export const deleteRoomImage = async (req, res) => {
+  const userId = req.user.id;
+  const { imageId } = req.params;
+
+  try {
+    // Verify ownership
+    const check = await pool.query(
+      `SELECT ri.id FROM homestay_room_images ri
+       JOIN homestay_rooms r ON ri.room_id = r.id
+       JOIN homestay_profiles h ON r.homestay_id = h.id
+       WHERE ri.id = $1 AND h.owner_id = $2`,
+      [imageId, userId]
+    );
+    if (check.rows.length === 0) {
+      return res.status(403).json({ message: 'Forbidden or image not found.' });
+    }
+
+    await pool.query('DELETE FROM homestay_room_images WHERE id = $1', [imageId]);
+    return res.status(200).json({ message: 'Room image deleted.' });
+  } catch (err) {
+    console.error('Error deleting room image:', err);
+    return res.status(500).json({ message: 'Internal server error deleting room image.' });
+  }
+};
+
 // --- TOUR GUIDE PROFILE MANAGEMENT ---
 
 export const updateTourGuideProfile = async (req, res) => {
@@ -388,9 +456,14 @@ export const getApplications = async (req, res) => {
     let municipalAdmins = [];
     if (role === 'PROVINCIAL_DOT') {
       const adminRes = await pool.query(
-        `SELECT u.id, u.email, u.full_name, u.phone_number, u.status, m.name as municipality_name
+        `SELECT u.id, u.email, u.full_name, u.phone_number, u.status, u.created_at,
+                COALESCE(p.reference_number, u.reference_number) AS reference_number,
+                m.name as municipality_name, m.id as municipality_id,
+                p.office_name, p.designation, p.office_address, p.contact_phone, p.contact_email,
+                p.valid_id_url, p.accreditation_doc_url, p.supporting_doc_url
          FROM user_accounts u
          JOIN municipalities m ON u.municipality_id = m.id
+         LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
          WHERE u.role = 'MUNICIPAL_DOT'
          ORDER BY u.created_at DESC`
       );
@@ -492,6 +565,14 @@ export const approveAccount = async (req, res) => {
         [status, id]
       );
 
+      // Keep municipal_dot_profiles in sync
+      await client.query(
+        `UPDATE municipal_dot_profiles
+         SET status = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $2`,
+        [status, id]
+      );
+
       await client.query(
         `INSERT INTO approval_logs (target_user_id, action_by, previous_status, new_status, remarks)
          VALUES ($1, $2, $3, $4, $5)`,
@@ -558,8 +639,11 @@ export const getAllDotUsers = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.email, u.full_name, u.phone_number, u.role, u.status, u.created_at,
+              COALESCE(p.reference_number, u.reference_number) AS reference_number,
               m.id AS municipality_id, m.name AS municipality_name,
-              p.designation, p.office_address, p.profile_picture_url
+              p.office_name, p.designation, p.office_address, p.profile_picture_url,
+              p.contact_phone, p.contact_email,
+              p.valid_id_url, p.accreditation_doc_url, p.supporting_doc_url
        FROM user_accounts u
        LEFT JOIN municipalities m ON u.municipality_id = m.id
        LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
@@ -667,7 +751,7 @@ export const createDotUser = async (req, res) => {
  */
 export const updateDotUser = async (req, res) => {
   const { id } = req.params;
-  const { fullName, phoneNumber, email, municipalityId, status, designation, officeAddress } = req.body;
+  const { fullName, phoneNumber, email, municipalityId, status, designation, officeAddress, validIdUrl, accreditationDocUrl, supportingDocUrl } = req.body;
 
   const client = await pool.connect();
   try {
@@ -713,10 +797,14 @@ export const updateDotUser = async (req, res) => {
     if (targetRes.rows[0].role === 'MUNICIPAL_DOT') {
       await client.query(
         `UPDATE municipal_dot_profiles
-         SET designation    = COALESCE($1, designation),
-             office_address = COALESCE($2, office_address)
-         WHERE user_id = $3`,
-        [designation, officeAddress, id]
+         SET designation           = COALESCE($1, designation),
+             office_address        = COALESCE($2, office_address),
+             valid_id_url          = COALESCE($3, valid_id_url),
+             accreditation_doc_url = COALESCE($4, accreditation_doc_url),
+             supporting_doc_url    = COALESCE($5, supporting_doc_url),
+             updated_at            = CURRENT_TIMESTAMP
+         WHERE user_id = $6`,
+        [designation, officeAddress, validIdUrl, accreditationDocUrl, supportingDocUrl, id]
       );
     }
 
@@ -725,7 +813,8 @@ export const updateDotUser = async (req, res) => {
     const updated = await pool.query(
       `SELECT u.id, u.email, u.full_name, u.phone_number, u.role, u.status,
               m.id AS municipality_id, m.name AS municipality_name,
-              p.designation, p.office_address
+              p.designation, p.office_address, p.office_name,
+              p.valid_id_url, p.accreditation_doc_url, p.supporting_doc_url
        FROM user_accounts u
        LEFT JOIN municipalities m ON u.municipality_id = m.id
        LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id

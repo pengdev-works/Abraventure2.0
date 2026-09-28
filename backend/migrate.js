@@ -16,6 +16,9 @@ const run = async () => {
         ADD COLUMN IF NOT EXISTS contact_email    VARCHAR(255),
         ADD COLUMN IF NOT EXISTS status           account_status DEFAULT 'PENDING',
         ADD COLUMN IF NOT EXISTS reference_number VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS valid_id_url     TEXT,
+        ADD COLUMN IF NOT EXISTS accreditation_doc_url TEXT,
+        ADD COLUMN IF NOT EXISTS supporting_doc_url    TEXT,
         ADD COLUMN IF NOT EXISTS created_at       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         ADD COLUMN IF NOT EXISTS updated_at       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     `);

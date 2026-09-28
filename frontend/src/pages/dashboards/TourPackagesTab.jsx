@@ -5,7 +5,7 @@ import {
   Package, Plus, Edit, Trash2, Send, CheckCircle, Clock, XCircle, AlertCircle,
   RefreshCw, Eye, Calendar, Truck, Users, MapPin, FileText, ChevronDown,
   ChevronUp, Star, Home, Compass, Navigation, Info, Upload, Check, X,
-  ArrowRight, Building2, Globe, Shield, Download, ExternalLink, QrCode
+  ArrowRight, Building2, Globe, Shield, Download, ExternalLink, QrCode, Bus
 } from 'lucide-react';
 
 // ─── Status Badge Helper ─────────────────────────────────────────────────────
@@ -788,6 +788,65 @@ const TourPackagesTab = () => {
               ))}
             </div>
           )}
+
+          {/* Expected Tourist Arrivals from Provincial Tours */}
+          <div style={{ marginTop: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Bus size={18} color="var(--color-primary)" /> Expected Tourist Arrivals from Provincial Tours
+                </h4>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Confirmed multi-municipality tour circuits from the Provincial Tourism Office visiting your municipality.
+                </div>
+              </div>
+            </div>
+
+            {bookings.filter(b => b.reviewing_authority === 'PROVINCIAL').length === 0 ? (
+              <div style={{ ...cardStyle, textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.825rem' }}>
+                No active tourist delegations from Provincial tours currently scheduled for your municipality.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {bookings.filter(b => b.reviewing_authority === 'PROVINCIAL').map(b => (
+                  <div key={b.id} style={{ ...cardStyle, borderLeft: '4px solid #0284C7' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.85rem', color: '#0369A1', background: '#E0F2FE', padding: '0.15rem 0.5rem', borderRadius: '0.35rem' }}>
+                            {b.booking_reference}
+                          </span>
+                          <StatusBadge status={b.status} />
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#E0F2FE', color: '#0369A1', padding: '0.15rem 0.5rem', borderRadius: 999 }}>
+                            🌟 Provincial Circuit
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                          {b.package_title}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                          <span>📅 Expected Date: <strong>{b.travel_date?.split('T')[0] || b.travel_date}</strong></span>
+                          <span>👥 Expected Tourists: <strong>{b.number_of_tourists} Pax</strong></span>
+                          <span>🚌 Transport: <strong>{b.transport_choice}</strong></span>
+                          <span>👤 Tourist: <strong>{b.tourist_name}</strong> {b.tourist_phone ? `(📞 ${b.tourist_phone})` : ''}</span>
+                        </div>
+                        {b.tourist_spots?.length > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: '#0369A1', marginTop: '0.4rem', background: '#F0F9FF', padding: '0.35rem 0.6rem', borderRadius: '0.4rem', border: '1px solid #BAE6FD' }}>
+                            📍 <strong>Tourist Spots in Itinerary:</strong> {b.tourist_spots.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0369A1', background: '#E0F2FE', padding: '0.25rem 0.6rem', borderRadius: '0.35rem' }}>
+                          🛡️ Reviewed & Confirmed by Provincial DOT
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1047,31 +1106,87 @@ const TourPackagesTab = () => {
                       </div>
                       {b.total_amount && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>💰 Total: ₱{parseFloat(b.total_amount).toLocaleString()}</div>}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      {b.status === 'PENDING' && b.payment_status === 'PROOF_SUBMITTED' && (
-                        <button style={btnPrimary} onClick={async () => {
-                          const r = await fetch(`/api/tour-packages/bookings/${b.id}/verify-payment`, { method: 'PUT', headers });
-                          const d = await r.json();
-                          if (r.ok) { Swal.fire('Confirmed!', d.message, 'success'); await fetchBookings(); }
-                          else Swal.fire('Error', d.message, 'error');
-                        }}>
-                          <Check size={12} /> Verify Payment
-                        </button>
-                      )}
-                      {['PENDING', 'CONFIRMED'].includes(b.status) && (
-                        <button style={btnDanger} onClick={() => handleUpdateBookingStatus(b.id, 'CANCELLED')}>
-                          <X size={12} /> Cancel
-                        </button>
-                      )}
-                      {b.status === 'CONFIRMED' && (
-                        <button style={btnGold} onClick={() => handleUpdateBookingStatus(b.id, 'COMPLETED')}>
-                          <Check size={12} /> Complete
-                        </button>
-                      )}
-                      {b.payment_proof_url && (
-                        <a href={b.payment_proof_url} target="_blank" rel="noopener noreferrer" style={{ ...btnSecondary, textDecoration: 'none' }}>
-                          <ExternalLink size={12} /> Proof
-                        </a>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {b.reviewing_authority === 'PROVINCIAL' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.75rem', borderRadius: '0.5rem', background: '#E0F2FE', color: '#0369A1', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Globe size={13} /> Reviewed by Provincial Tourism Office
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Expected: {b.number_of_tourists} Pax on {b.travel_date?.split('T')[0] || b.travel_date}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          {b.status === 'PENDING' && (
+                            <>
+                              <button
+                                style={btnPrimary}
+                                onClick={() => handleUpdateBookingStatus(b.id, 'CONFIRMED')}
+                              >
+                                <Check size={12} /> Confirm Booking
+                              </button>
+                              {b.payment_status === 'PROOF_SUBMITTED' && (
+                                <button
+                                  style={{ ...btnPrimary, background: '#1E6040' }}
+                                  onClick={async () => {
+                                    const r = await fetch(`/api/tour-packages/bookings/${b.id}/verify-payment`, { method: 'PUT', headers });
+                                    const d = await r.json();
+                                    if (r.ok) { Swal.fire('Confirmed!', d.message, 'success'); await fetchBookings(); }
+                                    else Swal.fire('Error', d.message, 'error');
+                                  }}
+                                >
+                                  <Check size={12} /> Verify Payment
+                                </button>
+                              )}
+                              <button
+                                style={btnDanger}
+                                onClick={() => handleUpdateBookingStatus(b.id, 'CANCELLED')}
+                              >
+                                <X size={12} /> Cancel
+                              </button>
+                            </>
+                          )}
+                          {b.status === 'CONFIRMED' && (
+                            <>
+                              {b.payment_status !== 'VERIFIED' && (
+                                <button
+                                  style={{ ...btnPrimary, background: '#1E6040' }}
+                                  onClick={async () => {
+                                    const r = await fetch(`/api/tour-packages/bookings/${b.id}/verify-payment`, { method: 'PUT', headers });
+                                    const d = await r.json();
+                                    if (r.ok) { Swal.fire('Verified!', d.message, 'success'); await fetchBookings(); }
+                                    else Swal.fire('Error', d.message, 'error');
+                                  }}
+                                >
+                                  <Check size={12} /> Mark as Paid
+                                </button>
+                              )}
+                              <button
+                                style={btnGold}
+                                onClick={() => handleUpdateBookingStatus(b.id, 'COMPLETED')}
+                              >
+                                <Check size={12} /> Complete
+                              </button>
+                              <button
+                                style={btnDanger}
+                                onClick={() => handleUpdateBookingStatus(b.id, 'CANCELLED')}
+                              >
+                                <X size={12} /> Cancel
+                              </button>
+                            </>
+                          )}
+                          {b.payment_proof_url && (
+                            <a
+                              href={b.payment_proof_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ ...btnSecondary, textDecoration: 'none' }}
+                            >
+                              <ExternalLink size={12} /> Proof
+                            </a>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

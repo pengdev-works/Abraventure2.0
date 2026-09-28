@@ -119,10 +119,21 @@ export const getMunicipalityDetails = async (req, res) => {
       );
       homestay.images = imgRes.rows;
 
-      // Fetch room descriptions as "sleeping arrangements" (no pricing shown to tourists)
+      // Fetch room descriptions as "sleeping arrangements" with images
       const roomRes = await pool.query(
-        `SELECT room_type, capacity, description FROM homestay_rooms
-         WHERE homestay_id = $1 ORDER BY created_at ASC`,
+        `SELECT r.id, r.room_type, r.capacity, r.description, r.price_per_night,
+                COALESCE(
+                  json_agg(
+                    json_build_object('id', ri.id, 'image_url', ri.image_url, 'caption', ri.caption, 'sort_order', ri.sort_order)
+                    ORDER BY ri.sort_order ASC
+                  ) FILTER (WHERE ri.id IS NOT NULL),
+                  '[]'
+                ) AS room_images
+         FROM homestay_rooms r
+         LEFT JOIN homestay_room_images ri ON r.id = ri.room_id
+         WHERE r.homestay_id = $1
+         GROUP BY r.id, r.room_type, r.capacity, r.description, r.price_per_night
+         ORDER BY r.created_at ASC`,
         [homestay.id]
       );
       homestay.sleeping_arrangements = roomRes.rows;

@@ -23,6 +23,91 @@ import {
 
 const PIE_COLORS = ['#153325', '#B88B2A', '#355C6D', '#5A534E', '#1D4433'];
 
+const ProofCard = ({ title, subtitle, url, onPreview }) => {
+  const isPdf = url && url.toLowerCase().endsWith('.pdf');
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-col justify-between hover:shadow-md transition-shadow">
+      <div>
+        <div className="flex items-start justify-between gap-1 mb-1">
+          <span className="text-[11px] font-bold text-slate-800 leading-tight block">
+            {title}
+          </span>
+          {url ? (
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 flex-shrink-0">
+              Submitted
+            </span>
+          ) : (
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 flex-shrink-0">
+              Missing
+            </span>
+          )}
+        </div>
+        <p className="text-[10px] text-slate-400 mb-2.5 leading-snug">
+          {subtitle}
+        </p>
+      </div>
+
+      {url ? (
+        <div className="space-y-2">
+          {/* Document Preview Box */}
+          <div
+            onClick={() => onPreview(url)}
+            className="group relative h-36 w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-pointer flex items-center justify-center"
+            title="Click to inspect in high resolution"
+          >
+            {isPdf ? (
+              <div className="flex flex-col items-center justify-center p-3 text-center">
+                <FileText className="w-10 h-10 text-red-500 mb-1 group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-bold text-slate-700">Official PDF Document</span>
+                <span className="text-[9px] text-slate-400">Click to preview</span>
+              </div>
+            ) : (
+              <>
+                <img
+                  src={url}
+                  alt={title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                  <Eye className="w-4 h-4" />
+                  <span>Inspect</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => onPreview(url)}
+              className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg transition-colors flex items-center justify-center gap-1"
+            >
+              <Eye className="w-3 h-3" />
+              <span>Inspect</span>
+            </button>
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
+              title="Open document in new tab"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="h-36 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center p-3 text-center">
+          <AlertCircle className="w-6 h-6 text-slate-300 mb-1" />
+          <span className="text-[11px] font-semibold text-slate-400">No Document Uploaded</span>
+          <span className="text-[9px] text-slate-400 mt-0.5">Applicant did not attach this file</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProvincialDashboard = () => {
   const { token, user, logout } = useAuth();
   const { showAlert } = useAlert();
@@ -169,6 +254,12 @@ const ProvincialDashboard = () => {
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [forceCreate, setForceCreate] = useState(false);
   const [accountsFilter, setAccountsFilter] = useState('ALL'); // 'ALL' | 'MUNICIPAL_DOT' | 'PROVINCIAL_DOT'
+
+  // Municipal Registration Proofs Review Modal States
+  const [selectedProofUser, setSelectedProofUser] = useState(null);
+  const [proofReviewRemarks, setProofReviewRemarks] = useState('');
+  const [proofActionLoading, setProofActionLoading] = useState(false);
+  const [activeDocPreview, setActiveDocPreview] = useState(null);
 
   const headers = { 'Authorization': `Bearer ${token}` };
   const jsonHeaders = { ...headers, 'Content-Type': 'application/json' };
@@ -682,7 +773,7 @@ const ProvincialDashboard = () => {
   };
 
   // ─── Approval Handler ────────────────────────────────────────
-  const handleApprove = async (id, type, status) => {
+  const handleApprove = async (id, type, status, customRemarks = null) => {
     if (!token) return;
 
     // Optimistic UI update: immediately change status in local state for 0ms delay
@@ -692,29 +783,34 @@ const ProvincialDashboard = () => {
         (list || []).map(item => (item.id === id || item.userId === id ? { ...item, status } : item));
       if (type === 'HOMESTAY') return { ...prev, homestays: updateList(prev.homestays) };
       if (type === 'GUIDE') return { ...prev, guides: updateList(prev.guides) };
-      if (type === 'MUNICIPAL_ADMIN') return { ...prev, municipalAdmins: updateList(prev.municipalAdmins) };
+      if (type === 'MUNICIPAL_ADMIN' || type === 'MUNICIPAL_DOT') return { ...prev, municipalAdmins: updateList(prev.municipalAdmins) };
       return prev;
     });
+
+    setDotUsers(prev => (prev || []).map(u => (u.id === id ? { ...u, status } : u)));
 
     try {
       const response = await fetch(`/api/listings/approve/${id}`, {
         method: 'PUT',
         headers: jsonHeaders,
-        body: JSON.stringify({ type, status, remarks: remarks || 'Processed by Provincial DOT' })
+        body: JSON.stringify({ type, status, remarks: customRemarks || remarks || 'Processed by Provincial DOT' })
       });
       if (response.ok) {
         setRemarks('');
         await fetchDashboardData();
+        await fetchDotUsers();
         showAlert(`Account marked as ${status} successfully.`, 'success');
       } else {
         const err = await response.json();
         showAlert(err.message || 'Action failed.', 'error');
         await fetchDashboardData();
+        await fetchDotUsers();
       }
     } catch (err) {
       console.error('Error in approval action:', err);
       showAlert('Network error in approval action.', 'error');
       await fetchDashboardData();
+      await fetchDotUsers();
     }
   };
 
@@ -1261,62 +1357,106 @@ const ProvincialDashboard = () => {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 text-[10px] uppercase font-bold bg-slate-50">
-                        {['Role','Municipality','Full Name','Email','Phone','Designation','Status','Actions'].map(h => (
-                          <th key={h} className={`py-3 px-4 ${h==='Actions'?'text-center':''}`}>{h}</th>
+                        {['Role','Municipality','Full Name','Email','Phone','Designation','Registration Proofs','Status','Actions'].map(h => (
+                          <th key={h} className={`py-3 px-4 ${h==='Actions'||h==='Registration Proofs'?'text-center':''}`}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(u => (
-                        <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-slate-600">
-                          <td className="py-3 px-4">
-                            <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
-                              u.role === 'PROVINCIAL_DOT' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-800'
-                            }`}>
-                              {u.role === 'PROVINCIAL_DOT' ? 'Provincial' : 'Municipal'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 font-bold text-emerald-950">{u.municipality_name || <span className="text-slate-300 italic font-normal">Province-wide</span>}</td>
-                          <td className="py-3 px-4 font-semibold text-slate-800">{u.full_name}</td>
-                          <td className="py-3 px-4 text-slate-500">{u.email}</td>
-                          <td className="py-3 px-4">{u.phone_number || '—'}</td>
-                          <td className="py-3 px-4 text-slate-500">{u.designation || '—'}</td>
-                          <td className="py-3 px-4"><StatusBadge status={u.status} /></td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {/* Quick approve/reject if PENDING */}
-                              {u.status === 'PENDING' && (
-                                <>
-                                  <button
-                                    onClick={() => handleApprove(u.id, 'MUNICIPAL_DOT', 'APPROVED')}
-                                    className="px-2.5 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-bold text-[10px]"
-                                  >Approve</button>
-                                  <button
-                                    onClick={() => handleApprove(u.id, 'MUNICIPAL_DOT', 'REJECTED')}
-                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px]"
-                                  >Reject</button>
-                                </>
+                      {filtered.map(u => {
+                        const proofCount = [u.valid_id_url, u.accreditation_doc_url, u.supporting_doc_url].filter(Boolean).length;
+                        return (
+                          <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-slate-600">
+                            <td className="py-3 px-4">
+                              <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                                u.role === 'PROVINCIAL_DOT' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {u.role === 'PROVINCIAL_DOT' ? 'Provincial' : 'Municipal'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-bold text-emerald-950">{u.municipality_name || <span className="text-slate-300 italic font-normal">Province-wide</span>}</td>
+                            <td className="py-3 px-4 font-semibold text-slate-800">{u.full_name}</td>
+                            <td className="py-3 px-4 text-slate-500">{u.email}</td>
+                            <td className="py-3 px-4">{u.phone_number || '—'}</td>
+                            <td className="py-3 px-4 text-slate-500">{u.designation || '—'}</td>
+
+                            {/* Registration Proofs Column */}
+                            <td className="py-3 px-4 text-center">
+                              {u.role === 'MUNICIPAL_DOT' ? (
+                                <button
+                                  onClick={() => { setSelectedProofUser(u); setProofReviewRemarks(''); }}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border shadow-sm ${
+                                    proofCount === 3
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                      : proofCount > 0
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                                  }`}
+                                  title="Inspect the 3 mandatory proofs submitted by this municipality"
+                                >
+                                  <FileText className="w-3 h-3 text-emerald-800 flex-shrink-0" />
+                                  <span>{proofCount}/3 Proofs</span>
+                                  <Eye className="w-3 h-3 opacity-60 ml-0.5" />
+                                </button>
+                              ) : (
+                                <span className="text-slate-300 text-[10px] italic">Province LGU</span>
                               )}
-                              {/* Edit */}
-                              <button
-                                onClick={() => openEditModal(u)}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-emerald-800 transition-colors"
-                                title="Edit account"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              {/* Delete */}
-                              <button
-                                onClick={() => handleDeleteDotUser(u.id, u.full_name)}
-                                className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
-                                title="Delete account"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+
+                            <td className="py-3 px-4"><StatusBadge status={u.status} /></td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {/* If PENDING Municipal DOT: Primary action is Review & Validate Proofs */}
+                                {u.status === 'PENDING' && u.role === 'MUNICIPAL_DOT' ? (
+                                  <>
+                                    <button
+                                      onClick={() => { setSelectedProofUser(u); setProofReviewRemarks(''); }}
+                                      className="px-2.5 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-bold text-[10px] flex items-center gap-1 shadow-sm"
+                                      title="Review the 3 proofs and validate application"
+                                    >
+                                      <ShieldCheck className="w-3 h-3 text-[#D4AF37]" />
+                                      Review & Validate
+                                    </button>
+                                    <button
+                                      onClick={() => handleApprove(u.id, 'MUNICIPAL_DOT', 'REJECTED')}
+                                      className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold text-[10px]"
+                                      title="Reject account"
+                                    >Reject</button>
+                                  </>
+                                ) : u.status === 'PENDING' ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleApprove(u.id, 'PROVINCIAL_DOT', 'APPROVED')}
+                                      className="px-2.5 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-bold text-[10px]"
+                                    >Approve</button>
+                                    <button
+                                      onClick={() => handleApprove(u.id, 'PROVINCIAL_DOT', 'REJECTED')}
+                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px]"
+                                    >Reject</button>
+                                  </>
+                                ) : null}
+
+                                {/* Edit */}
+                                <button
+                                  onClick={() => openEditModal(u)}
+                                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-emerald-800 transition-colors"
+                                  title="Edit account"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                {/* Delete */}
+                                <button
+                                  onClick={() => handleDeleteDotUser(u.id, u.full_name)}
+                                  className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
+                                  title="Delete account"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1496,6 +1636,263 @@ const ProvincialDashboard = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Municipal Registration Proofs Review Modal ───────────────────── */}
+        {selectedProofUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden my-auto border border-slate-100 animate-[fadeIn_.15s_ease]">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 bg-[#FAF7F2] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#153325] text-[#D4AF37] flex items-center justify-center shadow-sm">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-[#153325]/10 text-[#153325] px-2 py-0.5 rounded-full">
+                        {selectedProofUser.municipality_name || 'Municipal'} LGU Accreditation Desk
+                      </span>
+                      <span className="text-[10px] font-mono font-bold text-slate-400">
+                        Ref: {selectedProofUser.reference_number || 'ABRA-MTO-PENDING'}
+                      </span>
+                    </div>
+                    <h3 className="font-serif text-lg font-bold text-slate-900 mt-0.5">
+                      Validate Municipal Registration & Proofs
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setSelectedProofUser(null); setActiveDocPreview(null); }}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+                {/* Applicant Overview Card */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Appointed Officer</span>
+                    <p className="font-bold text-slate-800 text-sm">{selectedProofUser.full_name}</p>
+                    <p className="text-slate-500 text-[11px]">{selectedProofUser.designation || 'Tourism Officer'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Municipality & Office</span>
+                    <p className="font-bold text-emerald-950">{selectedProofUser.municipality_name || 'Abra'}</p>
+                    <p className="text-slate-500 text-[11px]">{selectedProofUser.office_name || 'Municipal Tourism Office'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Contact Details</span>
+                    <p className="text-slate-700 font-medium">{selectedProofUser.email}</p>
+                    <p className="text-slate-500 text-[11px]">{selectedProofUser.phone_number || selectedProofUser.contact_phone || 'No phone provided'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Current Status</span>
+                    <div className="mt-1">
+                      <StatusBadge status={selectedProofUser.status} />
+                    </div>
+                    {selectedProofUser.office_address && (
+                      <p className="text-slate-400 text-[10px] mt-1 truncate" title={selectedProofUser.office_address}>
+                        📍 {selectedProofUser.office_address}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3 Required Proofs Grid */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-[#153325]" />
+                        Official Registration Proofs (3 Mandatory Documents)
+                      </h4>
+                      <p className="text-slate-500 text-[11px]">
+                        Review each proof submitted by the Municipal Tourism Office to ensure authentic accreditation and appointment.
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                      {[selectedProofUser.valid_id_url, selectedProofUser.accreditation_doc_url, selectedProofUser.supporting_doc_url].filter(Boolean).length}/3 Uploaded
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Proof 1 */}
+                    <ProofCard
+                      title="1. Valid Government ID"
+                      subtitle="PhilID, Passport, Driver's License, or PRC"
+                      url={selectedProofUser.valid_id_url}
+                      onPreview={(url) => setActiveDocPreview({ url, title: "1. Valid Government ID", officer: selectedProofUser.full_name })}
+                    />
+
+                    {/* Proof 2 */}
+                    <ProofCard
+                      title="2. Appointment / LGU Designation Paper"
+                      subtitle="Mayor's Executive Order, Appointment, or Resolution"
+                      url={selectedProofUser.accreditation_doc_url}
+                      onPreview={(url) => setActiveDocPreview({ url, title: "2. Official Appointment / LGU Designation Paper", officer: selectedProofUser.full_name })}
+                    />
+
+                    {/* Proof 3 */}
+                    <ProofCard
+                      title="3. Supporting Document & Office Proof"
+                      subtitle="Tourism Office photograph, endorsement, or cert"
+                      url={selectedProofUser.supporting_doc_url}
+                      onPreview={(url) => setActiveDocPreview({ url, title: "3. Supporting Document & Office Verification", officer: selectedProofUser.full_name })}
+                    />
+                  </div>
+                </div>
+
+                {/* Validation Notes & Actions Card */}
+                <div className="bg-[#FAF7F2] border border-[#E8DFC8] rounded-2xl p-4 sm:p-5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Official Validation Notes & Remarks
+                  </label>
+                  <textarea
+                    rows="2"
+                    value={proofReviewRemarks}
+                    onChange={(e) => setProofReviewRemarks(e.target.value)}
+                    placeholder="e.g. Verified official appointment document signed by the Municipal Mayor. Validated for municipal dashboard access."
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-800 text-slate-800"
+                  />
+
+                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#E8DFC8]">
+                    <div className="text-[11px] text-slate-500">
+                      {selectedProofUser.status === 'APPROVED' ? (
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5" /> This Municipal DOT account is currently Approved & Active.
+                        </span>
+                      ) : selectedProofUser.status === 'REJECTED' ? (
+                        <span className="text-red-600 font-semibold flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5" /> This Municipal DOT account is currently Rejected.
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold flex items-center gap-1">
+                          <Bell className="w-3.5 h-3.5" /> Awaiting Provincial Tourism Office validation.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProofUser(null)}
+                        className="flex-1 sm:flex-none px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors"
+                      >
+                        Close
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={proofActionLoading}
+                        onClick={async () => {
+                          setProofActionLoading(true);
+                          try {
+                            await handleApprove(
+                              selectedProofUser.id,
+                              'MUNICIPAL_DOT',
+                              'REJECTED',
+                              proofReviewRemarks || 'Application rejected after reviewing submitted proofs.'
+                            );
+                            setSelectedProofUser(prev => prev ? { ...prev, status: 'REJECTED' } : null);
+                            await fetchDotUsers();
+                            await fetchDashboardData();
+                          } finally {
+                            setProofActionLoading(false);
+                          }
+                        }}
+                        className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 shadow-sm"
+                      >
+                        {proofActionLoading ? 'Processing...' : 'Reject Registration'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={proofActionLoading}
+                        onClick={async () => {
+                          setProofActionLoading(true);
+                          try {
+                            await handleApprove(
+                              selectedProofUser.id,
+                              'MUNICIPAL_DOT',
+                              'APPROVED',
+                              proofReviewRemarks || 'Accreditation proofs verified and validated by Provincial Tourism Office.'
+                            );
+                            setSelectedProofUser(prev => prev ? { ...prev, status: 'APPROVED' } : null);
+                            await fetchDotUsers();
+                            await fetchDashboardData();
+                          } finally {
+                            setProofActionLoading(false);
+                          }
+                        }}
+                        className="flex-1 sm:flex-none px-5 py-2 bg-emerald-900 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                        {proofActionLoading ? 'Validating...' : 'Approve & Validate Officer'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Full-size Document Lightbox Modal ────────────────────────────── */}
+        {activeDocPreview && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-[fadeIn_.15s_ease]"
+            onClick={() => setActiveDocPreview(null)}
+          >
+            <div
+              className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">{activeDocPreview.title}</h4>
+                  {activeDocPreview.officer && (
+                    <p className="text-[11px] text-slate-500">Applicant: {activeDocPreview.officer}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={activeDocPreview.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
+                    title="Open in new window"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                  <button
+                    onClick={() => setActiveDocPreview(null)}
+                    className="p-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-950/5 min-h-[350px]">
+                {activeDocPreview.url.toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    src={activeDocPreview.url}
+                    title={activeDocPreview.title}
+                    className="w-full h-[70vh] rounded-xl border border-slate-200"
+                  />
+                ) : (
+                  <img
+                    src={activeDocPreview.url}
+                    alt={activeDocPreview.title}
+                    className="max-h-[75vh] w-auto max-w-full rounded-xl object-contain shadow-lg"
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}

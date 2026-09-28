@@ -115,6 +115,16 @@ CREATE TABLE IF NOT EXISTS homestay_rooms (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 6b. HOMESTAY ROOM IMAGES (multiple photos per room/sleeping space)
+CREATE TABLE IF NOT EXISTS homestay_room_images (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    room_id UUID NOT NULL REFERENCES homestay_rooms(id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL,
+    caption VARCHAR(255),
+    sort_order INT DEFAULT 0,
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 7. TOUR GUIDE PROFILES
 CREATE TABLE IF NOT EXISTS tour_guide_profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

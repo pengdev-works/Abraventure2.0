@@ -8,7 +8,7 @@ import {
   Package, Sparkles, Send, Clock, ChevronDown, ChevronUp, Film, Video, 
   Play, ExternalLink, Compass, Navigation, Plus, Search, X, ShieldCheck, 
   Check, Share2, Eye, Map, AlertTriangle, ArrowRight, ArrowLeft, Tag, CheckSquare, Layers, DollarSign,
-  UtensilsCrossed, ShoppingBag
+  UtensilsCrossed, ShoppingBag, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import SafeImage, { formatMediaUrl } from '../../components/common/SafeImage';
 
@@ -111,6 +111,32 @@ const MunicipalityDetails = () => {
   const [inquiryError, setInquiryError] = useState('');
   const [inquiryLoading, setInquiryLoading] = useState(false);
   const [bookedDates, setBookedDates] = useState([]); // confirmed booked ranges
+
+  // Homestay Sleeping Arrangements Photos & Lightbox Modal
+  const [activeRoomPhotos, setActiveRoomPhotos] = useState({});
+  const [lightboxPhotoModal, setLightboxPhotoModal] = useState(null);
+
+  // Lightbox keyboard navigation (ArrowLeft, ArrowRight, Escape)
+  useEffect(() => {
+    if (!lightboxPhotoModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setLightboxPhotoModal(null);
+      } else if (e.key === 'ArrowLeft' && lightboxPhotoModal.images.length > 1) {
+        setLightboxPhotoModal(prev => ({
+          ...prev,
+          activeIndex: (prev.activeIndex - 1 + prev.images.length) % prev.images.length
+        }));
+      } else if (e.key === 'ArrowRight' && lightboxPhotoModal.images.length > 1) {
+        setLightboxPhotoModal(prev => ({
+          ...prev,
+          activeIndex: (prev.activeIndex + 1) % prev.images.length
+        }));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxPhotoModal]);
 
   // Local Attraction Features & Itinerary Planning State
   const [selectedAttraction, setSelectedAttraction] = useState(null);
@@ -1232,61 +1258,182 @@ const MunicipalityDetails = () => {
                       const photos = h.images || [];
                       const arrangements = h.sleeping_arrangements || [];
                       return (
-                        <div key={h.id} className="bg-white rounded-lg border border-[#E8DFC8] overflow-hidden flex flex-col justify-between">
+                        <div key={h.id} className="bg-white rounded-2xl border border-[#E8DFC8] overflow-hidden flex flex-col shadow-sm hover:shadow-xl transition-shadow duration-300">
                           <div>
-                            {/* Photo container */}
-                            <div className="img-editorial-wrapper aspect-[16/10] bg-[#153325] relative">
+                            {/* Hero Photo with overlay */}
+                            <div className="aspect-[16/9] bg-[#153325] relative overflow-hidden">
                               <SafeImage
                                 src={photos.length > 0 ? photos[0].image_url : 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=800'}
                                 alt={h.name}
-                                className="img-editorial w-full h-full object-cover"
+                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                                 fallback="landscape"
                               />
+                              {/* Dark gradient at bottom for text legibility */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#153325]/80 via-[#153325]/10 to-transparent" />
+                              {/* Badges */}
                               <div className="absolute top-3 left-3">
-                                <span className="bg-[#153325]/90 text-white font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded">
-                                  DOT Accredited
+                                <span className="bg-[#B88B2A] text-white font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md">
+                                  ✓ DOT Accredited
                                 </span>
+                              </div>
+                              {photos.length > 1 && (
+                                <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <Image className="w-3 h-3" /> {photos.length}
+                                </div>
+                              )}
+                              {/* Name & address on photo */}
+                              <div className="absolute bottom-3 left-4 right-4">
+                                <h3 className="font-serif text-xl font-bold text-white drop-shadow-lg leading-tight">{h.name}</h3>
+                                <p className="text-xs text-white/80 flex items-center gap-1 mt-0.5">
+                                  <MapPin className="w-3 h-3 text-[#B88B2A] flex-shrink-0" /> {h.address}
+                                </p>
                               </div>
                             </div>
 
-                            <div className="p-6">
-                              <h3 className="font-serif text-2xl font-bold text-[#153325] mb-1">{h.name}</h3>
-                              <p className="text-xs text-[#5A534E] mb-3 flex items-center gap-1">
-                                <MapPin className="w-3.5 h-3.5 text-[#B88B2A]" /> {h.address}
-                              </p>
-
+                            <div className="p-5">
                               {/* Star rating */}
-                              <div className="flex items-center gap-1.5 mb-4">
+                              <div className="flex items-center gap-1.5 mb-3">
                                 <div className="flex gap-0.5">{[1,2,3,4,5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(avg) ? 'fill-[#B88B2A] text-[#B88B2A]' : 'text-slate-200'}`} />)}</div>
-                                <span className="text-xs text-[#5A534E]">{avg > 0 ? avg.toFixed(1) : 'New listing'} ({revList.length})</span>
+                                <span className="text-xs text-[#5A534E]">{avg > 0 ? avg.toFixed(1) : 'New listing'} &middot; {revList.length} review{revList.length !== 1 ? 's' : ''}</span>
                               </div>
 
-                              <p className="text-[#5A534E] text-xs leading-relaxed mb-4">{h.description}</p>
+                              <p className="text-[#5A534E] text-xs leading-relaxed mb-5">{h.description}</p>
 
-                              {/* Sleeping arrangements */}
+                              {/* Sleeping arrangements — themed photo display & lightbox */}
                               {arrangements.length > 0 && (
-                                <div className="mb-4 bg-[#F3ECE0] rounded-md p-3 border border-[#E8DFC8]">
-                                  <p className="text-[10px] font-bold text-[#153325] uppercase tracking-wider mb-1.5">
-                                    Accommodations
-                                  </p>
-                                  <div className="space-y-1">
-                                    {arrangements.map((rm, i) => (
-                                      <div key={i} className="flex items-center gap-2 text-xs text-[#5A534E]">
-                                        <span className="font-semibold text-[#153325]">{rm.room_type}</span>
-                                        <span>·</span>
-                                        <span>Up to {rm.capacity} guests</span>
-                                      </div>
-                                    ))}
+                                <div className="mb-4">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-1.5 h-4 bg-[#B88B2A] rounded-full flex-shrink-0" />
+                                    <p className="text-[11px] font-bold text-[#153325] dark:text-[#E2ECE5] uppercase tracking-widest">
+                                      Sleeping Arrangements
+                                    </p>
+                                    <span className="ml-auto text-[10px] font-bold text-[#B88B2A] bg-[#B88B2A]/10 border border-[#B88B2A]/25 px-2.5 py-0.5 rounded-full">
+                                      {arrangements.length} {arrangements.length !== 1 ? 'spaces' : 'space'}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-3.5">
+                                    {arrangements.map((rm, i) => {
+                                      const rmPhotos = rm.room_images || [];
+                                      const activeIdx = activeRoomPhotos[rm.id] !== undefined ? activeRoomPhotos[rm.id] : 0;
+                                      const safeActiveIdx = activeIdx < rmPhotos.length ? activeIdx : 0;
+                                      const currentPhoto = rmPhotos[safeActiveIdx];
+
+                                      return (
+                                        <div
+                                          key={rm.id || i}
+                                          className="rounded-2xl border border-[var(--border-app,#E8DFC8)] overflow-hidden bg-[var(--bg-app,#FAF7F2)] hover:border-[#B88B2A]/60 transition-all shadow-xs"
+                                        >
+                                          {/* Primary Room Photo with Interactive Enlarge */}
+                                          {rmPhotos.length > 0 ? (
+                                            <div className="relative group">
+                                              <div
+                                                onClick={() => setLightboxPhotoModal({
+                                                  images: rmPhotos,
+                                                  activeIndex: safeActiveIdx,
+                                                  title: rm.room_type,
+                                                  homestayName: h.name,
+                                                  description: rm.description,
+                                                  capacity: rm.capacity,
+                                                  price: rm.price_per_night
+                                                })}
+                                                className="aspect-[16/9] overflow-hidden bg-[#0F2418] relative cursor-pointer"
+                                                title="Click to view full screen photos"
+                                              >
+                                                <SafeImage
+                                                  src={currentPhoto?.image_url}
+                                                  alt={currentPhoto?.caption || rm.room_type}
+                                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                  fallback="landscape"
+                                                />
+                                                {/* Gradient for badge readability */}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+
+                                                {/* Hover Prompt to Enlarge */}
+                                                <div className="absolute inset-0 bg-[#0F2418]/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs backdrop-blur-2xs">
+                                                  <span className="bg-black/60 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-white/20 shadow-lg">
+                                                    <Eye className="w-3.5 h-3.5 text-[#B88B2A]" /> View Full Photos ({rmPhotos.length})
+                                                  </span>
+                                                </div>
+
+                                                {/* Photo Index Badge */}
+                                                <div className="absolute top-2.5 right-2.5 bg-black/65 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10">
+                                                  <Image className="w-3 h-3 text-[#B88B2A]" /> {safeActiveIdx + 1} / {rmPhotos.length}
+                                                </div>
+
+                                                {/* Optional Price overlay if available */}
+                                                {rm.price_per_night && parseFloat(rm.price_per_night) > 0 && (
+                                                  <div className="absolute bottom-2.5 left-2.5 bg-[#153325]/90 backdrop-blur-xs text-white text-[11px] font-bold px-2.5 py-1 rounded-lg border border-[#B88B2A]/30">
+                                                    ₱{parseFloat(rm.price_per_night).toLocaleString()}<span className="text-[10px] text-white/70 font-normal"> / night</span>
+                                                  </div>
+                                                )}
+                                              </div>
+
+                                              {/* Multiple Photos Thumbnails Strip */}
+                                              {rmPhotos.length > 1 && (
+                                                <div className="flex gap-2 p-2 bg-[var(--bg-card,#FFFFFF)] border-t border-[var(--border-subtle,#E8DFC8)] overflow-x-auto scrollbar-thin">
+                                                  {rmPhotos.map((img, pi) => {
+                                                    const isSelected = pi === safeActiveIdx;
+                                                    return (
+                                                      <button
+                                                        key={img.id || pi}
+                                                        type="button"
+                                                        onClick={() => setActiveRoomPhotos(prev => ({ ...prev, [rm.id]: pi }))}
+                                                        className={`flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all cursor-pointer relative ${
+                                                          isSelected
+                                                            ? 'border-[#B88B2A] ring-2 ring-[#B88B2A]/40 scale-102 shadow-xs'
+                                                            : 'border-transparent opacity-65 hover:opacity-100 hover:border-slate-300'
+                                                        }`}
+                                                        title={img.caption || `Photo ${pi + 1}`}
+                                                      >
+                                                        <SafeImage
+                                                          src={img.image_url}
+                                                          alt={img.caption || `Room photo ${pi + 1}`}
+                                                          className="w-full h-full object-cover"
+                                                          fallback="generic"
+                                                        />
+                                                      </button>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="aspect-[16/6] bg-[var(--bg-card,#FFFFFF)] flex flex-col items-center justify-center gap-1.5 border-b border-[var(--border-app,#E8DFC8)] p-4 text-center">
+                                              <BedDouble className="w-7 h-7 text-[#B88B2A]/60" />
+                                              <span className="text-[10px] text-[#5A534E] font-semibold uppercase tracking-wider">
+                                                No room photos uploaded yet
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {/* Room Info Row */}
+                                          <div className="px-4 py-3 flex items-center justify-between gap-3 bg-[var(--bg-card,#FFFFFF)] border-t border-[var(--border-app,#E8DFC8)]">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="font-serif font-bold text-sm text-[#153325]">{rm.room_type}</span>
+                                              </div>
+                                              {rm.description && (
+                                                <p className="text-xs text-[#5A534E] mt-0.5 leading-relaxed line-clamp-2">{rm.description}</p>
+                                              )}
+                                            </div>
+                                            <div className="flex-shrink-0 flex items-center gap-1.5 bg-[#153325] text-white px-3 py-1.5 rounded-xl shadow-xs">
+                                              <Users className="w-3.5 h-3.5 text-[#B88B2A]" />
+                                              <span className="text-xs font-bold whitespace-nowrap">Up to {rm.capacity}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <div className="p-6 pt-0 flex flex-col gap-2">
+                          <div className="px-5 pb-5 pt-1 flex flex-col gap-2">
                             <button
                               onClick={() => openInquiry('HOMESTAY', h)}
-                              className="btn-editorial-primary w-full !py-2.5 text-xs font-semibold"
+                              className="btn-editorial-primary w-full !py-3 text-sm font-bold"
                             >
                               Send Booking Inquiry
                             </button>
@@ -1704,75 +1851,165 @@ const MunicipalityDetails = () => {
         </div>
       )}
 
-      {/* Inquiry Modal */}
+      {/* Inquiry Modal — Premium Redesign */}
       {showInquiryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100 relative animate-scaleUp max-h-[90vh] overflow-y-auto">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-900 to-amber-500" />
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-slate-800 text-lg">Send Booking Inquiry</h3>
-                <p className="text-xs text-slate-400">To: {inquiryTarget.type === 'HOMESTAY' ? inquiryTarget.item.name : inquiryTarget.item.guide_name}</p>
-              </div>
-              <button onClick={() => setShowInquiryModal(false)} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-50 rounded-lg text-lg">✕</button>
-            </div>
-            <form onSubmit={handleInquirySubmit} className="p-6 space-y-4">
-              {inquiryError && <div className="flex items-center gap-1.5 bg-red-50 text-red-600 p-3 rounded-lg text-xs border border-red-200"><Info className="w-4 h-4" /><span>{inquiryError}</span></div>}
-              {inquirySuccess && <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 p-3 rounded-lg text-xs border border-emerald-200"><CheckCircle className="w-4 h-4" /><span>{inquirySuccess}</span></div>}
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg overflow-hidden border border-slate-100 relative animate-scaleUp max-h-[92vh] flex flex-col">
+            {/* Gradient top bar */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#153325] via-[#B88B2A] to-[#153325] rounded-t-3xl" />
 
-              {/* Booked Dates Availability Notice */}
-              {bookedDates.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
-                  <p className="text-[11px] font-bold text-amber-800 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" />
-                    Already Booked — Choose Different Dates
+            {/* Header */}
+            <div className="pt-6 px-6 pb-4 border-b border-slate-100 flex items-start justify-between gap-4 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-[#153325] flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#153325] text-lg leading-tight">Send Booking Inquiry</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {inquiryTarget?.type === 'HOMESTAY' ? '🏠 ' : '🧭 '}
+                    <span className="font-semibold text-[#153325]">
+                      {inquiryTarget?.type === 'HOMESTAY' ? inquiryTarget.item.name : inquiryTarget?.item.guide_name}
+                    </span>
                   </p>
-                  <div className="space-y-1">
-                    {bookedDates.map((range, i) => {
-                      const start = new Date(range.start_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-                      const end = range.end_date ? new Date(range.end_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : start;
-                      return (
-                        <div key={i} className="flex items-center gap-1.5 text-[10px] text-amber-700 font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-                          {start === end ? start : `${start} — ${end}`}
-                        </div>
-                      );
-                    })}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInquiryModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1">
+              <form onSubmit={handleInquirySubmit} className="p-6 space-y-5">
+
+                {/* Alert banners */}
+                {inquiryError && (
+                  <div className="flex items-start gap-2.5 bg-red-50 text-red-700 px-4 py-3 rounded-2xl text-xs border border-red-200">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{inquiryError}</span>
+                  </div>
+                )}
+                {inquirySuccess && (
+                  <div className="flex items-start gap-2.5 bg-emerald-50 text-emerald-800 px-4 py-3 rounded-2xl text-xs border border-emerald-200">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{inquirySuccess}</span>
+                  </div>
+                )}
+
+                {/* Booked Dates Availability Notice */}
+                {bookedDates.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+                    <p className="text-xs font-bold text-amber-800 flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Dates Already Booked — Please Choose Others
+                    </p>
+                    <div className="space-y-1">
+                      {bookedDates.map((range, i) => {
+                        const start = new Date(range.start_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+                        const end = range.end_date ? new Date(range.end_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : start;
+                        return (
+                          <div key={i} className="flex items-center gap-2 text-[11px] text-amber-700 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                            {start === end ? start : `${start} — ${end}`}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dates */}
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-2">Stay Dates</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Check-In</label>
+                      <input
+                        type="date"
+                        required
+                        value={inquiryDateStart}
+                        onChange={e => setInquiryDateStart(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Check-Out</label>
+                      <input
+                        type="date"
+                        value={inquiryDateEnd}
+                        onChange={e => setInquiryDateEnd(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
+                      />
+                    </div>
                   </div>
                 </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-3">
+                {/* Guests */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Start Date</label>
-                  <input type="date" required value={inquiryDateStart} onChange={e => setInquiryDateStart(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs" />
+                  <label className="block text-xs font-bold text-[#153325] mb-1">Number of Guests</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={inquiryGuests}
+                    onChange={e => setInquiryGuests(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
+                  />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">End Date</label>
-                  <input type="date" value={inquiryDateEnd} onChange={e => setInquiryDateEnd(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs" />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Number of Guests</label>
-                <input type="number" min="1" required value={inquiryGuests} onChange={e => setInquiryGuests(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Message</label>
-                <textarea required rows="3" value={inquiryMessage} onChange={e => setInquiryMessage(e.target.value)} placeholder="Ask about details, rooms, pricing, GCash number..." className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs" />
-              </div>
-              <p className="text-[10px] text-slate-400 bg-amber-50 border border-amber-100 rounded-lg p-2.5">
-                💡 Once the host confirms and replies with payment details (e.g. GCash number), you can send payment and upload proof from your <strong>Dashboard → My Bookings</strong>.
-              </p>
-              {!token && (
-                <div className="text-center text-xs text-slate-400 border border-slate-100 p-2 rounded-lg bg-amber-50/50">
-                  <Link to="/login" className="text-emerald-950 font-bold hover:underline">Sign In</Link> to contact this provider.
+                {/* Message */}
+                <div>
+                  <label className="block text-xs font-bold text-[#153325] mb-1">Your Message</label>
+                  <textarea
+                    required
+                    rows="4"
+                    value={inquiryMessage}
+                    onChange={e => setInquiryMessage(e.target.value)}
+                    placeholder="Introduce yourself, ask about availability, meals, special arrangements..."
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs resize-none focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
+                  />
                 </div>
-              )}
-              <button type="submit" disabled={inquiryLoading || !token} className="w-full py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold text-sm rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
-                {inquiryLoading ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Send Inquiry'}
-              </button>
-            </form>
+
+                {/* Info note */}
+                <div className="flex gap-2.5 bg-[#F3ECE0] border border-[#E8DFC8] rounded-2xl px-4 py-3">
+                  <svg className="w-4 h-4 text-[#B88B2A] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-[11px] text-[#5A534E] leading-relaxed">
+                    After sending, the host will reply with payment details (e.g. GCash). You can then upload proof of payment from your <strong className="text-[#153325]">Dashboard → My Bookings</strong>.
+                  </p>
+                </div>
+
+                {/* Not logged in notice */}
+                {!token && (
+                  <div className="text-center py-3 px-4 border border-[#E8DFC8] rounded-2xl bg-[#F3ECE0]">
+                    <p className="text-xs text-[#5A534E]">
+                      <Link to="/login" className="font-bold text-[#153325] hover:underline">Sign in</Link> to send a booking inquiry.
+                    </p>
+                  </div>
+                )}
+
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  disabled={inquiryLoading || !token}
+                  className="w-full py-3.5 bg-[#153325] hover:bg-[#1E4A36] active:bg-[#0F2418] text-white font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#153325]/20"
+                >
+                  {inquiryLoading ? (
+                    <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sending…</>
+                  ) : (
+                    <>Send Booking Inquiry</>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -2389,6 +2626,126 @@ const MunicipalityDetails = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Room Photo Lightbox / Gallery Modal */}
+      {lightboxPhotoModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fadeIn"
+          onClick={() => setLightboxPhotoModal(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full max-h-[95vh] flex flex-col justify-between"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Top Bar */}
+            <div className="flex items-center justify-between pb-3 text-white">
+              <div className="min-w-0 pr-4">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#B88B2A] block">
+                  {lightboxPhotoModal.homestayName} · Sleeping Space
+                </span>
+                <h3 className="font-serif font-bold text-lg text-white truncate">
+                  {lightboxPhotoModal.title}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="text-xs font-mono font-bold text-[#B88B2A] bg-black/60 px-3 py-1 rounded-full border border-[#B88B2A]/30">
+                  {lightboxPhotoModal.activeIndex + 1} / {lightboxPhotoModal.images.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLightboxPhotoModal(null)}
+                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Image Frame with Previous/Next Arrows */}
+            <div className="relative aspect-[16/10] sm:aspect-[16/9] max-h-[68vh] w-full rounded-2xl overflow-hidden bg-black/50 border border-white/10 flex items-center justify-center shadow-2xl">
+              <SafeImage
+                src={lightboxPhotoModal.images[lightboxPhotoModal.activeIndex]?.image_url}
+                alt={lightboxPhotoModal.images[lightboxPhotoModal.activeIndex]?.caption || lightboxPhotoModal.title}
+                className="w-full h-full object-contain select-none"
+                fallback="landscape"
+              />
+
+              {/* Prev / Next Arrows if multiple photos */}
+              {lightboxPhotoModal.images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightboxPhotoModal(prev => ({
+                        ...prev,
+                        activeIndex: (prev.activeIndex - 1 + prev.images.length) % prev.images.length
+                      }));
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center border border-white/20 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
+                    title="Previous photo (Arrow Left)"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightboxPhotoModal(prev => ({
+                        ...prev,
+                        activeIndex: (prev.activeIndex + 1) % prev.images.length
+                      }));
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center border border-white/20 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
+                    title="Next photo (Arrow Right)"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </>
+              )}
+
+              {/* Caption or info bar if caption exists */}
+              {lightboxPhotoModal.images[lightboxPhotoModal.activeIndex]?.caption && (
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-4 text-center">
+                  <p className="text-white text-xs font-medium">
+                    {lightboxPhotoModal.images[lightboxPhotoModal.activeIndex].caption}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Bottom Gallery Thumbnails */}
+            {lightboxPhotoModal.images.length > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-3 overflow-x-auto scrollbar-thin">
+                {lightboxPhotoModal.images.map((img, idx) => {
+                  const isCur = idx === lightboxPhotoModal.activeIndex;
+                  return (
+                    <button
+                      key={img.id || idx}
+                      type="button"
+                      onClick={() => setLightboxPhotoModal(prev => ({ ...prev, activeIndex: idx }))}
+                      className={`w-16 h-12 rounded-lg overflow-hidden border-2 transition-all cursor-pointer flex-shrink-0 ${
+                        isCur
+                          ? 'border-[#B88B2A] ring-2 ring-[#B88B2A]/50 scale-105 shadow-md'
+                          : 'border-white/20 opacity-50 hover:opacity-100 hover:border-white/60'
+                      }`}
+                    >
+                      <SafeImage
+                        src={img.image_url}
+                        alt={`Thumb ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        fallback="generic"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

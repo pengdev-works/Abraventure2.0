@@ -32,18 +32,35 @@ import {
   updateBookingStatus,
   uploadBookingPaymentProof,
   verifyBookingPayment,
+  coordinateBookingMunicipalities,
 } from '../controllers/tourPackageController.js';
 import { verifyToken, requireRoles } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
-// ─── Public Routes ────────────────────────────────────────────────────────
-router.get('/', getTourPackages);
-router.get('/calendar/:id', getPackageCalendar);
-router.get('/:id', getTourPackageDetails);
+// ─── Multer middleware for payment proof uploads ───────────────────────────
+const uploadProof = [
+  upload.fields([
+    { name: 'paymentProof', maxCount: 1 },
+    { name: 'proof_image', maxCount: 1 },
+    { name: 'payment', maxCount: 1 },
+  ]),
+  (req, res, next) => {
+    // Normalise: ensure req.file points to whichever field was sent
+    if (!req.file) {
+      req.file = req.files?.paymentProof?.[0] || req.files?.proof_image?.[0] || req.files?.payment?.[0];
+    }
+    next();
+  },
+];
 
-// ─── DOT Dashboard Routes ─────────────────────────────────────────────────
+// ─── Public Routes ─────────────────────────────────────────────────────────
+// NOTE: The catch-all `GET /:id` MUST come last. All specific paths below.
+router.get('/', getTourPackages);
+router.get('/calendar/:packageId', getPackageCalendar);
+
+// ─── DOT Dashboard – Statistics & My-Packages ─────────────────────────────
 router.get(
   '/manage/my-packages',
   verifyToken,
@@ -57,7 +74,81 @@ router.get(
   getProvincePackageStats
 );
 
-// Package CRUD
+// ─── Multi-Municipality Coordination ─────────────────────────────────────
+router.get(
+  '/participation/requests',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT']),
+  getParticipationRequests
+);
+router.put(
+  '/participation/:id/respond',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT']),
+  respondToParticipation
+);
+
+// ─── Tourist Booking Endpoints (MUST be before /:id catch-all) ────────────
+router.get(
+  '/bookings/mine',
+  verifyToken,
+  requireRoles(['TOURIST']),
+  getMyPackageBookings
+);
+router.get(
+  '/tourist/my-bookings',
+  verifyToken,
+  requireRoles(['TOURIST']),
+  getMyPackageBookings
+);
+router.get(
+  '/bookings/all',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  getAllPackageBookings
+);
+router.put(
+  '/bookings/:bid/status',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  updateBookingStatus
+);
+// Upload payment proof (tourist) — both path aliases supported
+router.post(
+  '/bookings/:bid/payment',
+  verifyToken,
+  requireRoles(['TOURIST']),
+  uploadProof,
+  uploadBookingPaymentProof
+);
+router.post(
+  '/bookings/:bid/payment-proof',
+  verifyToken,
+  requireRoles(['TOURIST']),
+  uploadProof,
+  uploadBookingPaymentProof
+);
+router.put(
+  '/bookings/:bid/payment-proof',
+  verifyToken,
+  requireRoles(['TOURIST']),
+  uploadProof,
+  uploadBookingPaymentProof
+);
+router.put(
+  '/bookings/:bid/verify-payment',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  verifyBookingPayment
+);
+router.post(
+  '/bookings/:bid/coordinate',
+  verifyToken,
+  requireRoles(['PROVINCIAL_DOT', 'MUNICIPAL_DOT']),
+  coordinateBookingMunicipalities
+);
+
+// ─── Package CRUD (uses /:id — must stay below all /static-prefix routes) ─
 router.post(
   '/',
   verifyToken,
@@ -97,20 +188,6 @@ router.put(
   verifyToken,
   requireRoles(['PROVINCIAL_DOT']),
   publishPackage
-);
-
-// ─── Multi-Municipality Coordination ─────────────────────────────────────
-router.get(
-  '/participation/requests',
-  verifyToken,
-  requireRoles(['MUNICIPAL_DOT']),
-  getParticipationRequests
-);
-router.put(
-  '/participation/:id/respond',
-  verifyToken,
-  requireRoles(['MUNICIPAL_DOT']),
-  respondToParticipation
 );
 
 // ─── Schedule Management ──────────────────────────────────────────────────
@@ -153,49 +230,15 @@ router.delete(
   deleteTransportSchedule
 );
 
-// ─── Tourist Booking Flow ─────────────────────────────────────────────────
+// ─── Tourist: Book a package ──────────────────────────────────────────────
 router.post(
   '/:id/book',
   verifyToken,
   requireRoles(['TOURIST']),
   createPackageBooking
 );
-router.get(
-  '/bookings/mine',
-  verifyToken,
-  requireRoles(['TOURIST']),
-  getMyPackageBookings
-);
-router.get(
-  '/tourist/my-bookings',
-  verifyToken,
-  requireRoles(['TOURIST']),
-  getMyPackageBookings
-);
-router.get(
-  '/bookings/all',
-  verifyToken,
-  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
-  getAllPackageBookings
-);
-router.put(
-  '/bookings/:bid/status',
-  verifyToken,
-  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
-  updateBookingStatus
-);
-router.post(
-  '/bookings/:bid/payment',
-  verifyToken,
-  requireRoles(['TOURIST']),
-  upload.single('paymentProof'),
-  uploadBookingPaymentProof
-);
-router.put(
-  '/bookings/:bid/verify-payment',
-  verifyToken,
-  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
-  verifyBookingPayment
-);
+
+// ─── Public Package Detail (catch-all — MUST be last GET /:id) ────────────
+router.get('/:id', getTourPackageDetails);
 
 export default router;

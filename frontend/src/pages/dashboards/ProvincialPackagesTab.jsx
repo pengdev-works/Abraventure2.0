@@ -5,7 +5,7 @@ import {
   Package, Plus, Edit, Trash2, Send, CheckCircle, Clock, XCircle, AlertCircle,
   RefreshCw, Eye, Calendar, Users, Bus, ChevronDown, ChevronUp, MapPin, Building2,
   DollarSign, Check, X, MessageSquare, Download, Filter, Search, Award, TrendingUp,
-  FileText, ExternalLink, Upload
+  FileText, ExternalLink, Upload, Globe
 } from 'lucide-react';
 
 const MUNICIPALITIES = [
@@ -61,6 +61,11 @@ const ProvincialPackagesTab = () => {
   const [reviewFeedback, setReviewFeedback] = useState('');
   const [schedulePkg, setSchedulePkg] = useState(null);
   const [transportPkg, setTransportPkg] = useState(null);
+  const [bookingAuthorityFilter, setBookingAuthorityFilter] = useState('ALL');
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('ALL');
+  const [coordinatingBooking, setCoordinatingBooking] = useState(null);
+  const [coordinationRemarks, setCoordinationRemarks] = useState('');
+  const [coordinatingLoading, setCoordinatingLoading] = useState(false);
 
   // Form state
   const initialForm = {
@@ -494,6 +499,119 @@ const ProvincialPackagesTab = () => {
     background: '#DC2626', color: '#fff',
     border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer'
   };
+
+  const handleVerifyPayment = async (bid) => {
+    const confirm = await Swal.fire({
+      title: 'Verify Payment?',
+      text: 'This verifies payment proof, confirms the booking, and automatically notifies participating municipalities of the incoming tourists.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Verify & Coordinate',
+      confirmButtonColor: '#1E6040',
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/tour-packages/bookings/${bid}/verify-payment`, {
+        method: 'PUT',
+        headers,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire({
+          title: 'Payment Verified & Coordinated!',
+          text: data.message || 'Payment confirmed. All participating municipal tourism offices have received tourist arrival notices.',
+          icon: 'success',
+          confirmButtonColor: '#1E6040',
+        });
+        fetchData();
+      } else {
+        Swal.fire('Error', data.message || 'Failed to verify payment', 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Network error verifying payment', 'error');
+    }
+  };
+
+  const handleUpdateBookingStatus = async (bid, status) => {
+    let remarks = '';
+    if (status === 'CANCELLED') {
+      const { value: text, isConfirmed } = await Swal.fire({
+        title: 'Cancel Booking',
+        input: 'textarea',
+        inputLabel: 'Reason for cancellation',
+        inputPlaceholder: 'e.g., Weather advisory, capacity limits...',
+        showCancelButton: true,
+        confirmButtonColor: '#9B1C1C',
+      });
+      if (!isConfirmed) return;
+      remarks = text;
+    } else {
+      const confirm = await Swal.fire({
+        title: `${status === 'CONFIRMED' ? 'Confirm Booking' : 'Mark Completed'}?`,
+        text: status === 'CONFIRMED' ? 'Confirming this booking will coordinate with all participating municipalities regarding expected tourist numbers.' : '',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#1E6040',
+      });
+      if (!confirm.isConfirmed) return;
+    }
+
+    try {
+      const res = await fetch(`/api/tour-packages/bookings/${bid}/status`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ status, remarks }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire('Updated!', data.message, 'success');
+        fetchData();
+      } else {
+        Swal.fire('Error', data.message || 'Failed to update booking status', 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Network error updating booking', 'error');
+    }
+  };
+
+  const handleDispatchCoordination = async (e) => {
+    e.preventDefault();
+    if (!coordinatingBooking) return;
+    setCoordinatingLoading(true);
+    try {
+      const res = await fetch(`/api/tour-packages/bookings/${coordinatingBooking.id}/coordinate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ remarks: coordinationRemarks }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire({
+          title: 'Coordination Sent!',
+          text: data.message || 'Participating municipalities have been coordinated on expected tourist arrivals.',
+          icon: 'success',
+          confirmButtonColor: '#1E6040',
+        });
+        setCoordinatingBooking(null);
+        setCoordinationRemarks('');
+        fetchData();
+      } else {
+        Swal.fire('Error', data.message || 'Failed to dispatch coordination', 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Network error dispatching coordination', 'error');
+    } finally {
+      setCoordinatingLoading(false);
+    }
+  };
+
+  const filteredBookings = bookings.filter(b => {
+    if (bookingAuthorityFilter === 'PROVINCIAL' && b.reviewing_authority !== 'PROVINCIAL') return false;
+    if (bookingAuthorityFilter === 'MUNICIPAL' && b.reviewing_authority !== 'MUNICIPAL') return false;
+    if (bookingStatusFilter !== 'ALL' && b.status !== bookingStatusFilter) return false;
+    return true;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -1195,7 +1313,7 @@ const ProvincialPackagesTab = () => {
             <div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Province-Wide Package Bookings</h3>
               <div style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                Track tourist reservations across all tour packages in Abra.
+                Review Provincial Multi-Municipality tour bookings, coordinate with host municipalities, and monitor municipal reservations.
               </div>
             </div>
             <button style={btnPrimary} onClick={handleExportCSV}>
@@ -1203,11 +1321,60 @@ const ProvincialPackagesTab = () => {
             </button>
           </div>
 
-          {bookings.length === 0 ? (
+          {/* Booking Authority & Status Filter Pills */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Package Authority:</span>
+            {[
+              { id: 'ALL', label: 'All Bookings' },
+              { id: 'PROVINCIAL', label: '🌟 Provincial Multi-Circuit (Your Review)' },
+              { id: 'MUNICIPAL', label: '🏛️ Municipal Packages (Muni Review)' }
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setBookingAuthorityFilter(f.id)}
+                style={{
+                  padding: '0.35rem 0.8rem',
+                  borderRadius: 999,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: '1px solid var(--border-app)',
+                  background: bookingAuthorityFilter === f.id ? 'var(--color-primary)' : 'var(--bg-card)',
+                  color: bookingAuthorityFilter === f.id ? '#fff' : 'var(--text-main)',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+
+            <div style={{ width: 1, height: 18, background: 'var(--border-app)', margin: '0 0.5rem' }} />
+
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>Status:</span>
+            {['ALL', 'PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'].map(st => (
+              <button
+                key={st}
+                onClick={() => setBookingStatusFilter(st)}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: 999,
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: '1px solid var(--border-app)',
+                  background: bookingStatusFilter === st ? '#1E6040' : 'var(--bg-card)',
+                  color: bookingStatusFilter === st ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
+
+          {filteredBookings.length === 0 ? (
             <div style={{ ...cardStyle, textAlign: 'center', padding: '3.5rem', color: 'var(--text-muted)' }}>
               <Users size={48} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
-              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>No bookings registered yet</div>
-              <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>Bookings made by tourists will appear here in real-time.</div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>No matching bookings found</div>
+              <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>Try adjusting your filters above.</div>
             </div>
           ) : (
             <div style={{ ...cardStyle, overflowX: 'auto', padding: 0 }}>
@@ -1216,17 +1383,17 @@ const ProvincialPackagesTab = () => {
                   <tr style={{ background: 'var(--bg-body)', borderBottom: '1px solid var(--border-app)', textAlign: 'left' }}>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Ref #</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Tourist</th>
-                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Package</th>
-                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Municipality</th>
-                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Date</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Package & Circuit</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Travel Date</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Pax</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Total</th>
-                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Booking Status</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Status</th>
                     <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Payment</th>
+                    <th style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>Review & Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map(b => (
+                  {filteredBookings.map(b => (
                     <tr key={b.id} style={{ borderBottom: '1px solid var(--border-app)' }}>
                       <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-primary)' }}>
                         {b.booking_reference}
@@ -1234,12 +1401,39 @@ const ProvincialPackagesTab = () => {
                       <td style={{ padding: '0.85rem 1rem' }}>
                         <div style={{ fontWeight: 600 }}>{b.tourist_name || 'Tourist'}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{b.tourist_email}</div>
+                        {b.tourist_phone && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>📞 {b.tourist_phone}</div>}
                       </td>
-                      <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{b.package_title}</td>
-                      <td style={{ padding: '0.85rem 1rem' }}>{b.municipality}</td>
-                      <td style={{ padding: '0.85rem 1rem' }}>{b.travel_date?.split('T')[0] || b.travel_date}</td>
-                      <td style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>{b.number_of_tourists}</td>
-                      <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#D97706' }}>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{b.package_title}</div>
+                        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                          {b.reviewing_authority === 'PROVINCIAL' ? (
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 999, background: '#E0F2FE', color: '#0369A1' }}>
+                              🌟 Provincial Multi-Circuit
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: 999, background: '#FEF3C7', color: '#92400E' }}>
+                              🏛️ Municipal: {b.municipality || b.host_municipality_name}
+                            </span>
+                          )}
+                        </div>
+                        {b.reviewing_authority === 'PROVINCIAL' && b.participating_municipalities?.length > 0 && (
+                          <div style={{ fontSize: '0.72rem', color: '#0369A1', marginTop: '0.2rem' }}>
+                            <strong>Participating:</strong> {b.participating_municipalities.join(', ')}
+                          </div>
+                        )}
+                        {b.tourist_spots?.length > 0 && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                            📍 Spots: {b.tourist_spots.slice(0, 3).join(', ')}{b.tourist_spots.length > 3 ? '...' : ''}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', whiteSpace: 'nowrap' }}>
+                        📅 {b.travel_date?.split('T')[0] || b.travel_date}
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', fontWeight: 700 }}>
+                        👥 {b.number_of_tourists} Pax
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#D97706', whiteSpace: 'nowrap' }}>
                         ₱{parseFloat(b.total_amount || 0).toLocaleString()}
                       </td>
                       <td style={{ padding: '0.85rem 1rem' }}>
@@ -1254,13 +1448,181 @@ const ProvincialPackagesTab = () => {
                           background: b.payment_status === 'VERIFIED' ? '#E7F3EC' : b.payment_status === 'PROOF_SUBMITTED' ? '#FFF4D8' : '#F2EDE2',
                           color: b.payment_status === 'VERIFIED' ? '#1E6040' : b.payment_status === 'PROOF_SUBMITTED' ? '#7A5A14' : '#7B847F',
                         }}>
-                          {b.payment_status}
+                          💳 {b.payment_status?.replace(/_/g, ' ')}
                         </span>
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        {b.reviewing_authority === 'PROVINCIAL' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              {b.status === 'PENDING' && b.payment_status === 'PROOF_SUBMITTED' && (
+                                <button
+                                  style={{ ...btnSuccess, padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                                  onClick={() => handleVerifyPayment(b.id)}
+                                >
+                                  <Check size={12} /> Verify & Coordinate
+                                </button>
+                              )}
+                              {b.status === 'PENDING' && (
+                                <>
+                                  <button
+                                    style={{ ...btnPrimary, padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                                    onClick={() => handleUpdateBookingStatus(b.id, 'CONFIRMED')}
+                                  >
+                                    <Check size={12} /> Confirm
+                                  </button>
+                                  <button
+                                    style={{ ...btnDanger, padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                                    onClick={() => handleUpdateBookingStatus(b.id, 'CANCELLED')}
+                                  >
+                                    <X size={12} /> Cancel
+                                  </button>
+                                </>
+                              )}
+                              {b.status === 'CONFIRMED' && (
+                                <>
+                                  <button
+                                    style={{ ...btnSecondary, background: '#EFF6FF', color: '#1D4ED8', borderColor: '#BFDBFE', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700 }}
+                                    onClick={() => { setCoordinatingBooking(b); setCoordinationRemarks(''); }}
+                                  >
+                                    <Send size={12} /> Coordinate Munis
+                                  </button>
+                                  <button
+                                    style={{ ...btnSecondary, background: '#FEF3C7', color: '#92400E', borderColor: '#FDE68A', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700 }}
+                                    onClick={() => handleUpdateBookingStatus(b.id, 'COMPLETED')}
+                                  >
+                                    <CheckCircle size={12} /> Complete
+                                  </button>
+                                </>
+                              )}
+                              {b.payment_proof_url && (
+                                <a
+                                  href={b.payment_proof_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ ...btnSecondary, padding: '0.3rem 0.6rem', fontSize: '0.75rem', textDecoration: 'none' }}
+                                >
+                                  <ExternalLink size={12} /> Receipt
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1E6040', background: '#E7F3EC', padding: '0.25rem 0.6rem', borderRadius: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                              🏛️ Reviewed by {b.host_municipality_name || b.municipality} DOT
+                            </span>
+                            {b.payment_proof_url && (
+                              <a
+                                href={b.payment_proof_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ ...btnSecondary, padding: '0.2rem 0.5rem', fontSize: '0.72rem', textDecoration: 'none', alignSelf: 'flex-start' }}
+                              >
+                                <ExternalLink size={11} /> View Receipt
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* MUNICIPALITY COORDINATION DISPATCH MODAL */}
+          {coordinatingBooking && (
+            <div style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 9999, padding: '1rem'
+            }}>
+              <div style={{
+                background: 'var(--bg-card)',
+                borderRadius: '1rem',
+                width: '100%',
+                maxWidth: 580,
+                overflow: 'hidden',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+              }}>
+                <div style={{
+                  padding: '1.25rem 1.5rem',
+                  borderBottom: '1px solid var(--border-app)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'var(--bg-body)'
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>
+                      📢 Coordinate with Participating Municipalities
+                    </h3>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                      Notify host municipal tourism desks about expected tourist arrivals.
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCoordinatingBooking(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleDispatchCoordination} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '0.85rem 1rem', borderRadius: '0.6rem', fontSize: '0.8rem', color: '#0369A1' }}>
+                    <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>Booking Details:</div>
+                    <div><strong>Ref:</strong> {coordinatingBooking.booking_reference} · <strong>Package:</strong> {coordinatingBooking.package_title}</div>
+                    <div><strong>Expected Date:</strong> {coordinatingBooking.travel_date?.split('T')[0] || coordinatingBooking.travel_date} · <strong>Tourists:</strong> {coordinatingBooking.number_of_tourists} Pax</div>
+                    <div><strong>Lead Tourist:</strong> {coordinatingBooking.tourist_name || 'Guest'} ({coordinatingBooking.tourist_phone || coordinatingBooking.tourist_email || 'No phone'})</div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '0.35rem' }}>
+                      Participating Municipalities to be Notified:
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {(coordinatingBooking.participating_municipalities || [coordinatingBooking.municipality_name]).map((m, idx) => (
+                        <span key={idx} style={{ background: '#E7F3EC', color: '#1E6040', fontWeight: 700, fontSize: '0.75rem', padding: '0.25rem 0.6rem', borderRadius: '0.4rem', border: '1px solid #B2DBC3' }}>
+                          🏛️ {m}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '0.35rem' }}>
+                      Custom Logistics Note or Remarks (Optional):
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="e.g., Arriving at Lagayan around 10:30 AM via Provincial Coaster. Please ensure accredited local guide is on standby at Ararbis Falls."
+                      value={coordinationRemarks}
+                      onChange={e => setCoordinationRemarks(e.target.value)}
+                      style={{ width: '100%', padding: '0.6rem', borderRadius: '0.4rem', border: '1px solid var(--border-app)', background: 'var(--bg-body)', color: 'var(--text-main)', fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      style={btnSecondary}
+                      onClick={() => setCoordinatingBooking(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={coordinatingLoading}
+                      style={{ ...btnPrimary, background: '#1E6040' }}
+                    >
+                      <Send size={15} /> {coordinatingLoading ? 'Dispatching...' : 'Dispatch Coordination Notice'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
         </div>

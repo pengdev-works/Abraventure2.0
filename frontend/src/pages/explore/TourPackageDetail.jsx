@@ -45,6 +45,11 @@ const TourPackageDetail = () => {
   };
 
   useEffect(() => {
+    if (!id || id === 'undefined') {
+      Swal.fire('Error', 'Invalid tour package specified.', 'error');
+      navigate('/tour-packages');
+      return;
+    }
     fetchPackageFullDetails();
   }, [id]);
 
@@ -186,6 +191,7 @@ const TourPackageDetail = () => {
     try {
       const formData = new FormData();
       formData.append('proof_image', proofFile);
+      formData.append('paymentProof', proofFile);
 
       const res = await fetch(`/api/tour-packages/bookings/${confirmedBooking.id}/payment-proof`, {
         method: 'POST',

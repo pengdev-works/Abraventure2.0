@@ -30,6 +30,106 @@ const sendNotification = async (userId, title, message, type = 'INFO', link = nu
   }
 };
 
+// ─── Helper: UUID validation ──────────────────────────────────────────────
+const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+// ─── Helper: Coordinate & Notify Participating Municipalities on Expected Tourist Arrivals ───
+export const notifyParticipatingMunicipalities = async (bookingId, customRemarks = null, executor = pool) => {
+  try {
+    const bookingRes = await executor.query(
+      `SELECT tpb.*, p.title AS package_title, p.package_type, p.municipality_id AS host_municipality_id,
+              m.name AS host_municipality_name,
+              u.full_name AS tourist_name, u.email AS tourist_email, u.phone_number AS tourist_phone
+       FROM tour_package_bookings tpb
+       JOIN packages p ON tpb.package_id = p.id
+       JOIN municipalities m ON p.municipality_id = m.id
+       LEFT JOIN user_accounts u ON tpb.tourist_id = u.id
+       WHERE tpb.id = $1`,
+      [bookingId]
+    );
+    if (bookingRes.rows.length === 0) return { success: false, message: 'Booking not found.' };
+    const booking = bookingRes.rows[0];
+
+    // Find all participating municipalities and the specific tourist spots in each municipality
+    const munRes = await executor.query(
+      `SELECT m.id AS municipality_id, m.name AS municipality_name,
+              ARRAY_REMOVE(ARRAY_AGG(DISTINCT ta.name), NULL) AS spots
+       FROM (
+         SELECT p.municipality_id AS mid FROM packages p WHERE p.id = $1
+         UNION
+         SELECT pm.municipality_id FROM package_municipalities pm WHERE pm.package_id = $1
+         UNION
+         SELECT ta.municipality_id FROM package_items pi JOIN tourist_attractions ta ON pi.attraction_id = ta.id WHERE pi.package_id = $1
+       ) all_m
+       JOIN municipalities m ON all_m.mid = m.id
+       LEFT JOIN (
+         SELECT pi.package_id, ta.municipality_id, ta.name
+         FROM package_items pi
+         JOIN tourist_attractions ta ON pi.attraction_id = ta.id
+         WHERE pi.package_id = $1
+       ) ta ON ta.municipality_id = m.id
+       GROUP BY m.id, m.name`,
+      [booking.package_id]
+    );
+
+    const notifiedMunicipalities = [];
+    const dateFormatted = booking.travel_date ? (new Date(booking.travel_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })) : 'Upcoming';
+
+    for (const mRow of munRes.rows) {
+      const munId = mRow.municipality_id;
+      const munName = mRow.municipality_name;
+      const spotsText = mRow.spots && mRow.spots.length > 0 ? mRow.spots.join(', ') : 'Municipal Circuit Destinations';
+
+      const dotUsers = await executor.query(
+        `SELECT id FROM user_accounts WHERE role = 'MUNICIPAL_DOT' AND municipality_id = $1 AND status = 'APPROVED'`,
+        [munId]
+      );
+
+      const title = `📢 Expected Tourist Arrival: ${booking.package_title}`;
+      const message = `Provincial Tourism has confirmed a booking (Ref: ${booking.booking_reference}) for ${booking.number_of_tourists} tourist(s) arriving on ${dateFormatted}. Visiting in ${munName}: ${spotsText}. Lead Tourist: ${booking.tourist_name || 'Guest'}${booking.tourist_phone ? ` (Phone: ${booking.tourist_phone})` : ''}.${customRemarks ? ` Note: ${customRemarks}` : ''}`;
+
+      for (const u of dotUsers.rows) {
+        await sendNotification(
+          u.id,
+          title,
+          message,
+          'COORDINATION',
+          '/municipal-dashboard?tab=tour-packages&sub=coordination'
+        );
+      }
+
+      emitToMunicipality(munId, 'tourist:expected_arrival', {
+        bookingId: booking.id,
+        bookingReference: booking.booking_reference,
+        packageTitle: booking.package_title,
+        travelDate: booking.travel_date,
+        touristCount: booking.number_of_tourists,
+        spots: mRow.spots || [],
+        municipalityName: munName,
+        touristName: booking.tourist_name,
+        touristPhone: booking.tourist_phone,
+        remarks: customRemarks,
+      });
+
+      notifiedMunicipalities.push({
+        municipalityId: munId,
+        municipalityName: munName,
+        spots: mRow.spots || [],
+        staffNotified: dotUsers.rows.length,
+      });
+    }
+
+    return {
+      success: true,
+      message: `Coordination notice sent to ${notifiedMunicipalities.length} participating municipality office(s).`,
+      notifiedMunicipalities,
+    };
+  } catch (err) {
+    console.error('[COORDINATION] Error notifying municipalities:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  PUBLIC ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -85,6 +185,7 @@ export const getTourPackages = async (req, res) => {
 // GET /api/tour-packages/:id — full package detail
 export const getTourPackageDetails = async (req, res) => {
   const { id } = req.params;
+  if (!isUuid(id)) return res.status(404).json({ message: 'Package not found.' });
   try {
     const pkgRes = await pool.query(
       `SELECT p.*, m.name AS municipality_name, m.id AS municipality_id,
@@ -157,6 +258,7 @@ export const getTourPackageDetails = async (req, res) => {
 // GET /api/tour-packages/:id/calendar — availability calendar
 export const getPackageCalendar = async (req, res) => {
   const { id } = req.params;
+  if (!isUuid(id)) return res.status(404).json({ message: 'Package not found.' });
   try {
     const schedRes = await pool.query(
       `SELECT ps.*,
@@ -191,10 +293,11 @@ export const createTourPackage = async (req, res) => {
   const items = req.body.items
     ? (typeof req.body.items === 'string' ? JSON.parse(req.body.items) : req.body.items)
     : [];
-  const partMunis = req.body.participatingMunicipalities
-    ? (typeof req.body.participatingMunicipalities === 'string'
-        ? JSON.parse(req.body.participatingMunicipalities)
-        : req.body.participatingMunicipalities)
+  const rawPartMunis = req.body.participatingMunicipalities || req.body.participating_municipalities;
+  const partMunis = rawPartMunis
+    ? (typeof rawPartMunis === 'string'
+        ? JSON.parse(rawPartMunis)
+        : rawPartMunis)
     : [];
 
   let coverImageUrl = imageUrl || req.body.cover_image_url || req.body.coverImageUrl || null;
@@ -204,11 +307,21 @@ export const createTourPackage = async (req, res) => {
   const durationVal = durationDays !== undefined && durationDays !== '' ? durationDays : req.body.duration_days;
   const capacityVal = maxCapacityPerDate !== undefined && maxCapacityPerDate !== '' ? maxCapacityPerDate : req.body.daily_capacity;
 
-  const targetMunicipalityId = role === 'MUNICIPAL_DOT'
-    ? municipality_id
-    : (municipalityId ? parseInt(municipalityId) : (req.body.primary_municipality_id ? parseInt(req.body.primary_municipality_id) : (municipality_id || 1)));
+  let targetMunicipalityId = municipalityId ? parseInt(municipalityId) : (req.body.primary_municipality_id ? parseInt(req.body.primary_municipality_id) : null);
+  if (!targetMunicipalityId && req.body.municipality) {
+    const munInt = parseInt(req.body.municipality);
+    if (!isNaN(munInt)) {
+      targetMunicipalityId = munInt;
+    } else {
+      const mRow = await pool.query('SELECT id FROM municipalities WHERE name ILIKE $1', [String(req.body.municipality).trim()]);
+      if (mRow.rows.length > 0) targetMunicipalityId = mRow.rows[0].id;
+    }
+  }
+  if (!targetMunicipalityId) targetMunicipalityId = (role === 'MUNICIPAL_DOT' ? municipality_id : (municipality_id || 1));
 
-  const resolvedPackageType = role === 'PROVINCIAL_DOT' ? 'PROVINCIAL' : 'MUNICIPAL';
+  const resolvedPackageType = role === 'PROVINCIAL_DOT'
+    ? ((packageType === 'MULTI_MUNICIPALITY' || req.body.package_type === 'MULTI_MUNICIPALITY' || partMunis.length > 0) ? 'MULTI_MUNICIPALITY' : 'PROVINCIAL')
+    : 'MUNICIPAL';
 
   if (!title || !targetMunicipalityId) {
     return res.status(400).json({ message: 'Title and municipality are required.' });
@@ -268,27 +381,34 @@ export const createTourPackage = async (req, res) => {
 
     // For multi-municipality provincial packages: create coordination requests
     if (resolvedPackageType === 'PROVINCIAL' && partMunis.length > 0) {
-      for (const munId of partMunis) {
-        await client.query(
-          `INSERT INTO package_municipalities (package_id, municipality_id, status)
-           VALUES ($1, $2, 'PENDING')`,
-          [createdPackage.id, parseInt(munId)]
-        );
-      }
-      // Notify each municipal DOT
-      for (const munId of partMunis) {
-        const dotUsersRes = await client.query(
-          `SELECT id FROM user_accounts WHERE role = 'MUNICIPAL_DOT' AND municipality_id = $1 AND status = 'APPROVED'`,
-          [parseInt(munId)]
-        );
-        for (const row of dotUsersRes.rows) {
-          await sendNotification(
-            row.id,
-            '📦 Package Coordination Request',
-            `The Provincial Tourism Office has invited your municipality to participate in the tour package: "${title}". Please confirm your availability.`,
-            'PACKAGE',
-            '/municipal-dashboard?tab=tour-packages'
+      for (const munVal of partMunis) {
+        let munId = parseInt(munVal);
+        if (isNaN(munId)) {
+          const mRow = await client.query('SELECT id FROM municipalities WHERE name ILIKE $1', [String(munVal).trim()]);
+          if (mRow.rows.length > 0) munId = mRow.rows[0].id;
+        }
+        if (munId && !isNaN(munId)) {
+          await client.query(
+            `INSERT INTO package_municipalities (package_id, municipality_id, status)
+             VALUES ($1, $2, 'PENDING')
+             ON CONFLICT DO NOTHING`,
+            [createdPackage.id, munId]
           );
+
+          // Notify municipal DOT
+          const dotUsersRes = await client.query(
+            `SELECT id FROM user_accounts WHERE role = 'MUNICIPAL_DOT' AND municipality_id = $1 AND status = 'APPROVED'`,
+            [munId]
+          );
+          for (const row of dotUsersRes.rows) {
+            await sendNotification(
+              row.id,
+              '📦 Package Coordination Request',
+              `The Provincial Tourism Office has invited your municipality to participate in the tour package: "${title}". Please confirm your availability.`,
+              'PACKAGE',
+              '/municipal-dashboard?tab=tour-packages'
+            );
+          }
         }
       }
     }
@@ -382,8 +502,31 @@ export const updateTourPackage = async (req, res) => {
               item.customActivityName || null,
               item.notes || '',
               i + 1,
-            ]
+        ]
           );
+        }
+      } // end if (Array.isArray(items))
+
+      if (req.body.participatingMunicipalities !== undefined || req.body.participating_municipalities !== undefined) {
+        const rawMunis = req.body.participatingMunicipalities !== undefined ? req.body.participatingMunicipalities : req.body.participating_municipalities;
+        const pMunis = typeof rawMunis === 'string' ? JSON.parse(rawMunis) : rawMunis;
+        if (Array.isArray(pMunis)) {
+          await client.query('DELETE FROM package_municipalities WHERE package_id = $1', [id]);
+          for (const munVal of pMunis) {
+            let munId = parseInt(munVal);
+            if (isNaN(munId)) {
+              const mRow = await client.query('SELECT id FROM municipalities WHERE name ILIKE $1', [String(munVal).trim()]);
+              if (mRow.rows.length > 0) munId = mRow.rows[0].id;
+            }
+            if (munId && !isNaN(munId)) {
+              await client.query(
+                `INSERT INTO package_municipalities (package_id, municipality_id, status)
+                 VALUES ($1, $2, 'PENDING')
+                 ON CONFLICT DO NOTHING`,
+                [id, munId]
+              );
+            }
+          }
         }
       }
 
@@ -957,7 +1100,7 @@ export const getMyPackageBookings = async (req, res) => {
   const touristId = req.user.id;
   try {
     const result = await pool.query(
-      `SELECT tpb.*, p.title AS package_title, p.image_url AS package_image, p.duration_days,
+      `SELECT tpb.*, tpb.package_id AS tour_package_id, p.title AS package_title, p.image_url AS package_image, p.duration_days,
               m.name AS municipality_name, hp.name AS homestay_name,
               u.full_name AS tourist_name, u.email AS tourist_email, u.phone_number AS tourist_phone
        FROM tour_package_bookings tpb
@@ -983,23 +1126,60 @@ export const getAllPackageBookings = async (req, res) => {
 
   try {
     let q = `
-      SELECT tpb.*, p.title AS package_title, p.image_url AS package_image, p.municipality_id,
+      SELECT tpb.*, tpb.package_id AS tour_package_id,
+             p.title AS package_title, p.image_url AS package_image, p.municipality_id,
+             p.package_type, p.created_by AS package_creator_id,
+             creator.role AS package_creator_role, creator.full_name AS package_creator_name,
              m.name AS municipality_name,
              u.full_name AS tourist_name, u.email AS tourist_email, u.phone_number AS tourist_phone,
              hp.name AS homestay_name,
-             pts.vehicle_label, pts.departure_time AS transport_departure
+             pts.vehicle_label, pts.departure_time AS transport_departure,
+             CASE 
+               WHEN p.package_type IN ('MULTI_MUNICIPALITY', 'PROVINCIAL') OR creator.role = 'PROVINCIAL_DOT' THEN 'PROVINCIAL'
+               ELSE 'MUNICIPAL'
+             END AS reviewing_authority,
+             CASE 
+               WHEN p.package_type IN ('MULTI_MUNICIPALITY', 'PROVINCIAL') OR creator.role = 'PROVINCIAL_DOT' THEN 'Abra Provincial Tourism Office'
+               ELSE CONCAT('Municipality of ', m.name)
+             END AS posting_authority,
+             COALESCE(part_info.participating_municipalities, ARRAY[m.name]) AS participating_municipalities,
+             COALESCE(part_info.tourist_spots, ARRAY[]::text[]) AS tourist_spots
       FROM tour_package_bookings tpb
       JOIN packages p ON tpb.package_id = p.id
       JOIN municipalities m ON p.municipality_id = m.id
+      LEFT JOIN user_accounts creator ON p.created_by = creator.id
       LEFT JOIN user_accounts u ON tpb.tourist_id = u.id
       LEFT JOIN homestay_profiles hp ON tpb.homestay_id = hp.id
       LEFT JOIN package_transport_schedules pts ON tpb.transport_schedule_id = pts.id
+      LEFT JOIN LATERAL (
+        SELECT 
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT sub_m.name), NULL) AS participating_municipalities,
+          ARRAY_REMOVE(ARRAY_AGG(DISTINCT sub_ta.name), NULL) AS tourist_spots
+        FROM (
+          SELECT p.municipality_id AS mid
+          UNION
+          SELECT pm.municipality_id FROM package_municipalities pm WHERE pm.package_id = p.id
+          UNION
+          SELECT ta.municipality_id FROM package_items pi JOIN tourist_attractions ta ON pi.attraction_id = ta.id WHERE pi.package_id = p.id
+        ) m_ids
+        JOIN municipalities sub_m ON m_ids.mid = sub_m.id
+        LEFT JOIN (
+          SELECT pi.package_id, ta.name
+          FROM package_items pi
+          JOIN tourist_attractions ta ON pi.attraction_id = ta.id
+          WHERE pi.package_id = p.id
+        ) sub_ta ON true
+      ) part_info ON true
       WHERE 1=1`;
     const params = [];
 
     if (role === 'MUNICIPAL_DOT') {
       params.push(municipality_id);
-      q += ` AND p.municipality_id = $${params.length}`;
+      q += ` AND (
+        p.municipality_id = $${params.length}
+        OR EXISTS (SELECT 1 FROM package_municipalities pm WHERE pm.package_id = p.id AND pm.municipality_id = $${params.length})
+        OR EXISTS (SELECT 1 FROM package_items pi JOIN tourist_attractions ta ON pi.attraction_id = ta.id WHERE pi.package_id = p.id AND ta.municipality_id = $${params.length})
+      )`;
     }
     if (packageId) { params.push(packageId); q += ` AND tpb.package_id = $${params.length}`; }
     if (status) { params.push(status.toUpperCase()); q += ` AND tpb.status = $${params.length}`; }
@@ -1018,6 +1198,7 @@ export const getAllPackageBookings = async (req, res) => {
 // PUT /api/tour-packages/bookings/:bid/status — DOT confirms or cancels
 export const updateBookingStatus = async (req, res) => {
   const { bid } = req.params;
+  if (!isUuid(bid)) return res.status(404).json({ message: 'Booking not found.' });
   const { status, remarks } = req.body;
   const { role, municipality_id } = req.user;
 
@@ -1030,15 +1211,30 @@ export const updateBookingStatus = async (req, res) => {
   try {
     await client.query('BEGIN');
     const bookRes = await client.query(
-      `SELECT tpb.*, p.municipality_id, p.title AS package_title FROM tour_package_bookings tpb JOIN packages p ON tpb.package_id = p.id WHERE tpb.id = $1 FOR UPDATE`,
+      `SELECT tpb.*, p.municipality_id, p.title AS package_title, p.package_type,
+              creator.role AS package_creator_role
+       FROM tour_package_bookings tpb
+       JOIN packages p ON tpb.package_id = p.id
+       LEFT JOIN user_accounts creator ON p.created_by = creator.id
+       WHERE tpb.id = $1 FOR UPDATE`,
       [bid]
     );
     if (bookRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Booking not found.' }); }
     const booking = bookRes.rows[0];
 
-    if (role === 'MUNICIPAL_DOT' && booking.municipality_id !== municipality_id) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ message: 'Unauthorized.' });
+    const isProvincialPackage = ['MULTI_MUNICIPALITY', 'PROVINCIAL'].includes(booking.package_type) || booking.package_creator_role === 'PROVINCIAL_DOT';
+
+    if (role === 'MUNICIPAL_DOT') {
+      if (isProvincialPackage) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          message: 'Provincial multi-municipality tour bookings are reviewed and confirmed by the Provincial Tourism Office.'
+        });
+      }
+      if (booking.municipality_id !== municipality_id) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ message: 'Unauthorized. You can only review bookings for your municipality.' });
+      }
     }
 
     const prevStatus = booking.status;
@@ -1067,6 +1263,11 @@ export const updateBookingStatus = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // If Provincial / Multi-Municipality booking is CONFIRMED, auto-coordinate with participating municipalities
+    if (status === 'CONFIRMED' && isProvincialPackage) {
+      await notifyParticipatingMunicipalities(bid, remarks);
+    }
 
     // Notify tourist
     if (booking.tourist_id) {
@@ -1099,6 +1300,8 @@ export const uploadBookingPaymentProof = async (req, res) => {
   const { bid } = req.params;
   const touristId = req.user.id;
 
+  if (!isUuid(bid)) return res.status(404).json({ message: 'Booking not found.' });
+
   try {
     const checkRes = await pool.query(
       'SELECT * FROM tour_package_bookings WHERE id = $1 AND tourist_id = $2',
@@ -1107,7 +1310,8 @@ export const uploadBookingPaymentProof = async (req, res) => {
     if (checkRes.rows.length === 0) return res.status(404).json({ message: 'Booking not found.' });
 
     let proofUrl = null;
-    if (req.file) proofUrl = req.file.secure_url || req.file.path;
+    const file = req.file || req.files?.paymentProof?.[0] || req.files?.proof_image?.[0] || req.files?.payment?.[0];
+    if (file) proofUrl = file.secure_url || file.path;
     if (!proofUrl) return res.status(400).json({ message: 'Payment proof file is required.' });
 
     await pool.query(
@@ -1146,16 +1350,32 @@ export const verifyBookingPayment = async (req, res) => {
   const { bid } = req.params;
   const { role, municipality_id } = req.user;
 
+  if (!isUuid(bid)) return res.status(404).json({ message: 'Booking not found.' });
+
   try {
     const bookRes = await pool.query(
-      `SELECT tpb.*, p.municipality_id FROM tour_package_bookings tpb JOIN packages p ON tpb.package_id = p.id WHERE tpb.id = $1`,
+      `SELECT tpb.*, p.municipality_id, p.title AS package_title, p.package_type,
+              creator.role AS package_creator_role
+       FROM tour_package_bookings tpb
+       JOIN packages p ON tpb.package_id = p.id
+       LEFT JOIN user_accounts creator ON p.created_by = creator.id
+       WHERE tpb.id = $1`,
       [bid]
     );
     if (bookRes.rows.length === 0) return res.status(404).json({ message: 'Booking not found.' });
     const booking = bookRes.rows[0];
 
-    if (role === 'MUNICIPAL_DOT' && booking.municipality_id !== municipality_id) {
-      return res.status(403).json({ message: 'Unauthorized.' });
+    const isProvincialPackage = ['MULTI_MUNICIPALITY', 'PROVINCIAL'].includes(booking.package_type) || booking.package_creator_role === 'PROVINCIAL_DOT';
+
+    if (role === 'MUNICIPAL_DOT') {
+      if (isProvincialPackage) {
+        return res.status(403).json({
+          message: 'Payment verification for multi-municipality tour packages is handled by the Provincial Tourism Office.'
+        });
+      }
+      if (booking.municipality_id !== municipality_id) {
+        return res.status(403).json({ message: 'Unauthorized. You can only verify bookings for your municipality.' });
+      }
     }
 
     await pool.query(
@@ -1163,13 +1383,18 @@ export const verifyBookingPayment = async (req, res) => {
       [bid]
     );
 
+    // Coordinate with participating municipalities if provincial multi-package
+    if (isProvincialPackage) {
+      await notifyParticipatingMunicipalities(bid, 'Payment verified and booking confirmed by Provincial Tourism.');
+    }
+
     if (booking.tourist_id) {
       await sendNotification(
         booking.tourist_id,
         '💳 Payment Verified — Booking Confirmed!',
         `Your payment for booking ref ${booking.booking_reference} has been verified. Your tour package booking is now fully confirmed!`,
         'PAYMENT',
-        '/tourist-dashboard?tab=tour-bookings'
+        '/tourist-dashboard?tab=tour-packages'
       );
     }
 
@@ -1178,6 +1403,19 @@ export const verifyBookingPayment = async (req, res) => {
     console.error('[TOUR PKG] verifyBookingPayment error:', err.message);
     return res.status(500).json({ message: 'Failed to verify payment.' });
   }
+};
+
+// POST /api/tour-packages/bookings/:bid/coordinate — Provincial DOT explicitly coordinates with participating municipalities
+export const coordinateBookingMunicipalities = async (req, res) => {
+  const { bid } = req.params;
+  const { remarks } = req.body;
+  if (!isUuid(bid)) return res.status(404).json({ message: 'Booking not found.' });
+
+  const result = await notifyParticipatingMunicipalities(bid, remarks);
+  if (!result.success) {
+    return res.status(400).json({ message: result.message || result.error });
+  }
+  return res.status(200).json(result);
 };
 
 // GET /api/tour-packages/stats — dashboard stats for Provincial DOT

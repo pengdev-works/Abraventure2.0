@@ -85,6 +85,7 @@
 [data-theme="dark"] .bg-\[\#E8F0EA\],[data-theme="dark"] .bg-\[\#EAF1EB\],
 [data-theme="dark"] .bg-\[\#F5FAF6\],[data-theme="dark"] .bg-\[\#E3ECE4\],
 [data-theme="dark"] .bg-\[\#EFF4F0\],[data-theme="dark"] .bg-\[\#EDF3EF\],
+[data-theme="dark"] .bg-\[\#FAFAF6\],[data-theme="dark"] .bg-\[\#F7F4EE\],
 [data-theme="dark"] .bg-\[\#F3F7F4\] { background-color:var(--bg-card)!important; }
 
 [data-theme="dark"] .bg-slate-50,[data-theme="dark"] .bg-slate-100 { background-color:var(--bg-card-subtle)!important; }

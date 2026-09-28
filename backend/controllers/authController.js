@@ -174,6 +174,14 @@ export const applyProvider = async (req, res) => {
     if (!officeName || !officeAddress || !municipalityId) {
       return res.status(400).json({ message: 'Please provide the Office Name, Address, and Municipality.' });
     }
+    const validId = req.files?.validId?.[0];
+    const accreditationDoc = req.files?.accreditationDoc?.[0];
+    const supportingDoc = req.files?.supportingDoc?.[0];
+    if (!validId || !accreditationDoc || !supportingDoc) {
+      return res.status(400).json({
+        message: 'Municipal registration strictly requires uploading all 3 verification proofs: (1) Valid Government ID, (2) Official Appointment / LGU Designation Paper, and (3) Supporting Document & Office Verification.'
+      });
+    }
   }
 
   const cleanEmail = email.trim().toLowerCase();
@@ -252,12 +260,26 @@ export const applyProvider = async (req, res) => {
         ]
       );
     } else if (normalizedRole === 'MUNICIPAL_DOT') {
+      const validIdFile = req.files?.validId?.[0]?.path || null;
+      const accreditationDocFile = req.files?.accreditationDoc?.[0]?.path || null;
+      const supportingDocFile = req.files?.supportingDoc?.[0]?.path || null;
+
       await client.query(
         `INSERT INTO municipal_dot_profiles (
           user_id, office_name, office_address, designation,
-          contact_phone, contact_email, status, reference_number
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7)
-        ON CONFLICT DO NOTHING`,
+          contact_phone, contact_email, status, reference_number,
+          valid_id_url, accreditation_doc_url, supporting_doc_url
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', $7, $8, $9, $10)
+        ON CONFLICT (user_id) DO UPDATE SET
+          office_name = EXCLUDED.office_name,
+          office_address = EXCLUDED.office_address,
+          designation = EXCLUDED.designation,
+          contact_phone = EXCLUDED.contact_phone,
+          contact_email = EXCLUDED.contact_email,
+          reference_number = EXCLUDED.reference_number,
+          valid_id_url = COALESCE(EXCLUDED.valid_id_url, municipal_dot_profiles.valid_id_url),
+          accreditation_doc_url = COALESCE(EXCLUDED.accreditation_doc_url, municipal_dot_profiles.accreditation_doc_url),
+          supporting_doc_url = COALESCE(EXCLUDED.supporting_doc_url, municipal_dot_profiles.supporting_doc_url)`,
         [
           user.id,
           officeName ? officeName.trim() : null,
@@ -265,7 +287,10 @@ export const applyProvider = async (req, res) => {
           contactPersonDesignation ? contactPersonDesignation.trim() : null,
           officePhone ? officePhone.trim() : (phoneNumber || null),
           officeEmail ? officeEmail.trim().toLowerCase() : cleanEmail,
-          referenceNumber
+          referenceNumber,
+          validIdFile,
+          accreditationDocFile,
+          supportingDocFile
         ]
       );
     }
