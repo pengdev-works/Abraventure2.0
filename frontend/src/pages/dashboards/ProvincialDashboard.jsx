@@ -114,6 +114,14 @@ const ProvincialDashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('prov_sidebar_collapsed') === 'true'; } catch { return false; }
+  });
+  const toggleSidebar = () => setSidebarCollapsed(prev => {
+    const next = !prev;
+    try { localStorage.setItem('prov_sidebar_collapsed', String(next)); } catch {}
+    return next;
+  });
   const [data, setData] = useState({ homestays: [], guides: [], municipalAdmins: [] });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'accounts');
@@ -248,12 +256,15 @@ const ProvincialDashboard = () => {
   const [userForm, setUserForm] = useState({
     fullName: '', email: '', password: '', phoneNumber: '',
     role: 'MUNICIPAL_DOT', municipalityId: '', status: 'APPROVED',
-    designation: '', officeAddress: '',
+    designation: 'Municipal Tourism Officer',
+    officeName: '', officeAddress: '', officePhone: '', officeEmail: '',
+    validIdUrl: '', accreditationDocUrl: '', supportingDocUrl: '',
   });
   const [userFormMsg, setUserFormMsg] = useState({ type: '', text: '' });
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [forceCreate, setForceCreate] = useState(false);
   const [accountsFilter, setAccountsFilter] = useState('ALL'); // 'ALL' | 'MUNICIPAL_DOT' | 'PROVINCIAL_DOT'
+  const [showUserPassword, setShowUserPassword] = useState(false);
 
   // Municipal Registration Proofs Review Modal States
   const [selectedProofUser, setSelectedProofUser] = useState(null);
@@ -679,10 +690,23 @@ const ProvincialDashboard = () => {
     setUserModalMode('create');
     setEditingUserId(null);
     setForceCreate(false);
+    setShowUserPassword(false);
     setUserForm({
-      fullName: '', email: '', password: '', phoneNumber: '',
-      role: 'MUNICIPAL_DOT', municipalityId: '', status: 'APPROVED',
-      designation: 'Tourism Officer', officeAddress: 'Municipal Hall',
+      fullName: '',
+      email: '',
+      password: '',
+      phoneNumber: '',
+      role: 'MUNICIPAL_DOT',
+      municipalityId: '',
+      status: 'APPROVED',
+      designation: 'Municipal Tourism Officer',
+      officeName: '',
+      officeAddress: '',
+      officePhone: '',
+      officeEmail: '',
+      validIdUrl: '',
+      accreditationDocUrl: '',
+      supportingDocUrl: '',
     });
     setUserFormMsg({ type: '', text: '' });
     setShowUserModal(true);
@@ -692,16 +716,23 @@ const ProvincialDashboard = () => {
     setUserModalMode('edit');
     setEditingUserId(u.id);
     setForceCreate(false);
+    setShowUserPassword(false);
     setUserForm({
       fullName: u.full_name || '',
       email: u.email || '',
-      password: '',
+      password: '', // leave empty unless resetting password
       phoneNumber: u.phone_number || '',
-      role: u.role,
+      role: u.role || 'MUNICIPAL_DOT',
       municipalityId: u.municipality_id ? String(u.municipality_id) : '',
       status: u.status || 'APPROVED',
-      designation: u.designation || '',
+      designation: u.designation || 'Municipal Tourism Officer',
+      officeName: u.office_name || (u.municipality_name ? `Municipality of ${u.municipality_name} — Tourism Office` : ''),
       officeAddress: u.office_address || '',
+      officePhone: u.contact_phone || u.phone_number || '',
+      officeEmail: u.contact_email || u.email || '',
+      validIdUrl: u.valid_id_url || '',
+      accreditationDocUrl: u.accreditation_doc_url || '',
+      supportingDocUrl: u.supporting_doc_url || '',
     });
     setUserFormMsg({ type: '', text: '' });
     setShowUserModal(true);
@@ -711,12 +742,22 @@ const ProvincialDashboard = () => {
     e.preventDefault();
     setUserFormLoading(true);
     setUserFormMsg({ type: '', text: '' });
+
+    // Validate password if resetting on edit
+    if (userModalMode === 'edit' && userForm.password && userForm.password.trim().length < 8) {
+      setUserFormMsg({ type: 'error', text: 'Password must be at least 8 characters if resetting.' });
+      setUserFormLoading(false);
+      return;
+    }
+
     try {
       const url = userModalMode === 'create' ? '/api/listings/users' : `/api/listings/users/${editingUserId}`;
       const method = userModalMode === 'create' ? 'POST' : 'PUT';
       const body = { ...userForm };
       if (userModalMode === 'create' && forceCreate) body.forceCreate = true;
-      if (userModalMode === 'edit') delete body.password; // don't send blank password on edit
+      if (userModalMode === 'edit' && !body.password) {
+        delete body.password; // don't send blank password on edit
+      }
 
       const r = await fetch(url, { method, headers: jsonHeaders, body: JSON.stringify(body) });
       const d = await r.json();
@@ -730,7 +771,7 @@ const ProvincialDashboard = () => {
       }
 
       if (r.ok) {
-        setUserFormMsg({ type: 'success', text: d.message });
+        if (showAlert) showAlert(d.message || (userModalMode === 'create' ? 'Account created successfully.' : 'Account updated successfully.'), 'success');
         setShowUserModal(false);
         await fetchDotUsers();
         await fetchDashboardData();
@@ -1089,77 +1130,121 @@ const ProvincialDashboard = () => {
 
       {/* ── Proper Desktop & Mobile Sidebar ── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-all duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        } ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-72'} w-72`}
       >
         <div className="flex flex-col h-full overflow-y-auto">
-          {/* Top: Abraventure Official Logo & Masthead */}
-          <div className="p-5 border-b border-white/10 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3 group">
-              <img
-                src="/abraventure-logo.png"
-                alt="Abraventure Official Logo"
-                className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-              <div>
-                <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block">
-                  ABRAVENTURE
-                </span>
-                <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1">
-                  Provincial DOT
-                </span>
+          {/* Top: Abraventure Official Logo & Masthead / Toggle */}
+          {sidebarCollapsed ? (
+            <div className="py-3 px-2 border-b border-white/10 flex flex-col items-center justify-center min-h-[68px]">
+              <button
+                onClick={toggleSidebar}
+                title="Expand sidebar"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 border-b border-white/10 flex items-center justify-between min-h-[68px]">
+              <Link to="/" className="flex items-center gap-3 group min-w-0">
+                <img
+                  src="/abraventure-logo.png"
+                  alt="Abraventure Official Logo"
+                  className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform flex-shrink-0"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+                <div className="min-w-0">
+                  <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">
+                    ABRAVENTURE
+                  </span>
+                  <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">
+                    Provincial DOT
+                  </span>
+                </div>
+              </Link>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {/* Desktop collapse toggle */}
+                <button
+                  onClick={toggleSidebar}
+                  title="Collapse sidebar"
+                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <Menu className="w-4 h-4" />
+                </button>
+                {/* Mobile close button */}
+                <button
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
+                  title="Close navigation"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </Link>
-            <button
-              onClick={() => setMobileSidebarOpen(false)}
-              className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+            </div>
+          )}
 
-          {/* Quick Context Strip */}
-          <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
-            <span className="text-white/70 flex items-center gap-2 font-mono">
+          {/* Quick Context Strip - hidden when collapsed */}
+          {!sidebarCollapsed && (
+            <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
+              <span className="text-white/70 flex items-center gap-2 font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Bangued Capitol DOT
+              </span>
+              <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold">
+                Live Site <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
+          {/* Collapsed pulse dot */}
+          {sidebarCollapsed && (
+            <div className="hidden lg:flex justify-center py-2 border-b border-white/5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Bangued Capitol DOT
-            </span>
-            <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold">
-              Live Site <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          </div>
+            </div>
+          )}
 
           {/* Main Navigation Features */}
           <div className="p-3 space-y-1 flex-1">
-            <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
-              Tourism Features
-            </div>
+            {!sidebarCollapsed && (
+              <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
+                Tourism Features
+              </div>
+            )}
             {tabList.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  title={sidebarCollapsed ? tab.label : undefined}
                   onClick={() => {
                     setActiveTab(tab.id);
                     setSearchParams({ tab: tab.id });
                     setRemarks('');
                     setMobileSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                  className={`w-full flex items-center gap-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    sidebarCollapsed ? 'px-0 py-2.5 justify-center' : 'px-3.5 py-2.5'
+                  } ${
                     isActive
                       ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
                       : 'text-white/80 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
-                  <span className="flex-1 truncate">{tab.label}</span>
-                  {tab.id === 'accounts' && pendingMunAdmins > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white shadow-xs">
-                      {pendingMunAdmins}
-                    </span>
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="flex-1 truncate">{tab.label}</span>
+                      {tab.id === 'accounts' && pendingMunAdmins > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white shadow-xs">
+                          {pendingMunAdmins}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {sidebarCollapsed && tab.id === 'accounts' && pendingMunAdmins > 0 && (
+                    <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-red-500"></span>
                   )}
                 </button>
               );
@@ -1167,46 +1252,61 @@ const ProvincialDashboard = () => {
           </div>
 
           {/* Bottom Sidebar: Settings and User Status */}
-          <div className="p-4 border-t border-white/10 space-y-2 bg-[#0F261C]">
+          <div className="p-3 border-t border-white/10 space-y-2 bg-[#0F261C]">
             {/* Settings button in sidebar */}
             <button
+              title={sidebarCollapsed ? 'Settings' : undefined}
               onClick={() => {
                 setActiveTab('settings');
                 setSearchParams({ tab: 'settings' });
                 setRemarks('');
                 setMobileSidebarOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+              className={`w-full flex items-center gap-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                sidebarCollapsed ? 'px-0 py-2.5 justify-center' : 'px-3.5 py-2.5'
+              } ${
                 activeTab === 'settings'
                   ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
             >
-              <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
-              <span className="flex-1">Settings</span>
+              <Settings className={`w-4 h-4 flex-shrink-0 ${activeTab === 'settings' ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
+              {!sidebarCollapsed && <span className="flex-1">Settings</span>}
             </button>
 
             {/* Officer Profile Card */}
-            <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0">
-                  {user?.fullName?.charAt(0) || 'P'}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{user?.fullName || 'Provincial Officer'}</p>
-                  <p className="text-[10px] text-white/50 truncate font-mono">Provincial DOT</p>
-                </div>
-              </div>
-              {logout && (
+            {sidebarCollapsed ? (
+              <div className="flex justify-center py-1">
                 <button
                   onClick={logout}
-                  title="Sign out of portal"
-                  className="text-white/50 hover:text-rose-300 p-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold"
+                  title={`Sign out (${user?.fullName || 'Officer'})`}
+                  className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs hover:bg-rose-500/20 hover:border-rose-400/40 hover:text-rose-300 transition-colors cursor-pointer"
                 >
-                  Exit
+                  {user?.fullName?.charAt(0) || 'P'}
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0">
+                    {user?.fullName?.charAt(0) || 'P'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{user?.fullName || 'Provincial Officer'}</p>
+                    <p className="text-[10px] text-white/50 truncate font-mono">Provincial DOT</p>
+                  </div>
+                </div>
+                {logout && (
+                  <button
+                    onClick={logout}
+                    title="Sign out of portal"
+                    className="text-white/50 hover:text-rose-300 p-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold"
+                  >
+                    Exit
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -1216,9 +1316,11 @@ const ProvincialDashboard = () => {
         {/* Top Control Bar */}
         <header className="bg-[var(--bg-header,#EAF1EB)]/90 backdrop-blur-md border-b border-[var(--border-app,#C7D7C9)] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors">
           <div className="flex items-center gap-3">
+            {/* Mobile burger */}
             <button
               onClick={() => setMobileSidebarOpen(true)}
               className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#C7D7C9)] text-[#153325] hover:bg-black/5 cursor-pointer"
+              title="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -1260,7 +1362,7 @@ const ProvincialDashboard = () => {
         </header>
 
         {/* Dashboard Body Content */}
-        <div className="p-4 sm:p-8 space-y-6 max-w-7xl w-full">
+        <div className="p-4 sm:p-8 space-y-6 w-full min-w-0">
           {/* Stats Summary Row */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
             {[
@@ -1353,39 +1455,66 @@ const ProvincialDashboard = () => {
                 </div>
               );
               return (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
+                <div className="overflow-x-auto rounded-xl border border-slate-200/90 shadow-2xs">
+                  <table className="w-full text-left border-collapse text-xs min-w-[1100px]">
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-400 text-[10px] uppercase font-bold bg-slate-50">
-                        {['Role','Municipality','Full Name','Email','Phone','Designation','Registration Proofs','Status','Actions'].map(h => (
-                          <th key={h} className={`py-3 px-4 ${h==='Actions'||h==='Registration Proofs'?'text-center':''}`}>{h}</th>
-                        ))}
+                      <tr className="border-b border-slate-200 text-slate-500 text-[10px] uppercase font-bold bg-slate-50/90">
+                        <th className="py-3 px-3.5 whitespace-nowrap w-[95px]">Role</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px]">Municipality</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px]">Full Name</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap min-w-[170px]">Email</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap w-[120px]">Phone</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap min-w-[130px]">Designation</th>
+                        <th className="py-3 px-3.5 text-center whitespace-nowrap w-[130px]">Registration Proofs</th>
+                        <th className="py-3 px-3.5 text-center whitespace-nowrap w-[95px]">Status</th>
+                        <th className="py-3 px-4 text-center whitespace-nowrap min-w-[200px]">Actions</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100">
                       {filtered.map(u => {
                         const proofCount = [u.valid_id_url, u.accreditation_doc_url, u.supporting_doc_url].filter(Boolean).length;
                         return (
-                          <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-slate-600">
-                            <td className="py-3 px-4">
+                          <tr key={u.id} className="hover:bg-slate-50/60 text-slate-600 transition-colors">
+                            <td className="py-3 px-3.5 whitespace-nowrap">
                               <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
                                 u.role === 'PROVINCIAL_DOT' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-800'
                               }`}>
                                 {u.role === 'PROVINCIAL_DOT' ? 'Provincial' : 'Municipal'}
                               </span>
                             </td>
-                            <td className="py-3 px-4 font-bold text-emerald-950">{u.municipality_name || <span className="text-slate-300 italic font-normal">Province-wide</span>}</td>
-                            <td className="py-3 px-4 font-semibold text-slate-800">{u.full_name}</td>
-                            <td className="py-3 px-4 text-slate-500">{u.email}</td>
-                            <td className="py-3 px-4">{u.phone_number || '—'}</td>
-                            <td className="py-3 px-4 text-slate-500">{u.designation || '—'}</td>
+                            <td className="py-3 px-3.5">
+                              <div className="font-bold text-emerald-950 whitespace-nowrap">
+                                {u.municipality_name || <span className="text-slate-300 italic font-normal">Province-wide</span>}
+                              </div>
+                              {u.office_name && (
+                                <div className="text-[10px] text-slate-500 font-normal truncate max-w-[190px]" title={u.office_name}>
+                                  {u.office_name}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3.5">
+                              <div className="font-semibold text-slate-800 whitespace-nowrap">{u.full_name}</div>
+                              {u.reference_number && (
+                                <div className="text-[9px] font-mono text-emerald-800 font-bold tracking-tight">
+                                  {u.reference_number}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3.5 text-slate-500 max-w-[190px] truncate" title={u.email}>{u.email}</td>
+                            <td className="py-3 px-3.5 whitespace-nowrap">
+                              <div>{u.phone_number || '—'}</div>
+                              {u.contact_phone && u.contact_phone !== u.phone_number && (
+                                <div className="text-[10px] text-slate-400">Office: {u.contact_phone}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3.5 text-slate-500 max-w-[160px] truncate" title={u.designation || '—'}>{u.designation || '—'}</td>
 
                             {/* Registration Proofs Column */}
-                            <td className="py-3 px-4 text-center">
+                            <td className="py-3 px-3.5 text-center whitespace-nowrap">
                               {u.role === 'MUNICIPAL_DOT' ? (
                                 <button
                                   onClick={() => { setSelectedProofUser(u); setProofReviewRemarks(''); }}
-                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border shadow-sm ${
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border shadow-xs ${
                                     proofCount === 3
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                                       : proofCount > 0
@@ -1403,15 +1532,15 @@ const ProvincialDashboard = () => {
                               )}
                             </td>
 
-                            <td className="py-3 px-4"><StatusBadge status={u.status} /></td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center justify-center gap-1.5">
+                            <td className="py-3 px-3.5 text-center whitespace-nowrap"><StatusBadge status={u.status} /></td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap min-w-[200px]">
+                              <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                                 {/* If PENDING Municipal DOT: Primary action is Review & Validate Proofs */}
                                 {u.status === 'PENDING' && u.role === 'MUNICIPAL_DOT' ? (
                                   <>
                                     <button
                                       onClick={() => { setSelectedProofUser(u); setProofReviewRemarks(''); }}
-                                      className="px-2.5 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-bold text-[10px] flex items-center gap-1 shadow-sm"
+                                      className="px-2.5 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-bold text-[10px] flex items-center gap-1 shadow-xs whitespace-nowrap flex-shrink-0 cursor-pointer"
                                       title="Review the 3 proofs and validate application"
                                     >
                                       <ShieldCheck className="w-3 h-3 text-[#D4AF37]" />
@@ -1419,7 +1548,7 @@ const ProvincialDashboard = () => {
                                     </button>
                                     <button
                                       onClick={() => handleApprove(u.id, 'MUNICIPAL_DOT', 'REJECTED')}
-                                      className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold text-[10px]"
+                                      className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold text-[10px] whitespace-nowrap flex-shrink-0 cursor-pointer"
                                       title="Reject account"
                                     >Reject</button>
                                   </>
@@ -1427,11 +1556,11 @@ const ProvincialDashboard = () => {
                                   <>
                                     <button
                                       onClick={() => handleApprove(u.id, 'PROVINCIAL_DOT', 'APPROVED')}
-                                      className="px-2.5 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-bold text-[10px]"
+                                      className="px-2.5 py-1 bg-emerald-900 hover:bg-emerald-800 text-white rounded-lg font-bold text-[10px] whitespace-nowrap flex-shrink-0 cursor-pointer"
                                     >Approve</button>
                                     <button
                                       onClick={() => handleApprove(u.id, 'PROVINCIAL_DOT', 'REJECTED')}
-                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px]"
+                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px] whitespace-nowrap flex-shrink-0 cursor-pointer"
                                     >Reject</button>
                                   </>
                                 ) : null}
@@ -1439,7 +1568,7 @@ const ProvincialDashboard = () => {
                                 {/* Edit */}
                                 <button
                                   onClick={() => openEditModal(u)}
-                                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-emerald-800 transition-colors"
+                                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-emerald-800 transition-colors flex-shrink-0 cursor-pointer"
                                   title="Edit account"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
@@ -1447,7 +1576,7 @@ const ProvincialDashboard = () => {
                                 {/* Delete */}
                                 <button
                                   onClick={() => handleDeleteDotUser(u.id, u.full_name)}
-                                  className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
+                                  className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0 cursor-pointer"
                                   title="Delete account"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1465,174 +1594,435 @@ const ProvincialDashboard = () => {
           </div>
         )}
 
-        {/* ─── User CRUD Modal ─────────────────────────────────────── */}
+        {/* ─── User CRUD Modal (Proper Municipal Tourism Office Registration & Edit) ─── */}
         {showUserModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-[fadeIn_.15s_ease]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden my-auto border border-slate-100 animate-[fadeIn_.15s_ease]">
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-                <div className="flex items-center gap-2">
-                  <UserPlus className="w-4 h-4 text-emerald-800" />
-                  <h3 className="font-extrabold text-slate-800 text-sm">
-                    {userModalMode === 'create' ? 'Create New DOT Account' : 'Edit DOT Account'}
-                  </h3>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-[#FAF7F2]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#153325] text-[#D4AF37] flex items-center justify-center shadow-sm">
+                    {userForm.role === 'MUNICIPAL_DOT' ? <Landmark className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#153325]/10 text-[#153325] px-2 py-0.5 rounded-full">
+                        {userModalMode === 'create' ? 'New Registration' : 'Account Management'}
+                      </span>
+                      {userModalMode === 'edit' && editingUserId && (
+                        <span className="text-[10px] font-mono font-bold text-slate-400">
+                          ID: #{editingUserId}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-serif text-lg font-bold text-slate-900 mt-0.5">
+                      {userModalMode === 'create'
+                        ? (userForm.role === 'MUNICIPAL_DOT' ? 'Register Municipal Tourism Office' : 'Create Provincial DOT Account')
+                        : (userForm.role === 'MUNICIPAL_DOT' ? 'Edit Municipal Tourism Office Account' : 'Edit Provincial DOT Account')}
+                    </h3>
+                  </div>
                 </div>
-                <button onClick={() => setShowUserModal(false)} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400"><X className="w-4 h-4" /></button>
+                <button
+                  type="button"
+                  onClick={() => setShowUserModal(false)}
+                  className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
               {/* Modal Body */}
-              <form onSubmit={handleUserFormSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <form onSubmit={handleUserFormSubmit} className="p-6 space-y-6 max-h-[78vh] overflow-y-auto">
 
-                {/* Role */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Top Configuration: Role & Account Status */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Role *</label>
+                    <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1">
+                      Account Role <span className="text-red-500">*</span>
+                    </label>
                     <select
                       value={userForm.role}
-                      onChange={e => { setUserForm(f => ({ ...f, role: e.target.value, municipalityId: '' })); setForceCreate(false); setUserFormMsg({type:'',text:''}); }}
+                      onChange={e => {
+                        const newRole = e.target.value;
+                        setUserForm(f => ({ ...f, role: newRole, municipalityId: '' }));
+                        setForceCreate(false);
+                        setUserFormMsg({ type: '', text: '' });
+                      }}
                       disabled={userModalMode === 'edit'}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-700 disabled:bg-slate-50 disabled:text-slate-400"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-700 disabled:bg-slate-100 disabled:text-slate-500"
                     >
-                      <option value="MUNICIPAL_DOT">Municipal DOT</option>
-                      <option value="PROVINCIAL_DOT">Provincial DOT</option>
+                      <option value="MUNICIPAL_DOT">Municipal DOT (Municipal Tourism Office)</option>
+                      <option value="PROVINCIAL_DOT">Provincial DOT (Provincial Tourism Office)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Status *</label>
+                    <label className="block text-[10px] font-extrabold text-slate-600 uppercase tracking-wider mb-1">
+                      Account Status <span className="text-red-500">*</span>
+                    </label>
                     <select
                       value={userForm.status}
                       onChange={e => setUserForm(f => ({ ...f, status: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-700"
                     >
-                      <option value="APPROVED">Approved</option>
-                      <option value="PENDING">Pending</option>
+                      <option value="APPROVED">Approved (Active Access)</option>
+                      <option value="PENDING">Pending (Awaiting Verification)</option>
                       <option value="REJECTED">Rejected</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Municipality (only for Municipal DOT) */}
-                {userForm.role === 'MUNICIPAL_DOT' && (
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Municipality *</label>
-                    <select
-                      required
-                      value={userForm.municipalityId}
-                      onChange={e => { setUserForm(f => ({ ...f, municipalityId: e.target.value })); setForceCreate(false); setUserFormMsg({type:'',text:''}); }}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    >
-                      <option value="">-- Select Municipality --</option>
-                      {municipalitiesList.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {/* Section 1: Appointed Officer & User Credentials */}
+                <div className="space-y-4">
+                  <h4 className="font-serif text-sm font-bold text-[#153325] flex items-center gap-2 pb-2 border-b border-[#F3ECE0]">
+                    <Users className="w-4 h-4 text-[#B88B2A]" />
+                    <span>Appointed Officer & Login Credentials</span>
+                  </h4>
 
-                {/* Full Name & Phone */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Full Name *</label>
-                    <input
-                      required type="text" value={userForm.fullName}
-                      onChange={e => setUserForm(f => ({ ...f, fullName: e.target.value }))}
-                      placeholder="Juan dela Cruz"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Phone</label>
-                    <input
-                      type="text" value={userForm.phoneNumber}
-                      onChange={e => setUserForm(f => ({ ...f, phoneNumber: e.target.value }))}
-                      placeholder="09XX XXX XXXX"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                    />
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Email Address *</label>
-                  <input
-                    required type="email" value={userForm.email}
-                    onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))}
-                    placeholder="officer@municipality.gov.ph"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700"
-                  />
-                </div>
-
-                {/* Password (create only) */}
-                {userModalMode === 'create' && (
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Password *</label>
-                    <div className="relative">
-                      <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Full Name of Officer <span className="text-red-500">*</span>
+                      </label>
                       <input
-                        required type="password" value={userForm.password}
-                        onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))}
-                        placeholder="Minimum 8 characters"
-                        minLength={8}
-                        className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        required
+                        type="text"
+                        value={userForm.fullName}
+                        onChange={e => setUserForm(f => ({ ...f, fullName: e.target.value }))}
+                        placeholder="e.g. Juan dela Cruz"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
                       />
                     </div>
-                  </div>
-                )}
 
-                {/* Designation & Office (for Municipal DOT) */}
-                {userForm.role === 'MUNICIPAL_DOT' && (
-                  <div className="grid grid-cols-2 gap-3">
+                    {/* Designation */}
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Designation</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Official Designation / Title
+                      </label>
                       <input
-                        type="text" value={userForm.designation}
+                        type="text"
+                        value={userForm.designation}
                         onChange={e => setUserForm(f => ({ ...f, designation: e.target.value }))}
-                        placeholder="Tourism Officer"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        placeholder="e.g. Municipal Tourism Officer"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
                       />
                     </div>
+
+                    {/* Email */}
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Office Address</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Officer Email Address (Login Username) <span className="text-red-500">*</span>
+                      </label>
                       <input
-                        type="text" value={userForm.officeAddress}
-                        onChange={e => setUserForm(f => ({ ...f, officeAddress: e.target.value }))}
-                        placeholder="Municipal Hall"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                        required
+                        type="email"
+                        value={userForm.email}
+                        onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))}
+                        placeholder="e.g. officer@municipality.gov.ph"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
                       />
+                    </div>
+
+                    {/* Phone Number */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Officer Mobile Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={userForm.phoneNumber}
+                        onChange={e => setUserForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                        placeholder="09XX XXX XXXX"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password Field (Required for create, optional reset for edit) */}
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        {userModalMode === 'create' ? (
+                          <>Account Password <span className="text-red-500">*</span></>
+                        ) : (
+                          <>Reset / Change Password (Optional)</>
+                        )}
+                      </label>
+                      {userModalMode === 'edit' && (
+                        <span className="text-[10px] text-slate-400 italic">
+                          Leave blank to keep current password unchanged
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type={showUserPassword ? 'text' : 'password'}
+                        required={userModalMode === 'create'}
+                        value={userForm.password}
+                        onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))}
+                        placeholder={userModalMode === 'create' ? 'Minimum 8 characters' : 'Enter 8+ characters only if resetting'}
+                        minLength={8}
+                        className="w-full pl-9 pr-10 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowUserPassword(!showUserPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                        title={showUserPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showUserPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {userModalMode === 'edit' && userForm.password && (
+                      <p className="text-[10px] text-amber-700 font-medium mt-1">
+                        ⚠️ A new password is typed in. Saving will replace the user's current password.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section 2: Municipal Tourism Office Information (When role is MUNICIPAL_DOT) */}
+                {userForm.role === 'MUNICIPAL_DOT' && (
+                  <div className="space-y-4">
+                    <h4 className="font-serif text-sm font-bold text-[#153325] flex items-center gap-2 pb-2 border-b border-[#F3ECE0]">
+                      <Landmark className="w-4 h-4 text-[#B88B2A]" />
+                      <span>Municipal Tourism Office Information</span>
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Municipality */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Assigned Municipality in Abra <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={userForm.municipalityId}
+                          onChange={e => {
+                            const munId = e.target.value;
+                            const munObj = municipalitiesList.find(m => String(m.id) === String(munId));
+                            setUserForm(f => ({
+                              ...f,
+                              municipalityId: munId,
+                              officeName: (!f.officeName || f.officeName.startsWith('Municipality of')) && munObj ? `Municipality of ${munObj.name} — Tourism Office` : f.officeName,
+                              officeAddress: (!f.officeAddress || f.officeAddress.includes('Municipal Hall')) && munObj ? `Municipal Hall, Poblacion, ${munObj.name}, Abra` : f.officeAddress,
+                            }));
+                            setForceCreate(false);
+                            setUserFormMsg({ type: '', text: '' });
+                          }}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        >
+                          <option value="">— Select Municipality in Abra —</option>
+                          {municipalitiesList.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Office Name */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Office / LGU Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={userForm.officeName}
+                          onChange={e => setUserForm(f => ({ ...f, officeName: e.target.value }))}
+                          placeholder="e.g. Municipality of Bangued — Tourism Office"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+
+                      {/* Office Address */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Office Physical Address <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={userForm.officeAddress}
+                          onChange={e => setUserForm(f => ({ ...f, officeAddress: e.target.value }))}
+                          placeholder="e.g. Municipal Hall, Poblacion, Bangued, Abra"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+
+                      {/* Office Contact Phone */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Office Contact Number / Landline
+                        </label>
+                        <input
+                          type="tel"
+                          value={userForm.officePhone}
+                          onChange={e => setUserForm(f => ({ ...f, officePhone: e.target.value }))}
+                          placeholder="Same as mobile or municipal desk phone"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+
+                      {/* Office Email */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Official Office Email
+                        </label>
+                        <input
+                          type="email"
+                          value={userForm.officeEmail}
+                          onChange={e => setUserForm(f => ({ ...f, officeEmail: e.target.value }))}
+                          placeholder="e.g. tourism@municipality.gov.ph"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 3: Accreditation Proofs & Document Records (When role is MUNICIPAL_DOT) */}
+                {userForm.role === 'MUNICIPAL_DOT' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-[#F3ECE0]">
+                      <h4 className="font-serif text-sm font-bold text-[#153325] flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-[#B88B2A]" />
+                        <span>Official Accreditation Documents & Proofs</span>
+                      </h4>
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full">
+                        3 Mandatory Proofs
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-500">
+                      Enter URL/storage paths for the three mandatory registration proofs, or inspect current files:
+                    </p>
+
+                    <div className="space-y-3">
+                      {/* Doc 1: Valid Government ID */}
+                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-slate-800">
+                            1. Valid Government ID (PhilID / Passport / Driver's License)
+                          </span>
+                          {userForm.validIdUrl ? (
+                            <a
+                              href={userForm.validIdUrl.startsWith('http') || userForm.validIdUrl.startsWith('/') ? userForm.validIdUrl : `/${userForm.validIdUrl}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+                            >
+                              <ExternalLink className="w-3 h-3" /> View Current Document
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No document on file</span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={userForm.validIdUrl}
+                          onChange={e => setUserForm(f => ({ ...f, validIdUrl: e.target.value }))}
+                          placeholder="e.g. /uploads/proofs/valid-id-123.jpg or https://..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+
+                      {/* Doc 2: Appointment / Designation Paper */}
+                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-slate-800">
+                            2. Appointment / LGU Designation Paper (Mayor's EO / Resolution)
+                          </span>
+                          {userForm.accreditationDocUrl ? (
+                            <a
+                              href={userForm.accreditationDocUrl.startsWith('http') || userForm.accreditationDocUrl.startsWith('/') ? userForm.accreditationDocUrl : `/${userForm.accreditationDocUrl}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+                            >
+                              <ExternalLink className="w-3 h-3" /> View Current Document
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No document on file</span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={userForm.accreditationDocUrl}
+                          onChange={e => setUserForm(f => ({ ...f, accreditationDocUrl: e.target.value }))}
+                          placeholder="e.g. /uploads/proofs/appointment-123.pdf or https://..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
+
+                      {/* Doc 3: Supporting Document / Office Proof */}
+                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-slate-800">
+                            3. Supporting Document / LGU Endorsement / Office Proof
+                          </span>
+                          {userForm.supportingDocUrl ? (
+                            <a
+                              href={userForm.supportingDocUrl.startsWith('http') || userForm.supportingDocUrl.startsWith('/') ? userForm.supportingDocUrl : `/${userForm.supportingDocUrl}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+                            >
+                              <ExternalLink className="w-3 h-3" /> View Current Document
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No document on file</span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={userForm.supportingDocUrl}
+                          onChange={e => setUserForm(f => ({ ...f, supportingDocUrl: e.target.value }))}
+                          placeholder="e.g. /uploads/proofs/supporting-123.jpg or https://..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {/* Message / Warning */}
                 {userFormMsg.text && (
-                  <div className={`rounded-xl px-4 py-3 text-xs font-semibold ${
-                    userFormMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                    userFormMsg.type === 'warn'    ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                  <div className={`rounded-2xl p-4 text-xs font-semibold ${
+                    userFormMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                    userFormMsg.type === 'warn'    ? 'bg-amber-50 text-amber-900 border border-amber-300' :
                                                      'bg-red-50 text-red-700 border border-red-200'
                   }`}>
                     {userFormMsg.text}
                     {userFormMsg.type === 'warn' && (
-                      <p className="mt-1 font-normal text-amber-700">Click <strong>"Confirm & Create Anyway"</strong> below to proceed.</p>
+                      <p className="mt-1 font-normal text-amber-800">Click <strong>"Confirm &amp; Create Anyway"</strong> below to proceed.</p>
                     )}
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-2 pt-1">
+                {/* Modal Actions */}
+                <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowUserModal(false)}
-                    className="flex-1 py-2.5 border border-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
-                  >Cancel</button>
+                    className="flex-1 py-3 border border-slate-300 rounded-2xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all"
+                  >
+                    Cancel
+                  </button>
                   <button
                     type="submit"
                     disabled={userFormLoading}
-                    className="flex-1 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-60"
+                    className="flex-1 py-3 bg-[#153325] hover:bg-[#1f4a36] text-[#D4AF37] hover:text-white font-bold text-xs rounded-2xl transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2"
                   >
-                    {userFormLoading ? 'Saving...' :
-                      forceCreate ? 'Confirm & Create Anyway' :
-                      userModalMode === 'create' ? 'Create Account' : 'Save Changes'
-                    }
+                    {userFormLoading ? (
+                      <>Saving Account...</>
+                    ) : forceCreate ? (
+                      <>Confirm &amp; Create Anyway</>
+                    ) : userModalMode === 'create' ? (
+                      <>Register DOT Account</>
+                    ) : (
+                      <>Save &amp; Update Account</>
+                    )}
                   </button>
                 </div>
               </form>

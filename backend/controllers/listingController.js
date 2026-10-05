@@ -659,11 +659,29 @@ export const getAllDotUsers = async (req, res) => {
 
 /**
  * POST /api/listings/users
- * Creates a new MUNICIPAL_DOT or PROVINCIAL_DOT account.
- * Prevents duplicate Municipal DOT per municipality.
+ * Creates a new MUNICIPAL_DOT or PROVINCIAL_DOT account with complete profile details.
+ * Prevents duplicate Municipal DOT per municipality unless confirmed.
  */
 export const createDotUser = async (req, res) => {
-  const { email, password, fullName, phoneNumber, role, municipalityId, designation, officeAddress, forceCreate } = req.body;
+  const {
+    email,
+    password,
+    fullName,
+    phoneNumber,
+    role,
+    municipalityId,
+    status,
+    designation,
+    officeName,
+    officeAddress,
+    officePhone,
+    officeEmail,
+    validIdUrl,
+    accreditationDocUrl,
+    supportingDocUrl,
+    profilePictureUrl,
+    forceCreate,
+  } = req.body;
 
   if (!email || !password || !fullName || !role) {
     return res.status(400).json({ message: 'Email, password, full name, and role are required.' });
@@ -677,12 +695,23 @@ export const createDotUser = async (req, res) => {
     return res.status(400).json({ message: 'Municipality is required for Municipal DOT accounts.' });
   }
 
+  const validIdFile = req.files?.validId?.[0]?.path || validIdUrl || null;
+  const accreditationDocFile = req.files?.accreditationDoc?.[0]?.path || accreditationDocUrl || null;
+  const supportingDocFile = req.files?.supportingDoc?.[0]?.path || supportingDocUrl || null;
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanFullName = fullName.trim();
+  const cleanPhone = phoneNumber ? phoneNumber.trim() : null;
+  const munId = municipalityId ? parseInt(municipalityId, 10) : null;
+  const accountStatus = status || 'APPROVED';
+  const referenceNumber = `ABRA-DOT-${Date.now().toString().slice(-6)}`;
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     // Check if email already exists
-    const emailCheck = await client.query('SELECT id FROM user_accounts WHERE email = $1', [email]);
+    const emailCheck = await client.query('SELECT id FROM user_accounts WHERE email = $1', [cleanEmail]);
     if (emailCheck.rows.length > 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Email is already registered to another account.' });
@@ -694,7 +723,7 @@ export const createDotUser = async (req, res) => {
         `SELECT u.id, u.full_name, u.status FROM user_accounts u
          WHERE u.municipality_id = $1 AND u.role = 'MUNICIPAL_DOT' AND u.status = 'APPROVED'
          LIMIT 1`,
-        [municipalityId]
+        [munId]
       );
       if (dupCheck.rows.length > 0) {
         await client.query('ROLLBACK');
@@ -708,33 +737,64 @@ export const createDotUser = async (req, res) => {
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const passwordHash = await bcrypt.hash(password.trim(), salt);
 
-    const munId = municipalityId ? parseInt(municipalityId) : null;
-
-    // Insert user account (status APPROVED since created by Provincial DOT directly)
+    // Insert user account
     const userResult = await client.query(
-      `INSERT INTO user_accounts (email, password_hash, role, full_name, phone_number, municipality_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'APPROVED')
-       RETURNING id, email, role, full_name, phone_number, municipality_id, status`,
-      [email, passwordHash, role, fullName, phoneNumber || null, munId]
+      `INSERT INTO user_accounts (email, password_hash, role, full_name, phone_number, municipality_id, status, reference_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, email, role, full_name, phone_number, municipality_id, status, reference_number`,
+      [cleanEmail, passwordHash, role, cleanFullName, cleanPhone, munId, accountStatus, referenceNumber]
     );
 
     const user = userResult.rows[0];
 
-    // Create DOT profile record
+    // Create Municipal DOT profile record if applicable
     if (role === 'MUNICIPAL_DOT') {
       await client.query(
-        `INSERT INTO municipal_dot_profiles (user_id, designation, office_address)
-         VALUES ($1, $2, $3)`,
-        [user.id, designation || 'Tourism Officer', officeAddress || 'Municipal Hall']
+        `INSERT INTO municipal_dot_profiles (
+          user_id, office_name, office_address, designation,
+          contact_phone, contact_email, status, reference_number,
+          valid_id_url, accreditation_doc_url, supporting_doc_url, profile_picture_url,
+          created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+          user.id,
+          officeName ? officeName.trim() : null,
+          officeAddress ? officeAddress.trim() : null,
+          designation ? designation.trim() : 'Municipal Tourism Officer',
+          officePhone ? officePhone.trim() : cleanPhone,
+          officeEmail ? officeEmail.trim().toLowerCase() : cleanEmail,
+          accountStatus,
+          referenceNumber,
+          validIdFile,
+          accreditationDocFile,
+          supportingDocFile,
+          profilePictureUrl || null,
+        ]
       );
     }
 
     await client.query('COMMIT');
 
-    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'DOT_USER', action: 'CREATE', user });
-    return res.status(201).json({ message: 'DOT account created successfully.', user });
+    // Fetch complete user with joined profile
+    const completeUserRes = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.phone_number, u.role, u.status, u.created_at,
+              COALESCE(p.reference_number, u.reference_number) AS reference_number,
+              m.id AS municipality_id, m.name AS municipality_name,
+              p.office_name, p.designation, p.office_address, p.profile_picture_url,
+              p.contact_phone, p.contact_email,
+              p.valid_id_url, p.accreditation_doc_url, p.supporting_doc_url
+       FROM user_accounts u
+       LEFT JOIN municipalities m ON u.municipality_id = m.id
+       LEFT JOIN municipal_dot_profiles p ON u.id = p.user_id
+       WHERE u.id = $1`,
+      [user.id]
+    );
+    const createdUser = completeUserRes.rows[0] || user;
+
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'DOT_USER', action: 'CREATE', user: createdUser });
+    return res.status(201).json({ message: 'DOT account created successfully.', user: createdUser });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error creating DOT user:', err);
@@ -746,12 +806,32 @@ export const createDotUser = async (req, res) => {
 
 /**
  * PUT /api/listings/users/:id
- * Updates full_name, phone_number, email, municipality_id, status, designation, officeAddress
- * for any MUNICIPAL_DOT or PROVINCIAL_DOT account.
+ * Updates full_name, phone_number, email, password (optional reset), municipality_id, status,
+ * designation, office_name, office_address, contact_phone, contact_email, and proof document URLs.
  */
 export const updateDotUser = async (req, res) => {
   const { id } = req.params;
-  const { fullName, phoneNumber, email, municipalityId, status, designation, officeAddress, validIdUrl, accreditationDocUrl, supportingDocUrl } = req.body;
+  const {
+    fullName,
+    phoneNumber,
+    email,
+    password,
+    municipalityId,
+    status,
+    designation,
+    officeName,
+    officeAddress,
+    officePhone,
+    officeEmail,
+    validIdUrl,
+    accreditationDocUrl,
+    supportingDocUrl,
+    profilePictureUrl,
+  } = req.body;
+
+  const validIdFile = req.files?.validId?.[0]?.path || (validIdUrl !== undefined ? validIdUrl : undefined);
+  const accreditationDocFile = req.files?.accreditationDoc?.[0]?.path || (accreditationDocUrl !== undefined ? accreditationDocUrl : undefined);
+  const supportingDocFile = req.files?.supportingDoc?.[0]?.path || (supportingDocUrl !== undefined ? supportingDocUrl : undefined);
 
   const client = await pool.connect();
   try {
@@ -759,7 +839,7 @@ export const updateDotUser = async (req, res) => {
 
     // Verify target is a DOT account
     const targetRes = await client.query(
-      `SELECT id, role FROM user_accounts WHERE id = $1 AND role IN ('MUNICIPAL_DOT','PROVINCIAL_DOT')`,
+      `SELECT id, role, municipality_id FROM user_accounts WHERE id = $1 AND role IN ('MUNICIPAL_DOT','PROVINCIAL_DOT')`,
       [id]
     );
     if (targetRes.rows.length === 0) {
@@ -767,11 +847,14 @@ export const updateDotUser = async (req, res) => {
       return res.status(404).json({ message: 'DOT account not found.' });
     }
 
+    const currentRole = targetRes.rows[0].role;
+
     // Check email uniqueness if changing email
-    if (email) {
+    if (email && email.trim()) {
+      const cleanEmail = email.trim().toLowerCase();
       const emailCheck = await client.query(
         'SELECT id FROM user_accounts WHERE email = $1 AND id != $2',
-        [email, id]
+        [cleanEmail, id]
       );
       if (emailCheck.rows.length > 0) {
         await client.query('ROLLBACK');
@@ -779,41 +862,84 @@ export const updateDotUser = async (req, res) => {
       }
     }
 
-    const munId = municipalityId ? parseInt(municipalityId) : null;
+    const munId = municipalityId !== undefined && municipalityId !== '' ? parseInt(municipalityId, 10) : null;
 
+    // Check if password reset is requested (min 6 characters)
+    let passwordHash = null;
+    if (password && typeof password === 'string' && password.trim().length >= 6) {
+      const salt = await bcrypt.genSalt(10);
+      passwordHash = await bcrypt.hash(password.trim(), salt);
+    }
+
+    // Update user_accounts
     await client.query(
       `UPDATE user_accounts
-       SET full_name    = COALESCE($1, full_name),
-           phone_number = COALESCE($2, phone_number),
-           email        = COALESCE($3, email),
-           municipality_id = CASE WHEN $4::int IS NOT NULL THEN $4::int ELSE municipality_id END,
-           status       = COALESCE($5, status),
-           updated_at   = CURRENT_TIMESTAMP
-       WHERE id = $6`,
-      [fullName, phoneNumber, email, munId, status, id]
+       SET full_name       = CASE WHEN $1::text IS NOT NULL THEN $1::text ELSE full_name END,
+           phone_number    = CASE WHEN $2::text IS NOT NULL THEN $2::text ELSE phone_number END,
+           email           = CASE WHEN $3::text IS NOT NULL THEN $3::text ELSE email END,
+           password_hash   = CASE WHEN $4::text IS NOT NULL THEN $4::text ELSE password_hash END,
+           municipality_id = CASE WHEN $5::int IS NOT NULL THEN $5::int ELSE municipality_id END,
+           status          = CASE WHEN $6::account_status IS NOT NULL THEN $6::account_status ELSE status END,
+           updated_at      = CURRENT_TIMESTAMP
+       WHERE id = $7`,
+      [
+        fullName ? fullName.trim() : null,
+        phoneNumber !== undefined ? (phoneNumber ? phoneNumber.trim() : null) : null,
+        email ? email.trim().toLowerCase() : null,
+        passwordHash,
+        munId,
+        status || null,
+        id,
+      ]
     );
 
-    // Update municipal_dot_profiles if applicable
-    if (targetRes.rows[0].role === 'MUNICIPAL_DOT') {
+    // Upsert municipal_dot_profiles if target role is MUNICIPAL_DOT
+    if (currentRole === 'MUNICIPAL_DOT') {
       await client.query(
-        `UPDATE municipal_dot_profiles
-         SET designation           = COALESCE($1, designation),
-             office_address        = COALESCE($2, office_address),
-             valid_id_url          = COALESCE($3, valid_id_url),
-             accreditation_doc_url = COALESCE($4, accreditation_doc_url),
-             supporting_doc_url    = COALESCE($5, supporting_doc_url),
-             updated_at            = CURRENT_TIMESTAMP
-         WHERE user_id = $6`,
-        [designation, officeAddress, validIdUrl, accreditationDocUrl, supportingDocUrl, id]
+        `INSERT INTO municipal_dot_profiles (
+          user_id, office_name, office_address, designation,
+          contact_phone, contact_email, status,
+          valid_id_url, accreditation_doc_url, supporting_doc_url, profile_picture_url,
+          created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (user_id) DO UPDATE SET
+          office_name           = CASE WHEN EXCLUDED.office_name IS NOT NULL THEN EXCLUDED.office_name ELSE municipal_dot_profiles.office_name END,
+          office_address        = CASE WHEN EXCLUDED.office_address IS NOT NULL THEN EXCLUDED.office_address ELSE municipal_dot_profiles.office_address END,
+          designation           = CASE WHEN EXCLUDED.designation IS NOT NULL THEN EXCLUDED.designation ELSE municipal_dot_profiles.designation END,
+          contact_phone         = CASE WHEN EXCLUDED.contact_phone IS NOT NULL THEN EXCLUDED.contact_phone ELSE municipal_dot_profiles.contact_phone END,
+          contact_email         = CASE WHEN EXCLUDED.contact_email IS NOT NULL THEN EXCLUDED.contact_email ELSE municipal_dot_profiles.contact_email END,
+          status                = CASE WHEN EXCLUDED.status IS NOT NULL THEN EXCLUDED.status ELSE municipal_dot_profiles.status END,
+          valid_id_url          = CASE WHEN EXCLUDED.valid_id_url IS NOT NULL THEN EXCLUDED.valid_id_url ELSE municipal_dot_profiles.valid_id_url END,
+          accreditation_doc_url = CASE WHEN EXCLUDED.accreditation_doc_url IS NOT NULL THEN EXCLUDED.accreditation_doc_url ELSE municipal_dot_profiles.accreditation_doc_url END,
+          supporting_doc_url    = CASE WHEN EXCLUDED.supporting_doc_url IS NOT NULL THEN EXCLUDED.supporting_doc_url ELSE municipal_dot_profiles.supporting_doc_url END,
+          profile_picture_url   = CASE WHEN EXCLUDED.profile_picture_url IS NOT NULL THEN EXCLUDED.profile_picture_url ELSE municipal_dot_profiles.profile_picture_url END,
+          updated_at            = CURRENT_TIMESTAMP`,
+        [
+          id,
+          officeName !== undefined ? (officeName ? officeName.trim() : null) : null,
+          officeAddress !== undefined ? (officeAddress ? officeAddress.trim() : null) : null,
+          designation !== undefined ? (designation ? designation.trim() : null) : null,
+          officePhone !== undefined ? (officePhone ? officePhone.trim() : null) : null,
+          officeEmail !== undefined ? (officeEmail ? officeEmail.trim().toLowerCase() : null) : null,
+          status || null,
+          validIdFile !== undefined ? validIdFile : null,
+          accreditationDocFile !== undefined ? accreditationDocFile : null,
+          supportingDocFile !== undefined ? supportingDocFile : null,
+          profilePictureUrl !== undefined ? profilePictureUrl : null,
+        ]
       );
     }
 
     await client.query('COMMIT');
 
     const updated = await pool.query(
-      `SELECT u.id, u.email, u.full_name, u.phone_number, u.role, u.status,
+      `SELECT u.id, u.email, u.full_name, u.phone_number, u.role, u.status, u.created_at,
+              COALESCE(p.reference_number, u.reference_number) AS reference_number,
               m.id AS municipality_id, m.name AS municipality_name,
-              p.designation, p.office_address, p.office_name,
+              p.office_name, p.designation, p.office_address, p.profile_picture_url,
+              p.contact_phone, p.contact_email,
               p.valid_id_url, p.accreditation_doc_url, p.supporting_doc_url
        FROM user_accounts u
        LEFT JOIN municipalities m ON u.municipality_id = m.id

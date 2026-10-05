@@ -27,6 +27,14 @@ const MunicipalDashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('mun_sidebar_collapsed') === 'true'; } catch { return false; }
+  });
+  const toggleSidebar = () => setSidebarCollapsed(prev => {
+    const next = !prev;
+    try { localStorage.setItem('mun_sidebar_collapsed', String(next)); } catch {}
+    return next;
+  });
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'attractions');
 
   useEffect(() => {
@@ -1331,78 +1339,110 @@ const MunicipalDashboard = () => {
 
       {/* ── Proper Desktop & Mobile Sidebar ── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 bg-[#153325] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-all duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        } ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-72'} w-72`}
       >
         <div className="flex flex-col h-full overflow-y-auto">
-          {/* Top: Abraventure Official Logo & Masthead */}
-          <div className="p-5 border-b border-white/10 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3 group">
-              <img
-                src="/abraventure-logo.png"
-                alt="Abraventure Official Logo"
-                className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-              <div className="min-w-0">
-                <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">
-                  ABRAVENTURE
-                </span>
-                <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">
-                  {user?.municipalityName || 'Municipal'} DOT
-                </span>
+          {/* Top: Abraventure Official Logo & Masthead / Toggle */}
+          {sidebarCollapsed ? (
+            <div className="py-3 px-2 border-b border-white/10 flex flex-col items-center justify-center min-h-[68px]">
+              <button
+                onClick={toggleSidebar}
+                title="Expand sidebar"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 border-b border-white/10 flex items-center justify-between min-h-[68px]">
+              <Link to="/" className="flex items-center gap-3 group min-w-0">
+                <img
+                  src="/abraventure-logo.png"
+                  alt="Abraventure Official Logo"
+                  className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform flex-shrink-0"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+                <div className="min-w-0">
+                  <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">
+                    ABRAVENTURE
+                  </span>
+                  <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">
+                    {user?.municipalityName || 'Municipal'} DOT
+                  </span>
+                </div>
+              </Link>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={toggleSidebar}
+                  title="Collapse sidebar"
+                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <Menu className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
+                  title="Close navigation"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </Link>
-            <button
-              onClick={() => setMobileSidebarOpen(false)}
-              className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+            </div>
+          )}
 
           {/* Quick Context Strip */}
-          <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
-            <span className="text-white/70 flex items-center gap-2 font-mono truncate">
+          {!sidebarCollapsed && (
+            <div className="px-5 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between text-[11px]">
+              <span className="text-white/70 flex items-center gap-2 font-mono truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                {user?.municipalityName || 'LGU'} Tourism Desk
+              </span>
+              <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold flex-shrink-0">
+                Live Site <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
+          {sidebarCollapsed && (
+            <div className="hidden lg:flex justify-center py-2 border-b border-white/5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              {user?.municipalityName || 'LGU'} Tourism Desk
-            </span>
-            <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold flex-shrink-0">
-              Live Site <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          </div>
+            </div>
+          )}
 
           {/* Main Navigation Features */}
           <div className="p-3 space-y-1 flex-1">
-            <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">
-              Municipal Features
-            </div>
+            {!sidebarCollapsed && (
+              <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]">Municipal Features</div>
+            )}
             {municipalTabs.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  title={sidebarCollapsed ? tab.label : undefined}
                   onClick={() => {
                     setActiveTab(tab.id);
                     setSearchParams({ tab: tab.id });
                     setMobileSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
-                    isActive
-                      ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  className={`w-full flex items-center gap-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    sidebarCollapsed ? 'px-0 py-2.5 justify-center' : 'px-3.5 py-2.5'
+                  } ${
+                    isActive ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md' : 'text-white/80 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
-                  <span className="flex-1 truncate">{tab.label}</span>
-                  {tab.id === 'videoAds' && videoAds.length > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      isActive ? 'bg-[#153325] text-[#FAF7F2]' : 'bg-[#B88B2A] text-[#153325]'
-                    }`}>
-                      {videoAds.length}
-                    </span>
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="flex-1 truncate">{tab.label}</span>
+                      {tab.id === 'videoAds' && videoAds.length > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          isActive ? 'bg-[#153325] text-[#FAF7F2]' : 'bg-[#B88B2A] text-[#153325]'
+                        }`}>{videoAds.length}</span>
+                      )}
+                    </>
                   )}
                 </button>
               );
@@ -1410,40 +1450,47 @@ const MunicipalDashboard = () => {
           </div>
 
           {/* Bottom Sidebar: Officer Profile Card */}
-          <div className="p-4 border-t border-white/10 space-y-2 bg-[#0F261C]">
-            <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
-              <div 
-                onClick={() => { setActiveTab('profile'); setMobileSidebarOpen(false); }}
-                className="flex items-center gap-2.5 min-w-0 cursor-pointer group flex-1"
-                title="View & Edit Officer Profile Dossier"
-              >
-                <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0 overflow-hidden group-hover:border-[#B88B2A] transition-colors">
+          <div className="p-3 border-t border-white/10 space-y-2 bg-[#0F261C]">
+            {sidebarCollapsed ? (
+              <div className="flex justify-center py-1">
+                <button
+                  onClick={() => { setActiveTab('profile'); setMobileSidebarOpen(false); }}
+                  title={user?.fullName || 'Profile'}
+                  className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs hover:border-[#B88B2A] transition-colors cursor-pointer overflow-hidden"
+                >
                   {user?.profile?.profile_picture_url || profilePicPreview ? (
-                    <img
-                      src={profilePicPreview || user?.profile?.profile_picture_url}
-                      alt="Officer Avatar"
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
+                    <img src={profilePicPreview || user?.profile?.profile_picture_url} alt="Avatar" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                   ) : (
                     <span>{user?.fullName?.charAt(0) || 'M'}</span>
                   )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate group-hover:text-[#B88B2A] transition-colors">{user?.fullName || 'Municipal Officer'}</p>
-                  <p className="text-[10px] text-white/50 truncate font-mono">{user?.profile?.designation || 'Tourism Officer'}</p>
-                </div>
-              </div>
-              {logout && (
-                <button
-                  onClick={logout}
-                  title="Sign out of portal"
-                  className="text-white/50 hover:text-rose-300 p-1.5 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold flex-shrink-0 ml-1"
-                >
-                  Exit
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
+                <div
+                  onClick={() => { setActiveTab('profile'); setMobileSidebarOpen(false); }}
+                  className="flex items-center gap-2.5 min-w-0 cursor-pointer group flex-1"
+                  title="View & Edit Officer Profile Dossier"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0 overflow-hidden group-hover:border-[#B88B2A] transition-colors">
+                    {user?.profile?.profile_picture_url || profilePicPreview ? (
+                      <img src={profilePicPreview || user?.profile?.profile_picture_url} alt="Officer Avatar" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : (
+                      <span>{user?.fullName?.charAt(0) || 'M'}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate group-hover:text-[#B88B2A] transition-colors">{user?.fullName || 'Municipal Officer'}</p>
+                    <p className="text-[10px] text-white/50 truncate font-mono">{user?.profile?.designation || 'Tourism Officer'}</p>
+                  </div>
+                </div>
+                {logout && (
+                  <button onClick={logout} title="Sign out of portal" className="text-white/50 hover:text-rose-300 p-1.5 rounded-md hover:bg-white/5 transition-colors cursor-pointer text-[11px] font-semibold flex-shrink-0 ml-1">
+                    Exit
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -1453,10 +1500,7 @@ const MunicipalDashboard = () => {
         {/* Top Header Bar */}
         <header className="bg-[var(--bg-header,#EAF1EB)]/90 backdrop-blur-md border-b border-[var(--border-app,#C7D7C9)] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#C7D7C9)] text-[#153325] hover:bg-black/5 cursor-pointer"
-            >
+            <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#C7D7C9)] text-[#153325] hover:bg-black/5 cursor-pointer" title="Open navigation menu">
               <Menu className="w-5 h-5" />
             </button>
             <div>
@@ -1504,7 +1548,7 @@ const MunicipalDashboard = () => {
         </header>
 
         {/* Dashboard Body Content */}
-        <div className="p-4 sm:p-8 space-y-6 max-w-7xl w-full">
+        <div className="p-4 sm:p-8 space-y-6 w-full min-w-0">
           {/* Tab Content Container */}
           <div className="bg-[var(--bg-card,#F3F8F4)] border border-[var(--border-app,#C7D7C9)] rounded-2xl shadow-sm p-4 sm:p-6 transition-colors">
 

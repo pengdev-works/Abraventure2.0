@@ -27,6 +27,14 @@ const GuideDashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('guide_sidebar_collapsed') === 'true'; } catch { return false; }
+  });
+  const toggleSidebar = () => setSidebarCollapsed(prev => {
+    const next = !prev;
+    try { localStorage.setItem('guide_sidebar_collapsed', String(next)); } catch {}
+    return next;
+  });
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'overview');
 
   useEffect(() => {
@@ -413,72 +421,95 @@ const GuideDashboard = () => {
 
       {/* ── Official Abra Tourism Sidebar ── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0F261C] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 bg-[#0F261C] text-white flex flex-col justify-between border-r border-[#1D4433] shadow-2xl transition-all duration-300 ease-in-out lg:static lg:translate-x-0 flex-shrink-0 ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        } ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-72'} w-72`}
       >
         <div className="flex flex-col h-full overflow-y-auto">
-          {/* Masthead */}
-          <div className="p-5 border-b border-white/10 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3 group">
-              <img
-                src="/abraventure-logo.png"
-                alt="Abraventure Official Logo"
-                className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-              <div className="min-w-0">
-                <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">
-                  ABRAVENTURE
-                </span>
-                <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">
-                  Tour Guide Portal
-                </span>
+          {/* Top: Abraventure Official Logo & Masthead / Toggle */}
+          {sidebarCollapsed ? (
+            <div className="py-3 px-2 border-b border-white/10 flex flex-col items-center justify-center min-h-[68px]">
+              <button
+                onClick={toggleSidebar}
+                title="Expand sidebar"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 border-b border-white/10 flex items-center justify-between min-h-[68px]">
+              <Link to="/" className="flex items-center gap-3 group min-w-0">
+                <img src="/abraventure-logo.png" alt="Abraventure Official Logo" className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform flex-shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                <div className="min-w-0">
+                  <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">ABRAVENTURE</span>
+                  <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">Tour Guide Portal</span>
+                </div>
+              </Link>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={toggleSidebar}
+                  title="Collapse sidebar"
+                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <Menu className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
+                  title="Close navigation"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </Link>
-            <button
-              onClick={() => setMobileSidebarOpen(false)}
-              className="lg:hidden text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+            </div>
+          )}
 
           {/* Quick Context Strip */}
-          <div className="px-5 py-3 bg-black/25 border-b border-white/5 flex items-center justify-between text-[11px]">
-            <span className="text-white/80 flex items-center gap-2 font-mono truncate">
+          {!sidebarCollapsed && (
+            <div className="px-5 py-3 bg-black/25 border-b border-white/5 flex items-center justify-between text-[11px]">
+              <span className="text-white/80 flex items-center gap-2 font-mono truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                {user?.municipalityName || 'Abra'} Guide Desk
+              </span>
+              <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold flex-shrink-0">
+                Live Site <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
+          {sidebarCollapsed && (
+            <div className="hidden lg:flex justify-center py-2 border-b border-white/5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              {user?.municipalityName || 'Abra'} Guide Desk
-            </span>
-            <Link to="/" className="text-[#B88B2A] hover:underline flex items-center gap-1 font-semibold flex-shrink-0">
-              Live Site <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          </div>
+            </div>
+          )}
 
           {/* Navigation Items */}
           <div className="p-3 space-y-1 flex-1">
-            <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]/90">
-              Portal Operations
-            </div>
+            {!sidebarCollapsed && (
+              <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#B88B2A]/90">Portal Operations</div>
+            )}
             {guideTabs.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  title={sidebarCollapsed ? tab.label : undefined}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
-                    isActive
-                      ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md'
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  className={`w-full flex items-center gap-3 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
+                    sidebarCollapsed ? 'px-0 py-2.5 justify-center' : 'px-3.5 py-2.5'
+                  } ${
+                    isActive ? 'bg-[#B88B2A] text-[#153325] font-bold shadow-md' : 'text-white/80 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#153325]' : 'text-[#B88B2A]'}`} />
-                  <span className="flex-1 truncate">{tab.label}</span>
-                  {tab.badge > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tab.badgeColor || 'bg-amber-400 text-slate-900'}`}>
-                      {tab.badge}
-                    </span>
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="flex-1 truncate">{tab.label}</span>
+                      {tab.badge > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tab.badgeColor || 'bg-amber-400 text-slate-900'}`}>{tab.badge}</span>
+                      )}
+                    </>
                   )}
                 </button>
               );
@@ -486,47 +517,44 @@ const GuideDashboard = () => {
           </div>
 
           {/* Accreditation Quick Pill in Sidebar */}
-          <div className="px-4 py-3 border-t border-white/10 bg-black/15">
-            <div className="flex items-center justify-between text-[11px] mb-1.5">
-              <span className="text-white/60">DOT Accreditation</span>
-              <span className={`font-bold ${isApproved ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {isApproved ? 'Accredited' : `${accreditationPercent}% Verified`}
-              </span>
+          {!sidebarCollapsed && (
+            <div className="px-4 py-3 border-t border-white/10 bg-black/15">
+              <div className="flex items-center justify-between text-[11px] mb-1.5">
+                <span className="text-white/60">DOT Accreditation</span>
+                <span className={`font-bold ${isApproved ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {isApproved ? 'Accredited' : `${accreditationPercent}% Verified`}
+                </span>
+              </div>
+              <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-500 ${isApproved ? 'bg-emerald-400' : 'bg-amber-400'}`} style={{ width: `${isApproved ? 100 : Math.max(15, accreditationPercent)}%` }} />
+              </div>
             </div>
-            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${isApproved ? 'bg-emerald-400' : 'bg-amber-400'}`}
-                style={{ width: `${isApproved ? 100 : Math.max(15, accreditationPercent)}%` }}
-              />
-            </div>
-          </div>
+          )}
 
           {/* Bottom Sidebar: Guide Identity Card */}
-          <div className="p-4 border-t border-white/10 space-y-2 bg-[#0A1A13]">
-            <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-lg overflow-hidden bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0">
-                  {profile?.profile_picture_url ? (
-                    <img src={formatMediaUrl(profile.profile_picture_url)} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    user?.fullName?.charAt(0) || 'G'
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{user?.fullName || 'Licensed Guide'}</p>
-                  <p className="text-[10px] text-white/50 truncate font-mono">{user?.municipalityName || 'Abra'}</p>
-                </div>
-              </div>
-              {logout && (
-                <button
-                  onClick={logout}
-                  title="Sign out of portal"
-                  className="text-white/50 hover:text-rose-300 p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer text-xs font-semibold"
-                >
-                  Exit
+          <div className="p-3 border-t border-white/10 space-y-2 bg-[#0A1A13]">
+            {sidebarCollapsed ? (
+              <div className="flex justify-center py-1">
+                <button onClick={logout} title={user?.fullName || 'Guide'} className="w-8 h-8 rounded-lg overflow-hidden bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs hover:bg-rose-500/20 hover:border-rose-400/40 hover:text-rose-300 transition-colors cursor-pointer">
+                  {profile?.profile_picture_url ? <img src={formatMediaUrl(profile.profile_picture_url)} alt="Avatar" className="w-full h-full object-cover" /> : (user?.fullName?.charAt(0) || 'G')}
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="bg-black/30 rounded-xl p-3 flex items-center justify-between border border-white/5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-[#B88B2A]/20 border border-[#B88B2A]/40 flex items-center justify-center font-bold font-serif text-[#B88B2A] text-xs flex-shrink-0">
+                    {profile?.profile_picture_url ? <img src={formatMediaUrl(profile.profile_picture_url)} alt="Avatar" className="w-full h-full object-cover" /> : (user?.fullName?.charAt(0) || 'G')}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{user?.fullName || 'Licensed Guide'}</p>
+                    <p className="text-[10px] text-white/50 truncate font-mono">{user?.municipalityName || 'Abra'}</p>
+                  </div>
+                </div>
+                {logout && (
+                  <button onClick={logout} title="Sign out of portal" className="text-white/50 hover:text-rose-300 p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer text-xs font-semibold">Exit</button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -536,10 +564,7 @@ const GuideDashboard = () => {
         {/* Top Header Bar */}
         <header className="bg-[var(--bg-card,#FFFFFF)]/95 backdrop-blur-md border-b border-[var(--border-app,#E5E7EB)] px-4 sm:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-2xs transition-colors">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#E5E7EB)] text-[#153325] hover:bg-black/5 cursor-pointer"
-            >
+            <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 rounded-xl border border-[var(--border-app,#E5E7EB)] text-[#153325] hover:bg-black/5 cursor-pointer" title="Open navigation menu">
               <Menu className="w-5 h-5" />
             </button>
             <div>
@@ -590,7 +615,7 @@ const GuideDashboard = () => {
         </header>
 
         {/* Dashboard Body Container */}
-        <div className="p-4 sm:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        <div className="p-4 sm:p-8 space-y-6 w-full min-w-0">
 
           {/* ══════════════════════════════════════════════════════════
               TAB 1: PORTAL OVERVIEW

@@ -30,7 +30,14 @@ import { setSecurityHeaders, sanitizeInput, globalApiRateLimiter } from './middl
 dotenv.config();
 
 // ─── Startup Database Migrations ──────────────────────────────────────────────
-pool.query(`
+// Delay + retry to handle Neon serverless cold-start connection timeouts
+const runMigrations = async (attempt = 1, maxAttempts = 5) => {
+  try {
+    if (attempt === 1) {
+      // Give Neon 3s to wake up on first start
+      await new Promise(r => setTimeout(r, 3000));
+    }
+    await pool.query(`
   -- Legacy: profile picture on municipal DOT
   ALTER TABLE municipal_dot_profiles ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
 
@@ -334,21 +341,14 @@ pool.query(`
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 `)
-  .then(async () => {
-    try {
-      await pool.query(`ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'ENDORSED'`);
-    } catch (err) {
-      console.warn('[DATABASE] ALTER TYPE account_status (ENDORSED):', err.message);
-    }
-    try {
-      await pool.query(`ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'SUSPENDED'`);
-    } catch (err) {
-      console.warn('[DATABASE] ALTER TYPE account_status (SUSPENDED):', err.message);
-    }
-    try {
-      await pool.query(`ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'INACTIVE'`);
-    } catch (err) {
-      console.warn('[DATABASE] ALTER TYPE account_status (INACTIVE):', err.message);
+    // Extra enum migrations
+    for (const [label, sql] of [
+      ['ENDORSED', `ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'ENDORSED'`],
+      ['SUSPENDED', `ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'SUSPENDED'`],
+      ['INACTIVE',  `ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'INACTIVE'`],
+    ]) {
+      try { await pool.query(sql); }
+      catch (e) { console.warn(`[DATABASE] ALTER TYPE account_status (${label}):`, e.message); }
     }
 
     // Auto-seed municipality local foods if table is empty
@@ -371,14 +371,30 @@ pool.query(`
     }
 
     console.log('[DATABASE] All migrations verified successfully.');
-  })
-  .catch(err => console.error('[DATABASE] Migration error:', err.message || err));
+  } catch (err) {
+    const isTransient = err.message && (
+      err.message.includes('timeout') ||
+      err.message.includes('ECONNRESET') ||
+      err.message.includes('ETIMEDOUT') ||
+      err.message.includes('terminated unexpectedly')
+    );
+    if (isTransient && attempt < maxAttempts) {
+      const delay = Math.min(2000 * attempt, 10000);
+      console.warn(`[DATABASE] Migration attempt ${attempt} failed (${err.message}). Retrying in ${delay / 1000}s...`);
+      await new Promise(r => setTimeout(r, delay));
+      return runMigrations(attempt + 1, maxAttempts);
+    }
+    console.error('[DATABASE] Migration error:', err.message || err);
+  }
+};
+runMigrations();
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 
 // ─── Middleware & Security ───────────────────────────────────────────────────
 app.use(setSecurityHeaders);

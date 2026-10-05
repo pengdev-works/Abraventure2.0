@@ -13,12 +13,13 @@ export const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Determine the socket server URL: in local dev, connect directly to backend (port 5000)
+    // Determine the socket server URL: in local dev, connect to backend on port 5050 or through Vite proxy
+    const backendPort = import.meta.env.VITE_BACKEND_PORT || '5050';
     const socketUrl =
       import.meta.env.VITE_SOCKET_URL ||
       (typeof window !== 'undefined' &&
        (window.location.port === '3000' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-        ? `${window.location.protocol}//${window.location.hostname}:5000`
+        ? `${window.location.protocol}//${window.location.hostname}:${backendPort}`
         : window.location.origin);
 
     const newSocket = io(socketUrl, {

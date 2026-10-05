@@ -46,9 +46,15 @@ router.put('/endorse/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), endorse
 router.put('/approve/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), approveAccount);
 
 // DOT User Account CRUD (Provincial DOT only)
+const userProofUploads = upload.fields([
+  { name: 'validId', maxCount: 1 },
+  { name: 'accreditationDoc', maxCount: 1 },
+  { name: 'supportingDoc', maxCount: 1 },
+]);
+
 router.get('/users', verifyToken, requireRoles(['PROVINCIAL_DOT']), getAllDotUsers);
-router.post('/users', verifyToken, requireRoles(['PROVINCIAL_DOT']), createDotUser);
-router.put('/users/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), updateDotUser);
+router.post('/users', verifyToken, requireRoles(['PROVINCIAL_DOT']), userProofUploads, createDotUser);
+router.put('/users/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), userProofUploads, updateDotUser);
 router.delete('/users/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), deleteDotUser);
 
 export default router;
