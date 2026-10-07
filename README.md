@@ -211,7 +211,7 @@ npm run build
 
 | Role | Email | Password | Access Portal |
 |---|---|---|---|
-| **Provincial DOT Admin** | `provincial@dot.abra.gov.ph` | `password123` | `/portal/login` |
+| **Provincial DOT Admin** | `` | ` | `` |
 | **Tourist Account** | *(Register via UI)* | *(User Created)* | `/login` |
 
 ---
