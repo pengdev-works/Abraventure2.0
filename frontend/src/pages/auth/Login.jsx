@@ -64,11 +64,11 @@ const Login = () => {
         <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-app)] shadow-sm overflow-hidden text-[var(--text-primary)]">
           {/* Card Header */}
           <div className="px-6 sm:px-8 pt-8 pb-5 text-center border-b border-[var(--border-subtle)]">
-            <Link to="/" className="inline-flex justify-center mb-3 group" title="Return to AbraVenture Home">
+            <Link to="/" className="inline-flex justify-center mb-4 group" title="Return to AbraVenture Home">
               <img
                 src="/abraventure-logo.png"
-                alt="Official Abra Provincial Seal"
-                className="w-14 h-14 sm:w-16 sm:h-16 object-contain filter drop-shadow-sm group-hover:scale-105 transition-transform"
+                alt="Abraventure Official Logo"
+                className="h-16 sm:h-20 w-auto object-contain filter drop-shadow-sm group-hover:scale-[1.03] transition-transform"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </Link>

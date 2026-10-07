@@ -326,26 +326,18 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16 lg:h-20">
 
-          {/* Editorial Brand & Logo */}
+          {/* Editorial Brand & Logo — landscape wide logo */}
           <Link
             to="/"
             onClick={(e) => handleNavClick(e, '/', 'explore')}
-            className="flex items-center gap-2.5 sm:gap-3 group text-left flex-shrink-0"
+            className="flex items-center group flex-shrink-0"
           >
             <img
               src="/abraventure-logo.png"
               alt="Abraventure Official Logo"
-              className="w-8 h-8 sm:w-10 sm:h-10 lg:w-11 lg:h-11 object-contain filter drop-shadow-xs group-hover:scale-105 transition-transform flex-shrink-0"
+              className="h-10 sm:h-12 lg:h-14 w-auto object-contain filter drop-shadow-sm group-hover:scale-[1.03] transition-transform flex-shrink-0"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
-            <div className="flex flex-col">
-              <span className="font-serif text-lg sm:text-xl lg:text-2xl font-bold tracking-tight text-[var(--text-primary)] group-hover:text-[var(--color-gold)] transition-colors leading-none">
-                ABRAVENTURE
-              </span>
-              <span className="text-[8px] sm:text-[9px] font-sans font-bold uppercase tracking-[0.2em] sm:tracking-[0.24em] text-[var(--text-secondary)] mt-0.5 sm:mt-1">
-                Province of Abra · Cordillera
-              </span>
-            </div>
           </Link>
 
           {/* Desktop Nav Links (Clean Typography, No Icon Clutter) */}

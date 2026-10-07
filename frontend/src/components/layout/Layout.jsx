@@ -24,6 +24,20 @@ const Layout = ({ children }) => {
     );
   }
 
+  // Interactive Map has a dedicated full-height viewport (no outer footer scroll or overlapping back-to-top)
+  const isMapPage = location.pathname === '/map';
+  if (isMapPage) {
+    return (
+      <div className="h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] transition-colors overflow-hidden">
+        <Navbar />
+        <main className="flex-1 min-h-0 relative pb-14 lg:pb-0 overflow-hidden">
+          {children}
+        </main>
+        <MobileBottomNav />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-app)] text-[var(--text-primary)] transition-colors">
       <Navbar />
@@ -43,17 +57,9 @@ const Layout = ({ children }) => {
               <img
                 src="/abraventure-logo.png"
                 alt="Abraventure Logo"
-                className="w-12 h-12 object-contain drop-shadow-md rounded-lg"
+                className="h-12 sm:h-14 w-auto object-contain drop-shadow-md"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
-              <div>
-                <span className="font-serif text-2xl font-bold tracking-tight text-[var(--color-cream-100)]">
-                  ABRAVENTURE
-                </span>
-                <p className="text-xs text-[var(--color-cream-200)]/70 tracking-wider uppercase mt-0.5">
-                  Integrated Tourism Platform · Provincial Tourism Office (DOT) of Abra
-                </p>
-              </div>
             </div>
             <div className="flex items-center gap-4 text-xs">
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--color-cream-100)]/10 border border-[var(--color-cream-100)]/15 text-[var(--color-cream-100)]/90">

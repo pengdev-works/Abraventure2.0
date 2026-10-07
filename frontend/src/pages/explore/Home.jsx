@@ -6,6 +6,7 @@ import {
   ChevronLeft, Leaf, Bell, Play, Pause, Volume2, VolumeX, ExternalLink, BookOpen
 } from 'lucide-react';
 import SafeImage, { formatMediaUrl } from '../../components/common/SafeImage';
+import ExpandableText from '../../components/common/ExpandableText';
 
 /* ─── Featured Destinations Data (Mockup Item 1) ───────────────── */
 const FEATURED_DESTINATIONS = [
@@ -77,49 +78,17 @@ const CULTURE_STORIES = [
 ];
 
 
-/* ─── Upcoming Events Data (Mockup Item 4) ─────────────────────── */
-const UPCOMING_EVENTS = [
-  {
-    id: 1,
-    title: 'Abra Provincial Hermosa Festival',
-    location: 'Bangued, Abra',
-    month: 'OCT',
-    day: '12',
-    tag: 'CULTURE',
-    tagColor: 'bg-[#922E28] text-white',
-    image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 2,
-    title: 'Mountain Camping Experience',
-    location: 'Tineg, Abra',
-    month: 'OCT',
-    day: '18',
-    tag: 'ADVENTURE',
-    tagColor: 'bg-[#2F7D5A] text-white',
-    image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 3,
-    title: 'Abra River Festival',
-    location: 'Bucay, Abra',
-    month: 'OCT',
-    day: '25',
-    tag: 'FESTIVAL',
-    tagColor: 'bg-[#B88B2A] text-white',
-    image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=800&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 4,
-    title: 'Local Crafts Fair',
-    location: 'La Paz, Abra',
-    month: 'NOV',
-    day: '02',
-    tag: 'CULTURE',
-    tagColor: 'bg-[#922E28] text-white',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80'
-  }
-];
+/* ─── Event Category Colors for Dynamic Badges ───────────────── */
+const EVENT_CATEGORY_COLORS = {
+  Festival: 'bg-[#B88B2A]/15 text-[#946E1D] dark:text-[#E0B94F] border-[#B88B2A]/30',
+  Cultural: 'bg-[#153325]/10 text-[#153325] dark:text-[#A3F3CA] border-[#153325]/20',
+  Sports: 'bg-[#355C6D]/15 text-[#355C6D] dark:text-[#88C6DA] border-[#355C6D]/30',
+  Religious: 'bg-[#FAF7F2] text-[#5A534E] dark:text-[#CBD5E1] border-[#E8DFC8]',
+  Music: 'bg-[#B88B2A]/15 text-[#946E1D] dark:text-[#E0B94F] border-[#B88B2A]/30',
+  'Food & Trade': 'bg-[#FAF7F2] text-[#946E1D] dark:text-[#E0B94F] border-[#E8DFC8]',
+  Nature: 'bg-[#153325]/10 text-[#153325] dark:text-[#A3F3CA] border-[#153325]/20',
+  Others: 'bg-[#FAF7F2] text-[#5A534E] dark:text-[#CBD5E1] border-[#E8DFC8]',
+};
 
 /* ─── Panoramic CTA Background Abra Destinations ─────────────── */
 const CTA_ABRA_DESTINATIONS = [
@@ -276,6 +245,28 @@ const Home = () => {
       .then(d => { if (Array.isArray(d) && d.length > 0) setVideoAds(d); })
       .catch(() => {});
   }, []);
+
+  /* ─── Real Provincial Events from /api/events ─── */
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/events')
+      .then(r => r.ok ? r.json() : [])
+      .then(d => {
+        if (Array.isArray(d)) setEvents(d);
+      })
+      .catch(err => console.error('Error fetching events on home:', err))
+      .finally(() => setEventsLoading(false));
+  }, []);
+
+  // Filter for upcoming or currently ongoing events
+  const now = new Date();
+  const upcomingEvents = events.filter(ev => {
+    if (!ev.start_date) return false;
+    const endDate = ev.end_date ? new Date(ev.end_date) : new Date(ev.start_date);
+    return endDate >= now;
+  });
 
   /* ─── Hero Scroll Indicator State ─── */
   const [heroScrolled, setHeroScrolled] = useState(false);
@@ -556,7 +547,13 @@ const Home = () => {
               {announcements.map((a) => (
                 <div key={a.id} className="p-5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 hover:border-[var(--color-gold)]/40 transition-all text-left">
                   <p className="font-serif font-bold text-sm text-white mb-2 line-clamp-1">{a.title}</p>
-                  <p className="text-xs text-white/70 leading-relaxed line-clamp-3 mb-3">{a.content}</p>
+                  <ExpandableText
+                    text={a.content}
+                    clampLines={3}
+                    className="mb-3"
+                    textClass="text-xs text-white/80 leading-relaxed"
+                    toggleBtnClass="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#E0B94F] hover:text-white transition-colors cursor-pointer underline underline-offset-4 decoration-dotted active:scale-95"
+                  />
                   <span className="text-[10px] text-white/50">{new Date(a.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                 </div>
               ))}
@@ -882,54 +879,88 @@ const Home = () => {
           </Link>
         </div>
 
-        {/* 4-Card Events Grid matching mockup */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {UPCOMING_EVENTS.map((event, idx) => (
+        {/* Dynamic Events Grid or Informative Empty State */}
+        {eventsLoading ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs font-semibold text-[var(--text-secondary)]">Checking provincial schedule…</p>
+          </div>
+        ) : upcomingEvents.length === 0 ? (
+          <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-app)] p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-xs">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[var(--color-gold)]/10 text-[var(--color-gold)] flex items-center justify-center border border-[var(--color-gold)]/20 shadow-xs">
+              <Calendar className="w-7 h-7" />
+            </div>
+            <h3 className="font-serif text-xl sm:text-2xl font-bold text-[var(--text-primary)] mb-2">
+              No Upcoming Events Scheduled
+            </h3>
+            <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed max-w-md mx-auto mb-6">
+              There are currently no upcoming festivals or events listed on the provincial calendar. Check back soon for announcements, or explore all past festival highlights.
+            </p>
             <Link
-              key={event.id}
               to="/events"
-              className={`bg-[var(--bg-card)] rounded-2xl border border-[var(--border-app)] shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group text-left reveal-on-scroll stagger-${(idx % 4) + 1}`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] text-white transition-all shadow-xs cursor-pointer"
             >
-              {/* Image with Overlaid Date Badge */}
-              <div className="relative aspect-[16/10] overflow-hidden bg-[var(--color-forest-900)]">
-                <img
-                  src={event.image}
-                  alt={event.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                {/* Date Badge */}
-                <div className="absolute top-3 left-3 bg-white text-[#1C2420] rounded-xl px-2.5 py-1.5 shadow-md text-center leading-none border border-black/5">
-                  <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7B847F]">
-                    {event.month}
-                  </span>
-                  <span className="block text-base font-bold font-serif text-[#0F2F25] mt-0.5">
-                    {event.day}
-                  </span>
-                </div>
-              </div>
-
-              {/* Event Content */}
-              <div className="p-5 flex flex-col justify-between flex-1">
-                <div>
-                  <h3 className="font-serif text-base font-bold text-[var(--text-primary)] group-hover:text-[var(--color-gold)] transition-colors mb-2 line-clamp-2">
-                    {event.title}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] mb-3">
-                    <MapPin className="w-3.5 h-3.5 text-[var(--color-gold)] shrink-0" />
-                    <span>{event.location}</span>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${event.tagColor}`}>
-                    {event.tag}
-                  </span>
-                </div>
-              </div>
+              <Calendar className="w-3.5 h-3.5 text-[var(--color-gold)]" />
+              <span>Browse All Provincial Events</span>
             </Link>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {upcomingEvents.slice(0, 4).map((event, idx) => {
+              const startDate = new Date(event.start_date);
+              const month = startDate.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+              const day = startDate.toLocaleDateString('en-US', { day: '2-digit' });
+              const tagColor = EVENT_CATEGORY_COLORS[event.category] || 'bg-[#153325]/10 text-[#153325] border-[#153325]/20';
+              const imageSrc = formatMediaUrl(event.image_url) || 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&auto=format&fit=crop&q=80';
+
+              return (
+                <Link
+                  key={event.id}
+                  to="/events"
+                  className={`bg-[var(--bg-card)] rounded-2xl border border-[var(--border-app)] shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group text-left reveal-on-scroll stagger-${(idx % 4) + 1}`}
+                >
+                  {/* Image with Overlaid Date Badge */}
+                  <div className="relative aspect-[16/10] overflow-hidden bg-[var(--color-forest-900)]">
+                    <SafeImage
+                      src={imageSrc}
+                      alt={event.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      fallback="landscape"
+                    />
+                    {/* Date Badge */}
+                    <div className="absolute top-3 left-3 bg-white text-[#1C2420] rounded-xl px-2.5 py-1.5 shadow-md text-center leading-none border border-black/5">
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7B847F]">
+                        {month}
+                      </span>
+                      <span className="block text-base font-bold font-serif text-[#0F2F25] mt-0.5">
+                        {day}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Event Content */}
+                  <div className="p-5 flex flex-col justify-between flex-1">
+                    <div>
+                      <h3 className="font-serif text-base font-bold text-[var(--text-primary)] group-hover:text-[var(--color-gold)] transition-colors mb-2 line-clamp-2">
+                        {event.title}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] mb-3">
+                        <MapPin className="w-3.5 h-3.5 text-[var(--color-gold)] shrink-0" />
+                        <span>{event.venue || event.municipality_name ? `${event.municipality_name || ''}${event.venue ? `, ${event.venue}` : ', Abra'}` : 'Abra, Philippines'}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${tagColor}`}>
+                        {event.category || 'Event'}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* ══════════════════════════════════════════════════════
@@ -976,7 +1007,15 @@ const Home = () => {
                 <div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-gold)] block mb-2">{activeAd.category || 'Provincial Feature'}</span>
                   <h3 className="font-serif text-xl sm:text-2xl font-bold text-white leading-tight mb-3">{activeAd.title}</h3>
-                  {activeAd.description && <p className="text-xs text-white/70 leading-relaxed line-clamp-4">{activeAd.description}</p>}
+                  {activeAd.description && (
+                    <ExpandableText
+                      text={activeAd.description}
+                      clampLines={4}
+                      className="mb-1"
+                      textClass="text-xs text-white/80 leading-relaxed"
+                      toggleBtnClass="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#E0B94F] hover:text-white transition-colors cursor-pointer underline underline-offset-4 decoration-dotted active:scale-95"
+                    />
+                  )}
                 </div>
                 {activeAd.link_url && (
                   <a href={activeAd.link_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs bg-[var(--color-gold)] text-[#09231C] hover:bg-[var(--color-gold-400)] transition-all shadow-md w-fit">

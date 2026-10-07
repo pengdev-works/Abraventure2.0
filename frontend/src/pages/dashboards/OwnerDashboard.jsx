@@ -665,13 +665,9 @@ const OwnerDashboard = () => {
               </button>
             </div>
           ) : (
-            <div className="p-4 border-b border-white/10 flex items-center justify-between min-h-[68px]">
-              <Link to="/" className="flex items-center gap-3 group min-w-0">
-                <img src="/abraventure-logo.png" alt="Abraventure Official Logo" className="w-10 h-10 object-contain filter drop-shadow-md rounded-lg group-hover:scale-105 transition-transform flex-shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                <div className="min-w-0">
-                  <span className="font-serif text-lg font-bold tracking-wider text-[#FAF7F2] leading-none block truncate">ABRAVENTURE</span>
-                  <span className="text-[10px] text-[#B88B2A] tracking-[0.2em] uppercase font-bold block mt-1 truncate">Homestay Host Portal</span>
-                </div>
+            <div className="p-3 border-b border-white/10 flex items-center justify-between min-h-[68px]">
+              <Link to="/" className="flex items-center group min-w-0">
+                <img src="/abraventure-logo.png" alt="Abraventure Official Logo" className="h-9 w-auto object-contain filter drop-shadow-md group-hover:scale-[1.03] transition-transform" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
               </Link>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button

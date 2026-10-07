@@ -11,14 +11,23 @@ import SafeImage, { formatMediaUrl } from '../../components/common/SafeImage';
 
 import {
   Search, MapPin, Navigation, Compass, Info, Check,
-  ChevronRight, X, ArrowRight, Heart, Star, Map as MapIcon,
+  ChevronRight, ChevronLeft, X, ArrowRight, Heart, Star, Map as MapIcon,
   Home as HomeIcon, Award, Phone, Mail, Navigation2, RefreshCw, Menu
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// ─── Map Controller Component to Handle Programmatic Map Movements ───────────────
-const MapController = ({ center, zoom, bounds }) => {
+// ─── Map Controller Component to Handle Programmatic Map Movements & Invalidation ───
+const MapController = ({ center, zoom, bounds, isSidebarOpen }) => {
   const map = useMap();
+
+  // Invalidate map size whenever sidebar toggles or window resizes so tiles re-render crisply
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [map, isSidebarOpen]);
+
   useEffect(() => {
     if (bounds) {
       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
@@ -166,7 +175,12 @@ const InteractiveMap = () => {
   const [selectedMunicipality, setSelectedMunicipality] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    return true;
+  });
 
   const closeSidebarOnMobile = () => {
     if (window.innerWidth < 768) {
@@ -551,21 +565,34 @@ const InteractiveMap = () => {
   const filteredItems = getFilteredItems();
 
   return (
-    <div className="relative flex h-[calc(100dvh-56px)] sm:h-[calc(100dvh-64px)] lg:h-[calc(100vh-80px)] w-full overflow-hidden bg-[#FAF7F2]">
+    <div className="relative flex h-full w-full overflow-hidden bg-[#FAF7F2]">
 
       {/* Mobile Backdrop Overlay */}
       {isSidebarOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-[#232120]/50 backdrop-blur-xs z-[9990] transition-all duration-300"
+          className="md:hidden absolute inset-0 bg-[#232120]/50 backdrop-blur-xs z-[490] transition-opacity duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* ─── LEFT SIDEBAR PANEL ─── */}
-      <div className={`fixed inset-y-0 left-0 z-[9999] w-[85vw] max-w-[370px] flex flex-col bg-white border-r border-[#E8DFC8] shadow-xl transition-transform duration-300 md:relative md:translate-x-0 md:w-96 md:flex ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* On desktop: dedicated docked left column side-by-side with map (non-overlapping).
+          On mobile: off-canvas drawer strictly contained in map viewport below Navbar. */}
+      <aside
+        className={`
+          flex flex-col bg-white border-r border-[#E8DFC8] h-full
+          transition-all duration-300 ease-in-out overflow-hidden
+          absolute md:relative inset-y-0 left-0 z-[500] md:z-20
+          w-[88vw] max-w-sm md:max-w-none
+          ${isSidebarOpen
+            ? 'translate-x-0 md:w-96 lg:w-[410px] md:opacity-100 shadow-2xl md:shadow-none'
+            : '-translate-x-full md:translate-x-0 md:w-0 md:border-r-0 md:opacity-0 pointer-events-none'
+          }
+        `}
+      >
 
         {/* Sidebar Header Container */}
-        <div className="p-4 bg-[#153325] text-white relative">
+        <div className="p-4 bg-[#153325] text-white relative flex-shrink-0">
           <div className="flex items-center justify-between mb-3.5 relative z-10">
             <div>
               <span className="text-[9px] uppercase tracking-[0.2em] text-[#B88B2A] font-semibold block">Cartographic Explorer</span>
@@ -582,9 +609,20 @@ const InteractiveMap = () => {
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
+
+              {/* Desktop Collapse Button */}
               <button
                 onClick={() => setIsSidebarOpen(false)}
-                className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                className="hidden md:flex p-1.5 rounded-lg text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all cursor-pointer items-center justify-center"
+                title="Collapse Sidebar"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Mobile Close Button */}
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="md:hidden p-1.5 rounded-lg text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all cursor-pointer items-center justify-center"
                 title="Close Sidebar"
               >
                 <X className="w-4 h-4" />
@@ -951,23 +989,50 @@ const InteractiveMap = () => {
 
           )}
         </div>
-      </div>
+
+        {/* Mobile Quick Action to View Map */}
+        <div className="md:hidden p-3 bg-[#FAF7F2] border-t border-[#E8DFC8] flex-shrink-0">
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="w-full py-2.5 px-4 bg-[#153325] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+          >
+            <MapIcon className="w-3.5 h-3.5 text-[#B88B2A]" />
+            <span>View Map Area</span>
+          </button>
+        </div>
+      </aside>
 
       {/* ─── MAIN MAP DISPLAY ─── */}
-      <div className="flex-1 relative h-full">
+      <div className="flex-1 relative h-full min-w-0">
 
-        {/* Floating Mobile Open Sidebar Button */}
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="md:hidden absolute top-4 left-4 z-[9999] pointer-events-auto w-10 h-10 bg-white text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer"
-          title="Open Sidebar"
-        >
-          <Menu className="w-5 h-5 text-[#153325]" />
-        </button>
+        {/* Floating Toggle Sidebar Button (shown when sidebar is closed) */}
+        {!isSidebarOpen && (
+          <>
+            {/* Desktop Show Sidebar Button */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="hidden md:flex absolute top-4 left-4 z-[400] items-center gap-2 px-3.5 py-2.5 bg-white/95 backdrop-blur-md text-[#153325] rounded-xl shadow-lg border border-[#E8DFC8] font-bold text-xs hover:bg-[#FAF7F2] hover:text-[#B88B2A] transition-all cursor-pointer group"
+              title="Show Sidebar Directory"
+            >
+              <ChevronRight className="w-4 h-4 text-[#B88B2A] group-hover:translate-x-0.5 transition-transform" />
+              <span>Show Places & Filters ({filteredItems.length})</span>
+            </button>
 
-        {/* Routing overlay floating card (Visible on mobile & desktop) */}
+            {/* Mobile Open Sidebar Button */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden absolute top-3 left-3 z-[400] items-center gap-2 px-3 py-2 bg-white/95 backdrop-blur-md text-[#153325] rounded-xl shadow-lg border border-[#E8DFC8] font-bold text-xs hover:bg-[#FAF7F2] transition-all cursor-pointer active:scale-95"
+              title="Open Directory"
+            >
+              <Compass className="w-4 h-4 text-[#B88B2A]" />
+              <span>Places ({filteredItems.length})</span>
+            </button>
+          </>
+        )}
+
+        {/* Routing overlay floating card */}
         {routeSummary && (
-          <div className="absolute top-16 md:top-4 left-4 right-4 md:right-auto z-[1000] bg-white/95 backdrop-blur-sm shadow-xl rounded-xl border border-[#E8DFC8] p-3 max-w-sm animate-fadeIn">
+          <div className="absolute top-14 sm:top-4 left-3 sm:left-auto sm:right-16 z-[380] bg-white/95 backdrop-blur-sm shadow-xl rounded-xl border border-[#E8DFC8] p-3 max-w-xs sm:max-w-sm animate-fadeIn">
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-full bg-[#153325] text-white flex items-center justify-center flex-shrink-0">
                 <Navigation2 className="w-4 h-4 fill-current text-[#B88B2A]" />
@@ -992,11 +1057,11 @@ const InteractiveMap = () => {
           </div>
         )}
 
-        {/* Map Controls - Positioned above mobile bottom navigation */}
-        <div className="absolute bottom-20 sm:bottom-6 right-4 sm:right-6 z-[1000] flex flex-col gap-2">
+        {/* Map Controls - Positioned cleanly in bottom right */}
+        <div className="absolute bottom-4 sm:bottom-6 right-3 sm:right-6 z-[400] flex flex-col gap-2">
           <button
             onClick={handleAcquireLocation}
-            className="w-11 h-11 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer touch-target"
+            className="w-10 h-10 sm:w-11 sm:h-11 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer touch-target"
             title="Locate My Position"
           >
             <Navigation className="w-4 h-4 text-[#153325]" />
@@ -1008,7 +1073,7 @@ const InteractiveMap = () => {
               setMapZoom(10);
               setMapBounds(null);
             }}
-            className="w-11 h-11 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer touch-target"
+            className="w-10 h-10 sm:w-11 sm:h-11 bg-white hover:bg-[#FAF7F2] text-[#153325] rounded-xl shadow-md border border-[#E8DFC8] flex items-center justify-center transition-all hover:scale-105 cursor-pointer touch-target"
             title="Reset Map Scope"
           >
             <MapIcon className="w-4 h-4 text-[#153325]" />
@@ -1028,7 +1093,7 @@ const InteractiveMap = () => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          <MapController center={mapCenter} zoom={mapZoom} bounds={mapBounds} />
+          <MapController center={mapCenter} zoom={mapZoom} bounds={mapBounds} isSidebarOpen={isSidebarOpen} />
 
           {geoJsonData && (
             <GeoJSON

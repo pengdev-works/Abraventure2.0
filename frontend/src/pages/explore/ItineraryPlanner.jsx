@@ -31,8 +31,8 @@ import {
   Eye,
   Check
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import SafeImage from '../../components/common/SafeImage';
+import ExpandableText from '../../components/common/ExpandableText';
 
 const ItineraryPlanner = () => {
   const { token } = useAuth();
@@ -1354,13 +1354,23 @@ const ItineraryPlanner = () => {
                             <h3 className="font-serif font-bold text-[var(--text-primary)] text-sm sm:text-base group-hover:text-[var(--color-primary)] transition-colors">
                               {pkg.title}
                             </h3>
-                            <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2 leading-relaxed">
-                              {pkg.description}
-                            </p>
+                            {pkg.description && (
+                              <ExpandableText
+                                text={pkg.description}
+                                clampLines={2}
+                                className="mt-1"
+                                textClass="text-xs text-[var(--text-secondary)] leading-relaxed"
+                              />
+                            )}
 
                             {pkg.inclusions && (
-                              <div className="text-[10px] text-[var(--text-secondary)] mt-2 bg-[var(--bg-app)] p-2 rounded-lg border border-[var(--border-subtle)] line-clamp-2">
-                                <strong className="text-[var(--text-primary)]">Inclusions:</strong> {pkg.inclusions}
+                              <div className="text-[10px] text-[var(--text-secondary)] mt-2 bg-[var(--bg-app)] p-2 rounded-lg border border-[var(--border-subtle)]">
+                                <strong className="text-[var(--text-primary)] block mb-0.5">Inclusions:</strong>
+                                <ExpandableText
+                                  text={pkg.inclusions}
+                                  clampLines={2}
+                                  textClass="text-[10px] text-[var(--text-secondary)] leading-relaxed"
+                                />
                               </div>
                             )}
 
@@ -1416,9 +1426,14 @@ const ItineraryPlanner = () => {
                       <h2 className="text-lg sm:text-xl font-serif font-bold text-white leading-tight drop-shadow-sm">
                         {previewPackage.title}
                       </h2>
-                      <p className="text-xs text-white/85 line-clamp-2 mt-1 leading-relaxed max-w-2xl">
-                        {previewPackage.description}
-                      </p>
+                      {previewPackage.description && (
+                        <ExpandableText
+                          text={previewPackage.description}
+                          clampLines={2}
+                          className="mt-1 max-w-2xl"
+                          textClass="text-xs text-white/90 leading-relaxed"
+                        />
+                      )}
                     </div>
                   </div>
 

@@ -71,11 +71,11 @@ const PortalLogin = () => {
 
           {/* Header */}
           <div className="px-6 sm:px-8 pt-8 pb-4 text-center border-b border-[var(--border-subtle)]">
-            <Link to="/" className="inline-flex justify-center mb-3 group" title="Return to Home">
+            <Link to="/" className="inline-flex justify-center mb-4 group" title="Return to Home">
               <img
                 src="/abraventure-logo.png"
                 alt="Abraventure Official Logo"
-                className="w-16 h-16 sm:w-18 sm:h-18 object-contain filter drop-shadow-md group-hover:scale-105 transition-transform"
+                className="h-16 sm:h-20 w-auto object-contain filter drop-shadow-md group-hover:scale-[1.03] transition-transform"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </Link>

@@ -18,5 +18,9 @@
     "react",
     "express",
     "postgresql"
-  ]
+  ],
+  "dependencies": {
+    "docx": "^9.8.1",
+    "exceljs": "^4.4.0"
+  }
 }

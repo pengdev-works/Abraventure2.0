@@ -11,6 +11,7 @@ import {
   UtensilsCrossed, ShoppingBag, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import SafeImage, { formatMediaUrl } from '../../components/common/SafeImage';
+import ExpandableText from '../../components/common/ExpandableText';
 
 // Star Rating Component
 const StarRating = ({ rating, onChange, size = 'w-6 h-6' }) => (
@@ -857,9 +858,12 @@ const MunicipalityDetails = () => {
                                     {pkg.title}
                                   </h3>
                                   {pkg.description && (
-                                    <p className="text-[#5A534E] text-xs leading-relaxed line-clamp-2 mt-2">
-                                      {pkg.description}
-                                    </p>
+                                    <ExpandableText
+                                      text={pkg.description}
+                                      clampLines={2}
+                                      className="mt-2"
+                                      textClass="text-[#5A534E] text-xs leading-relaxed"
+                                    />
                                   )}
                                 </div>
 
@@ -870,9 +874,12 @@ const MunicipalityDetails = () => {
                                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                                       <span>Inclusions & Package Perks</span>
                                     </div>
-                                    <p className="text-xs text-[#5A534E] leading-relaxed line-clamp-2 pl-5">
-                                      {pkg.inclusions}
-                                    </p>
+                                    <ExpandableText
+                                      text={pkg.inclusions}
+                                      clampLines={2}
+                                      className="pl-5"
+                                      textClass="text-xs text-[#5A534E] leading-relaxed"
+                                    />
                                   </div>
                                 )}
 
@@ -1109,9 +1116,12 @@ const MunicipalityDetails = () => {
                                   <span className="truncate">{a.location_details || `${municipality.name}, Abra`}</span>
                                 </div>
 
-                                <p className="text-[#5A534E] text-xs leading-relaxed line-clamp-3 mb-4">
-                                  {a.description || 'Explore pristine natural landscapes and cultural heritage in this municipality.'}
-                                </p>
+                                <ExpandableText
+                                  text={a.description || 'Explore pristine natural landscapes and cultural heritage in this municipality.'}
+                                  clampLines={3}
+                                  className="mb-4"
+                                  textClass="text-[#5A534E] text-xs leading-relaxed"
+                                />
                               </div>
                             </div>
 
@@ -1413,7 +1423,12 @@ const MunicipalityDetails = () => {
                                                 <span className="font-serif font-bold text-sm text-[#153325]">{rm.room_type}</span>
                                               </div>
                                               {rm.description && (
-                                                <p className="text-xs text-[#5A534E] mt-0.5 leading-relaxed line-clamp-2">{rm.description}</p>
+                                                <ExpandableText
+                                                  text={rm.description}
+                                                  clampLines={2}
+                                                  className="mt-0.5"
+                                                  textClass="text-xs text-[#5A534E] leading-relaxed"
+                                                />
                                               )}
                                             </div>
                                             <div className="flex-shrink-0 flex items-center gap-1.5 bg-[#153325] text-white px-3 py-1.5 rounded-xl shadow-xs">
@@ -1528,7 +1543,14 @@ const MunicipalityDetails = () => {
                         <div className="p-6">
                           <span className="editorial-tag mb-2 inline-block">{ev.category}</span>
                           <h3 className="font-serif text-xl font-bold text-[#153325] mb-2">{ev.title}</h3>
-                          <p className="text-[#5A534E] text-xs mb-4 line-clamp-2">{ev.description}</p>
+                          {ev.description && (
+                            <ExpandableText
+                              text={ev.description}
+                              clampLines={2}
+                              className="mb-4"
+                              textClass="text-[#5A534E] text-xs leading-relaxed"
+                            />
+                          )}
                           <div className="flex items-center gap-2 text-xs text-[#5A534E] pt-3 border-t border-[#E8DFC8]">
                             <Calendar className="w-3.5 h-3.5 text-[#B88B2A]" />
                             {formatDate(ev.start_date)}{ev.end_date && ` – ${formatDate(ev.end_date)}`}
@@ -1695,7 +1717,14 @@ const MunicipalityDetails = () => {
                           <div className="p-5 flex-1 flex flex-col justify-between">
                             <div>
                               <h3 className="font-serif text-xl font-bold text-[#153325] group-hover:text-[#B88B2A] transition-colors mb-2 leading-snug">{food.name}</h3>
-                              <p className="text-[#5A534E] text-xs leading-relaxed line-clamp-3 mb-3">{food.description}</p>
+                              {food.description && (
+                                <ExpandableText
+                                  text={food.description}
+                                  clampLines={3}
+                                  className="mb-3"
+                                  textClass="text-[#5A534E] text-xs leading-relaxed"
+                                />
+                              )}
                               {food.where_to_find && (
                                 <div className="flex items-start gap-2 text-xs text-[#5A534E] bg-[#F3ECE0] p-2.5 rounded-xl border border-[#E8DFC8]">
                                   <ShoppingBag className="w-3.5 h-3.5 text-[#B88B2A] flex-shrink-0 mt-0.5" />

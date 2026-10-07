@@ -340,6 +340,12 @@ h1 { line-height:1.1; } h2 { line-height:1.15; } h3 { line-height:1.2; }
 .animate-float-alt { animation:floatGentleAlt 5.5s ease-in-out infinite; }
 .animate-marquee-drift { display:flex;width:max-content;animation:marqueeDrift 40s linear infinite; }
 .animate-marquee-drift:hover { animation-play-state:paused; }
+@keyframes logoGlint { 0% { transform:translateX(-120%) skewX(-20deg);opacity:0; } 20% { opacity:0.6; } 60% { opacity:0.8; } 100% { transform:translateX(220%) skewX(-20deg);opacity:0; } }
+@keyframes pulseAura { 0%,100% { transform:scale(1);opacity:0.35; } 50% { transform:scale(1.08);opacity:0.65; } }
+@keyframes portalExpand { 0% { transform:scale(0.95);opacity:0; } 50% { opacity:0.8; } 100% { transform:scale(1.6);opacity:0; } }
+.animate-logo-glint { animation:logoGlint 3.2s cubic-bezier(0.4,0,0.2,1) infinite; }
+.animate-pulse-aura { animation:pulseAura 4s ease-in-out infinite; }
+.animate-portal-expand { animation:portalExpand 1.2s cubic-bezier(0.16,1,0.3,1) forwards; }
 
 /* ================================================================= SCROLLBAR ================================================================= */
 ::-webkit-scrollbar { width:6px;height:6px; }
@@ -375,7 +381,43 @@ button:focus-visible,a:focus-visible { outline:3px solid var(--color-gold);outli
 .stat-card-label { font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-top:0.375rem; }
 .dropdown-menu { background-color:var(--bg-card-elevated);border:1px solid var(--border-app);border-radius:0.75rem;box-shadow:var(--shadow-lg);overflow:hidden; }
 .dropdown-item { display:block;padding:0.5rem 1rem;font-size:0.875rem;color:var(--text-primary);cursor:pointer;transition:background-color 0.12s ease; }
-.dropdown-item:hover { background-color:var(--bg-card-hover); }
+/* ================================================================= CROSS-DEVICE & MOBILE OPTIMIZATIONS (iOS, Android, Tablets, MacBooks, Laptops) ================================================================= */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Touch responsiveness & tap highlights on iOS / Android */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch-friendly interactive targets on touch devices */
+@media (pointer: coarse) {
+  .touch-target, button, a.btn, [role="button"] {
+    min-height: 40px;
+  }
+}
+
+/* Fluid media to prevent horizontal overflow on small screens */
+img, video, canvas {
+  max-width: 100%;
+}
+
+/* Responsive typography and text wrapping across all screens */
+p, span, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+}
 
 @media print {
   * { background:white!important;color:black!important;box-shadow:none!important; }

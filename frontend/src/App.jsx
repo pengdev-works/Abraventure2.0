@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { AlertProvider } from './context/AlertContext';
 import { ToastProvider } from './context/ToastContext';
 import { SocketProvider } from './context/SocketContext';
+import { useAuth } from './context/AuthContext';
 import LoadingScreen from './components/common/LoadingScreen';
 
 // Layout Components
@@ -40,102 +41,123 @@ import OwnerDashboard from './pages/dashboards/OwnerDashboard';
 import GuideDashboard from './pages/dashboards/GuideDashboard';
 import TouristDashboard from './pages/dashboards/TouristDashboard';
 
-function App() {
-  const [showInitialLoader, setShowInitialLoader] = useState(true);
+/**
+ * AppRoutes — rendered inside all providers so it can consume AuthContext.
+ * The LoadingScreen stays visible until BOTH the animated timer completes
+ * AND the auth check (/api/auth/me) finishes — preventing the double-loader
+ * flash that was caused by RouteGuard briefly showing its spinner.
+ */
+function AppRoutes() {
+  const { loading: authLoading } = useAuth();
+  const [loaderDone, setLoaderDone] = useState(false);
 
+  // Keep loader visible until animation timer + auth resolution are both done
+  const showLoader = !loaderDone || authLoading;
+
+  return (
+    <>
+      {showLoader && (
+        <LoadingScreen
+          onFinish={() => setLoaderDone(true)}
+          minDuration={1800}
+        />
+      )}
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <ScrollToTop />
+        <Layout>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/portal/login" element={<PortalLogin />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/apply/provider" element={<ProviderApply />} />
+            <Route path="/municipalities" element={<Municipalities />} />
+            <Route path="/municipalities/:id" element={<MunicipalityDetails />} />
+            <Route path="/map" element={<InteractiveMap />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/travel-tips" element={<TravelTips />} />
+            <Route path="/announcements" element={<Announcements />} />
+            <Route path="/municipalities/:id/gallery" element={<PhotoGallery />} />
+            <Route path="/tour-packages" element={<TourPackages />} />
+            <Route path="/tour-packages/:id" element={<TourPackageDetail />} />
+
+            {/* Tourist Protected Routes */}
+            <Route
+              path="/itinerary"
+              element={
+                <RouteGuard allowedRoles={['TOURIST']}>
+                  <ItineraryPlanner />
+                </RouteGuard>
+              }
+            />
+            <Route
+              path="/tourist-dashboard"
+              element={
+                <RouteGuard allowedRoles={['TOURIST']}>
+                  <TouristDashboard />
+                </RouteGuard>
+              }
+            />
+            <Route path="/dashboard/tourist" element={<Navigate to="/tourist-dashboard" replace />} />
+
+            {/* Provincial DOT Protected Dashboard */}
+            <Route
+              path="/provincial-dashboard"
+              element={
+                <RouteGuard allowedRoles={['PROVINCIAL_DOT']}>
+                  <ProvincialDashboard />
+                </RouteGuard>
+              }
+            />
+
+            {/* Municipal DOT Protected Dashboard */}
+            <Route
+              path="/municipal-dashboard"
+              element={
+                <RouteGuard allowedRoles={['MUNICIPAL_DOT']}>
+                  <MunicipalDashboard />
+                </RouteGuard>
+              }
+            />
+
+            {/* Homestay Owner Protected Dashboard */}
+            <Route
+              path="/owner-dashboard"
+              element={
+                <RouteGuard allowedRoles={['HOMESTAY_OWNER']}>
+                  <OwnerDashboard />
+                </RouteGuard>
+              }
+            />
+
+            {/* Tour Guide Protected Dashboard */}
+            <Route
+              path="/guide-dashboard"
+              element={
+                <RouteGuard allowedRoles={['TOUR_GUIDE']}>
+                  <GuideDashboard />
+                </RouteGuard>
+              }
+            />
+
+            {/* Dedicated File Error & Catch-all 404 Page */}
+            <Route path="/file-error" element={<NotFound isFileError={true} />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </>
+  );
+}
+
+function App() {
   return (
     <AuthProvider>
       <AlertProvider>
         <ToastProvider>
           <SocketProvider>
-            {showInitialLoader && (
-              <LoadingScreen onFinish={() => setShowInitialLoader(false)} minDuration={1400} />
-            )}
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <ScrollToTop />
-              <Layout>
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<Home />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/portal/login" element={<PortalLogin />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/apply/provider" element={<ProviderApply />} />
-                  <Route path="/municipalities" element={<Municipalities />} />
-                  <Route path="/municipalities/:id" element={<MunicipalityDetails />} />
-                  <Route path="/map" element={<InteractiveMap />} />
-                  <Route path="/events" element={<Events />} />
-                  <Route path="/travel-tips" element={<TravelTips />} />
-                  <Route path="/announcements" element={<Announcements />} />
-                  <Route path="/municipalities/:id/gallery" element={<PhotoGallery />} />
-                  <Route path="/tour-packages" element={<TourPackages />} />
-                  <Route path="/tour-packages/:id" element={<TourPackageDetail />} />
-
-                  {/* Tourist Protected Routes */}
-                  <Route
-                    path="/itinerary"
-                    element={
-                      <RouteGuard allowedRoles={['TOURIST']}>
-                        <ItineraryPlanner />
-                      </RouteGuard>
-                    }
-                  />
-                  <Route
-                    path="/tourist-dashboard"
-                    element={
-                      <RouteGuard allowedRoles={['TOURIST']}>
-                        <TouristDashboard />
-                      </RouteGuard>
-                    }
-                  />
-                  <Route path="/dashboard/tourist" element={<Navigate to="/tourist-dashboard" replace />} />
-
-                  {/* Provincial DOT Protected Dashboard */}
-                  <Route
-                    path="/provincial-dashboard"
-                    element={
-                      <RouteGuard allowedRoles={['PROVINCIAL_DOT']}>
-                        <ProvincialDashboard />
-                      </RouteGuard>
-                    }
-                  />
-
-                  {/* Municipal DOT Protected Dashboard */}
-                  <Route
-                    path="/municipal-dashboard"
-                    element={
-                      <RouteGuard allowedRoles={['MUNICIPAL_DOT']}>
-                        <MunicipalDashboard />
-                      </RouteGuard>
-                    }
-                  />
-
-                  {/* Homestay Owner Protected Dashboard */}
-                  <Route
-                    path="/owner-dashboard"
-                    element={
-                      <RouteGuard allowedRoles={['HOMESTAY_OWNER']}>
-                        <OwnerDashboard />
-                      </RouteGuard>
-                    }
-                  />
-
-                  {/* Tour Guide Protected Dashboard */}
-                  <Route
-                    path="/guide-dashboard"
-                    element={
-                      <RouteGuard allowedRoles={['TOUR_GUIDE']}>
-                        <GuideDashboard />
-                      </RouteGuard>
-                    }
-                  />
-
-                  {/* Dedicated File Error & Catch-all 404 Page */}
-                  <Route path="/file-error" element={<NotFound isFileError={true} />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Layout>
-            </BrowserRouter>
+            <AppRoutes />
           </SocketProvider>
         </ToastProvider>
       </AlertProvider>

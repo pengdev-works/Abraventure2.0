@@ -5,6 +5,7 @@ import {
   ArrowRight, Sparkles, CheckCircle2, ShieldCheck, Compass, Heart
 } from 'lucide-react';
 import SafeImage from '../../components/common/SafeImage';
+import ExpandableText from '../../components/common/ExpandableText';
 
 const MUNICIPALITIES = [
   'All Municipalities', 'Bangued', 'Boliney', 'Bucay', 'Bucloc', 'Daguioman', 'Danglas', 'Dolores',
@@ -171,7 +172,7 @@ const TourPackages = () => {
 
         {/* Package Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {[1, 2, 3, 4, 5, 6].map(n => (
               <div key={n} className="bg-white dark:bg-[#162218] rounded-3xl border border-[var(--border-app,#C7D7C9)] dark:border-[#223529] p-4 h-96 animate-pulse" />
             ))}
@@ -236,9 +237,12 @@ const TourPackages = () => {
                     <h3 className="text-base font-bold text-stone-900 dark:text-[#E2EDE5] group-hover:text-[#153325] dark:group-hover:text-[#A3F3CA] transition line-clamp-1 mb-2 font-serif">
                       {pkg.title}
                     </h3>
-                    <p className="text-xs text-stone-600 dark:text-stone-300 line-clamp-2 leading-relaxed mb-4">
-                      {pkg.description || 'Explore the wonders and cultural heritage of Abra with an organized package itinerary.'}
-                    </p>
+                    <ExpandableText
+                      text={pkg.description || 'Explore the wonders and cultural heritage of Abra with an organized package itinerary.'}
+                      clampLines={2}
+                      className="mb-4"
+                      textClass="text-xs text-stone-600 dark:text-stone-300 leading-relaxed"
+                    />
 
                     {/* Key Attributes */}
                     <div className="grid grid-cols-2 gap-2 text-[11px] text-stone-600 dark:text-stone-300 bg-[#FAF7F2] dark:bg-[#1E2E24] p-3 rounded-2xl mb-4 border border-[var(--border-app,#E8DFC8)] dark:border-[#2E4A39]">

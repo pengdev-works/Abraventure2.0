@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, ArrowRight, MapPin } from 'lucide-react';
 import SafeImage from '../../components/common/SafeImage';
+import ExpandableText from '../../components/common/ExpandableText';
 
 const CATEGORIES = ['All', 'Heritage', 'Nature', 'Eco-Tourism', 'Highland', 'Riverside'];
 
@@ -174,9 +175,12 @@ const Municipalities = () => {
                     <h3 className="font-serif text-2xl font-bold text-[#153325] mb-2 group-hover:text-[#B88B2A] transition-colors">
                       {m.name}
                     </h3>
-                    <p className="text-xs text-[#5A534E] leading-relaxed line-clamp-3 mb-4">
-                      {m.description || `Explore natural mountain landscapes, eco-tourism sites, and cultural heritage in ${m.name}, Abra.`}
-                    </p>
+                    <ExpandableText
+                      text={m.description || `Explore natural mountain landscapes, eco-tourism sites, and cultural heritage in ${m.name}, Abra.`}
+                      clampLines={3}
+                      className="mb-4"
+                      textClass="text-xs text-[#5A534E] leading-relaxed"
+                    />
 
                     {/* Signature Food Tags */}
                     {m.signature_foods && m.signature_foods.length > 0 && (
