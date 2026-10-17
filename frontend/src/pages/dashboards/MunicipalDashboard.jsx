@@ -188,6 +188,99 @@ const MunicipalDashboard = () => {
   const [foodSearch, setFoodSearch] = useState('');
   const [foodCatFilter, setFoodCatFilter] = useState('ALL');
 
+  // ─── Homestay Management State (Municipal Direct Add / Edit) ─────────────
+  const [showHomestayModal, setShowHomestayModal] = useState(false);
+  const [homestayModalMode, setHomestayModalMode] = useState('create'); // 'create' | 'edit'
+  const [editingHomestayId, setEditingHomestayId] = useState(null);
+  const [homestayFormLoading, setHomestayFormLoading] = useState(false);
+  const [homestayMsg, setHomestayMsg] = useState({ type: '', text: '' });
+  const [showHomestayPassword, setShowHomestayPassword] = useState(false);
+  const [homestayForm, setHomestayForm] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    phoneNumber: '',
+    name: '',
+    description: '',
+    address: '',
+    barangay: '',
+    totalRooms: 1,
+    maxCapacity: 2,
+    contactEmail: '',
+    contactPhone: '',
+    latitude: '',
+    longitude: '',
+    status: 'APPROVED',
+  });
+  const [homestayImageFile, setHomestayImageFile] = useState(null);
+  const [homestayImagePreview, setHomestayImagePreview] = useState('');
+  const [homestaySearch, setHomestaySearch] = useState('');
+  const [homestayFilterStatus, setHomestayFilterStatus] = useState('ALL');
+
+  // ─── Tour Guide Management State (Municipal Direct Add / Edit) ───────────
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [guideModalMode, setGuideModalMode] = useState('create'); // 'create' | 'edit'
+  const [editingGuideId, setEditingGuideId] = useState(null);
+  const [guideFormLoading, setGuideFormLoading] = useState(false);
+  const [guideMsg, setGuideMsg] = useState({ type: '', text: '' });
+  const [showGuidePassword, setShowGuidePassword] = useState(false);
+  const [guideForm, setGuideForm] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    phoneNumber: '',
+    licenseNumber: '',
+    yearsOfExperience: 1,
+    languagesSpoken: 'English, Tagalog, Ilokano',
+    areasCovered: '',
+    specializations: 'Cultural & Eco Tours',
+    bio: '',
+    servicesOffered: 'Guided Day Hikes, Heritage Walks, Mountain Treks',
+    priceRate: '500',
+    status: 'APPROVED',
+  });
+  const [guidePhotoFile, setGuidePhotoFile] = useState(null);
+  const [guidePhotoPreview, setGuidePhotoPreview] = useState('');
+  const [guideSearch, setGuideSearch] = useState('');
+  const [guideFilterStatus, setGuideFilterStatus] = useState('ALL');
+
+  // ─── Stakeholder Activity & Status Modal State ───────────────────────────
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState(null);
+  const [activityData, setActivityData] = useState(null);
+  const [activityStakeholderType, setActivityStakeholderType] = useState('homestay'); // 'homestay' | 'guide'
+  const [activitySelectedFilter, setActivitySelectedFilter] = useState('ALL'); // 'ALL' | 'CONFIRMED' | 'PENDING' | 'CANCELLED'
+
+  const handleOpenStakeholderActivity = async (stakeholder, type = 'homestay') => {
+    if (!stakeholder?.id) return;
+    setActivityStakeholderType(type);
+    setActivityModalOpen(true);
+    setActivityLoading(true);
+    setActivityError(null);
+    setActivityData(null);
+    setActivitySelectedFilter('ALL');
+
+    try {
+      const response = await fetch(`/api/listings/municipality/stakeholder-activity/${type}/${stakeholder.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const resData = await response.json();
+      if (response.ok) {
+        setActivityData(resData);
+      } else {
+        setActivityError(resData.message || 'Failed to fetch stakeholder activity data.');
+      }
+    } catch (err) {
+      console.error('Error fetching stakeholder activity:', err);
+      setActivityError('Server connection error while fetching activity.');
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
   // Sync profile details when user context loads
   useEffect(() => {
     if (user) {
@@ -1283,7 +1376,28 @@ const MunicipalDashboard = () => {
     }
   };
 
-  const handleEndorseStakeholder = async (id, type) => {
+  const handleReviewStakeholder = async (id, type, status = 'APPROVED') => {
+    const isApprove = status === 'APPROVED';
+    const result = await Swal.fire({
+      title: isApprove ? 'Approve Stakeholder?' : 'Reject Stakeholder?',
+      html: isApprove
+        ? `Are you sure you want to approve this <strong>${type === 'HOMESTAY' ? 'Homestay' : 'Tour Guide'}</strong>?<br/><span class="text-xs text-slate-500">It will become active immediately and available for tourist bookings in your municipality.</span>`
+        : `Are you sure you want to reject this registration?`,
+      icon: isApprove ? 'question' : 'warning',
+      input: isApprove ? undefined : 'textarea',
+      inputPlaceholder: isApprove ? undefined : 'Provide reason or remarks for rejection...',
+      showCancelButton: true,
+      confirmButtonColor: isApprove ? '#153325' : '#B84A42',
+      confirmButtonText: isApprove ? 'Yes, Approve & Activate' : 'Reject Registration',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-3xl' }
+    });
+
+    if (!result.isConfirmed) return;
+    const remarks = typeof result.value === 'string' && result.value
+      ? result.value
+      : (isApprove ? 'Approved directly by Municipal Tourism Office' : 'Registration rejected by Municipal Tourism Office');
+
     try {
       const response = await fetch(`/api/listings/endorse/${id}`, {
         method: 'PUT',
@@ -1291,15 +1405,290 @@ const MunicipalDashboard = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ type, remarks: 'Endorsed for Provincial DOT approval after Municipal validation.' })
+        body: JSON.stringify({ type, status, remarks })
       });
 
+      const resData = await response.json();
       if (response.ok) {
-        showAlert('Stakeholder endorsed successfully.', 'success');
+        showAlert(resData.message || `Stakeholder ${status.toLowerCase()} successfully.`, 'success');
         await fetchData();
+        if (activityModalOpen && activityData?.stakeholder?.id === id) {
+          setActivityData(prev => prev ? { ...prev, stakeholder: { ...prev.stakeholder, status } } : null);
+        }
+      } else {
+        showAlert(resData.message || 'Failed to update stakeholder status.', 'error');
       }
     } catch (err) {
       console.error(err);
+      showAlert('Server error updating stakeholder status.', 'error');
+    }
+  };
+
+  const handleEndorseStakeholder = (id, type) => handleReviewStakeholder(id, type, 'APPROVED');
+
+  // ─── Homestay Management Handlers ─────────────────────────────────────
+  const openCreateHomestayModal = () => {
+    setHomestayModalMode('create');
+    setEditingHomestayId(null);
+    setShowHomestayPassword(false);
+    setHomestayForm({
+      fullName: '',
+      email: '',
+      password: '',
+      phoneNumber: '',
+      name: '',
+      description: '',
+      address: '',
+      barangay: '',
+      totalRooms: 1,
+      maxCapacity: 2,
+      contactEmail: '',
+      contactPhone: '',
+      latitude: '',
+      longitude: '',
+      status: 'APPROVED',
+    });
+    setHomestayImageFile(null);
+    setHomestayImagePreview('');
+    setHomestayMsg({ type: '', text: '' });
+    setShowHomestayModal(true);
+  };
+
+  const openEditHomestayModal = (hs) => {
+    setHomestayModalMode('edit');
+    setEditingHomestayId(hs.id);
+    setShowHomestayPassword(false);
+    setHomestayForm({
+      fullName: hs.owner_name || '',
+      email: hs.email || '',
+      password: '',
+      phoneNumber: hs.phone_number || hs.contact_phone || '',
+      name: hs.name || '',
+      description: hs.description || '',
+      address: hs.address || '',
+      barangay: hs.barangay || '',
+      totalRooms: hs.total_rooms || 1,
+      maxCapacity: hs.max_capacity || 2,
+      contactEmail: hs.contact_email || hs.email || '',
+      contactPhone: hs.contact_phone || hs.phone_number || '',
+      latitude: hs.latitude !== null && hs.latitude !== undefined ? String(hs.latitude) : '',
+      longitude: hs.longitude !== null && hs.longitude !== undefined ? String(hs.longitude) : '',
+      status: hs.status || 'APPROVED',
+    });
+    setHomestayImageFile(null);
+    setHomestayImagePreview(hs.featured_image || '');
+    setHomestayMsg({ type: '', text: '' });
+    setShowHomestayModal(true);
+  };
+
+  const handleSaveHomestay = async (e) => {
+    e.preventDefault();
+    setHomestayFormLoading(true);
+    setHomestayMsg({ type: '', text: '' });
+
+    if (homestayModalMode === 'create' && (!homestayForm.password || homestayForm.password.length < 8)) {
+      setHomestayMsg({ type: 'error', text: 'Password must be at least 8 characters long.' });
+      setHomestayFormLoading(false);
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      Object.entries(homestayForm).forEach(([k, v]) => {
+        if (homestayModalMode === 'edit' && k === 'password' && !v) return;
+        formData.append(k, v !== undefined && v !== null ? v : '');
+      });
+      if (homestayImageFile) {
+        formData.append('image', homestayImageFile);
+      }
+
+      const url = homestayModalMode === 'create'
+        ? '/api/listings/municipality/homestays'
+        : `/api/listings/municipality/homestays/${editingHomestayId}`;
+      const method = homestayModalMode === 'create' ? 'POST' : 'PUT';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const resData = await res.json();
+
+      if (res.ok) {
+        setShowHomestayModal(false);
+        showAlert(resData.message || 'Homestay saved successfully.', 'success');
+        await fetchData();
+      } else {
+        setHomestayMsg({ type: 'error', text: resData.message || 'Failed to save homestay.' });
+      }
+    } catch (err) {
+      console.error('Error saving homestay:', err);
+      setHomestayMsg({ type: 'error', text: 'Server error saving homestay.' });
+    } finally {
+      setHomestayFormLoading(false);
+    }
+  };
+
+  const handleDeleteHomestay = async (hs) => {
+    const result = await Swal.fire({
+      title: 'Delete Homestay?',
+      html: `Are you sure you want to delete <strong>"${hs.name}"</strong>?<br/><span class="text-xs text-slate-500">This will remove the homestay profile, rooms, and associated host account.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-3xl' },
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/listings/municipality/stakeholders/homestay/${hs.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const resData = await res.json();
+      if (res.ok) {
+        showAlert(resData.message || 'Homestay deleted successfully.', 'success');
+        await fetchData();
+      } else {
+        showAlert(resData.message || 'Failed to delete homestay.', 'error');
+      }
+    } catch (err) {
+      console.error('Error deleting homestay:', err);
+      showAlert('Server error deleting homestay.', 'error');
+    }
+  };
+
+  // ─── Tour Guide Management Handlers ───────────────────────────────────
+  const openCreateGuideModal = () => {
+    setGuideModalMode('create');
+    setEditingGuideId(null);
+    setShowGuidePassword(false);
+    setGuideForm({
+      fullName: '',
+      email: '',
+      password: '',
+      phoneNumber: '',
+      licenseNumber: '',
+      yearsOfExperience: 1,
+      languagesSpoken: 'English, Tagalog, Ilokano',
+      areasCovered: `${user?.municipalityName || 'Abra'} & surrounding eco-trails`,
+      specializations: 'Cultural & Eco Tours',
+      bio: '',
+      servicesOffered: 'Guided Day Hikes, Heritage Walks, Mountain Treks',
+      priceRate: '500',
+      status: 'APPROVED',
+    });
+    setGuidePhotoFile(null);
+    setGuidePhotoPreview('');
+    setGuideMsg({ type: '', text: '' });
+    setShowGuideModal(true);
+  };
+
+  const openEditGuideModal = (g) => {
+    setGuideModalMode('edit');
+    setEditingGuideId(g.id);
+    setShowGuidePassword(false);
+    setGuideForm({
+      fullName: g.guide_name || '',
+      email: g.email || '',
+      password: '',
+      phoneNumber: g.phone_number || '',
+      licenseNumber: g.license_number || '',
+      yearsOfExperience: g.years_of_experience || 0,
+      languagesSpoken: g.languages_spoken || 'English, Tagalog, Ilokano',
+      areasCovered: g.areas_covered || '',
+      specializations: g.specializations || '',
+      bio: g.bio || '',
+      servicesOffered: g.services_offered || '',
+      priceRate: g.price_rate !== undefined && g.price_rate !== null ? String(g.price_rate) : '500',
+      status: g.status || 'APPROVED',
+    });
+    setGuidePhotoFile(null);
+    setGuidePhotoPreview(g.profile_picture_url || '');
+    setGuideMsg({ type: '', text: '' });
+    setShowGuideModal(true);
+  };
+
+  const handleSaveGuide = async (e) => {
+    e.preventDefault();
+    setGuideFormLoading(true);
+    setGuideMsg({ type: '', text: '' });
+
+    if (guideModalMode === 'create' && (!guideForm.password || guideForm.password.length < 8)) {
+      setGuideMsg({ type: 'error', text: 'Password must be at least 8 characters long.' });
+      setGuideFormLoading(false);
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      Object.entries(guideForm).forEach(([k, v]) => {
+        if (guideModalMode === 'edit' && k === 'password' && !v) return;
+        formData.append(k, v !== undefined && v !== null ? v : '');
+      });
+      if (guidePhotoFile) {
+        formData.append('profilePicture', guidePhotoFile);
+      }
+
+      const url = guideModalMode === 'create'
+        ? '/api/listings/municipality/guides'
+        : `/api/listings/municipality/guides/${editingGuideId}`;
+      const method = guideModalMode === 'create' ? 'POST' : 'PUT';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const resData = await res.json();
+
+      if (res.ok) {
+        setShowGuideModal(false);
+        showAlert(resData.message || 'Tour Guide saved successfully.', 'success');
+        await fetchData();
+      } else {
+        setGuideMsg({ type: 'error', text: resData.message || 'Failed to save tour guide.' });
+      }
+    } catch (err) {
+      console.error('Error saving tour guide:', err);
+      setGuideMsg({ type: 'error', text: 'Server error saving tour guide.' });
+    } finally {
+      setGuideFormLoading(false);
+    }
+  };
+
+  const handleDeleteGuide = async (g) => {
+    const result = await Swal.fire({
+      title: 'Delete Tour Guide?',
+      html: `Are you sure you want to delete <strong>"${g.guide_name}"</strong>?<br/><span class="text-xs text-slate-500">This will remove their guide profile and user account from the system.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#94a3b8',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-3xl' },
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`/api/listings/municipality/stakeholders/guide/${g.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const resData = await res.json();
+      if (res.ok) {
+        showAlert(resData.message || 'Tour guide deleted successfully.', 'success');
+        await fetchData();
+      } else {
+        showAlert(resData.message || 'Failed to delete tour guide.', 'error');
+      }
+    } catch (err) {
+      console.error('Error deleting tour guide:', err);
+      showAlert('Server error deleting tour guide.', 'error');
     }
   };
 
@@ -1318,7 +1707,7 @@ const MunicipalDashboard = () => {
     { id: 'localfood', label: 'Local Food & Delicacies', icon: UtensilsCrossed },
     { id: 'requirements', label: 'Accreditation Checklist', icon: FolderClosed },
     { id: 'review', label: 'Review Submissions', icon: CheckSquare },
-    { id: 'stakeholders', label: 'Endorse Operators', icon: FileCheck },
+    { id: 'stakeholders', label: 'Homestays & Tour Guides', icon: Home },
     { id: 'events', label: 'Festivals & Events', icon: Calendar },
     { id: 'inquiries', label: 'Tourist Inquiries', icon: MessageSquare },
     { id: 'complaints', label: 'Grievance Desk', icon: AlertCircle },
@@ -3976,118 +4365,530 @@ const MunicipalDashboard = () => {
           );
         })()}
 
-        {/* Stakeholders Tab */}
-        {activeTab === 'stakeholders' && (
-          <div className="space-y-8">
-            {/* Homestays */}
-            <div>
-              <h3 className="font-extrabold text-emerald-950 text-base mb-4 border-b border-slate-100 pb-2">Local Homestays Listings</h3>
-              {data.homestays.length === 0 ? (
-                <p className="text-slate-450 text-xs py-4 text-center">No homestays registered under this municipality.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-slate-400 text-xs uppercase font-bold bg-slate-50/55">
-                        <th className="py-3 px-4">Homestay Name</th>
-                        <th className="py-3 px-4">Owner</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.homestays.map((hs) => (
-                        <tr key={hs.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-xs text-slate-600">
-                          <td className="py-3.5 px-4 font-bold text-slate-800">{hs.name}</td>
-                          <td className="py-3.5 px-4">{hs.owner_name}</td>
-                          <td className="py-3.5 px-4">
-                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${
-                                hs.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                                hs.status === 'ENDORSED' ? 'bg-blue-100 text-blue-800' :
-                                hs.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                              {hs.status}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 flex justify-center gap-2">
-                            {hs.status === 'PENDING' && (
-                              <button
-                                onClick={() => handleEndorseStakeholder(hs.id, 'HOMESTAY')}
-                                className="px-3.5 py-1.5 bg-emerald-900 hover:bg-emerald-850 text-white rounded font-bold text-[10px] shadow"
-                              >
-                                Endorse Profile
-                              </button>
-                            )}
-                            {hs.status === 'ENDORSED' && (
-                              <span className="text-blue-600 font-semibold text-[10px] italic">Endorsed — Awaiting Provincial Review</span>
-                            )}
-                            {(hs.status === 'APPROVED' || hs.status === 'REJECTED') && (
-                              <span className="text-slate-400 italic text-[10px]">No pending profile review</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+        {/* Stakeholders Tab (Tour Guides & Homestays Management) */}
+        {activeTab === 'stakeholders' && (() => {
+          const homestays = data.homestays || [];
+          const guides = data.guides || [];
 
-            {/* Guides */}
-            <div>
-              <h3 className="font-extrabold text-emerald-950 text-base mb-4 border-b border-slate-100 pb-2">Accredited Local Tour Guides</h3>
-              {data.guides.length === 0 ? (
-                <p className="text-slate-450 text-xs py-4 text-center">No tour guides registered under this municipality.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-slate-400 text-xs uppercase font-bold bg-slate-50/55">
-                        <th className="py-3 px-4">Guide Name</th>
-                        <th className="py-3 px-4">Email</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.guides.map((g) => (
-                        <tr key={g.id} className="border-b border-slate-100 hover:bg-slate-50/40 text-xs text-slate-600">
-                          <td className="py-3.5 px-4 font-bold text-slate-800">{g.guide_name}</td>
-                          <td className="py-3.5 px-4">{g.email}</td>
-                          <td className="py-3.5 px-4">
-                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${
-                                g.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
-                                g.status === 'ENDORSED' ? 'bg-blue-100 text-blue-800' :
-                                g.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                              {g.status}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 flex justify-center gap-2">
-                            {g.status === 'PENDING' && (
-                              <button
-                                onClick={() => handleEndorseStakeholder(g.id, 'GUIDE')}
-                                className="px-3.5 py-1.5 bg-emerald-900 hover:bg-emerald-805 text-white rounded font-bold text-[10px] shadow"
-                              >
-                                Endorse Profile
-                              </button>
-                            )}
-                            {g.status === 'ENDORSED' && (
-                              <span className="text-blue-600 font-semibold text-[10px] italic">Endorsed — Awaiting Provincial Review</span>
-                            )}
-                            {(g.status === 'APPROVED' || g.status === 'REJECTED') && (
-                              <span className="text-slate-400 italic text-[10px]">No pending profile review</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+          const approvedHomestays = homestays.filter(h => h.status === 'APPROVED').length;
+          const pendingHomestays = homestays.filter(h => h.status === 'PENDING').length;
+          const approvedGuides = guides.filter(g => g.status === 'APPROVED').length;
+          const pendingGuides = guides.filter(g => g.status === 'PENDING').length;
+
+          const filteredHomestays = homestays.filter(h => {
+            const matchesSearch = !homestaySearch.trim() ||
+              (h.name && h.name.toLowerCase().includes(homestaySearch.toLowerCase())) ||
+              (h.owner_name && h.owner_name.toLowerCase().includes(homestaySearch.toLowerCase())) ||
+              (h.barangay && h.barangay.toLowerCase().includes(homestaySearch.toLowerCase())) ||
+              (h.email && h.email.toLowerCase().includes(homestaySearch.toLowerCase()));
+            const matchesStatus = homestayFilterStatus === 'ALL' || h.status === homestayFilterStatus;
+            return matchesSearch && matchesStatus;
+          });
+
+          const filteredGuides = guides.filter(g => {
+            const matchesSearch = !guideSearch.trim() ||
+              (g.guide_name && g.guide_name.toLowerCase().includes(guideSearch.toLowerCase())) ||
+              (g.license_number && g.license_number.toLowerCase().includes(guideSearch.toLowerCase())) ||
+              (g.email && g.email.toLowerCase().includes(guideSearch.toLowerCase())) ||
+              (g.specializations && g.specializations.toLowerCase().includes(guideSearch.toLowerCase()));
+            const matchesStatus = guideFilterStatus === 'ALL' || g.status === guideFilterStatus;
+            return matchesSearch && matchesStatus;
+          });
+
+          return (
+            <div className="space-y-8 animate-fadeIn">
+              {/* Masthead Banner */}
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#153325] via-[#1A3F2E] to-[#153325] p-6 sm:p-8 text-white shadow-xl border border-white/10">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-[#B88B2A]/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B88B2A]/20 border border-[#B88B2A]/40 text-[#FAF7F2] text-xs font-bold tracking-wide">
+                      <Sparkles className="w-3.5 h-3.5 text-[#B88B2A]" />
+                      <span>Municipal Tourism Directory & Operators</span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
+                      Tour Guides & Homestay Operators
+                    </h2>
+                    <p className="text-xs sm:text-sm text-white/80 max-w-2xl leading-relaxed">
+                      Manage, endorse, and directly onboard verified local homestays and accredited tour guides for <strong className="text-white font-semibold">{user?.municipalityName || 'your municipality'}</strong>. Public applicants can be endorsed to the Provincial DOT, or you can register local partners directly with pre-approved status.
+                    </p>
+                  </div>
+
+                  {/* Top Action CTAs */}
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+                    <button
+                      onClick={openCreateHomestayModal}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#B88B2A] hover:bg-[#A07722] text-[#153325] font-bold text-xs shadow-lg transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add Homestay</span>
+                    </button>
+                    <button
+                      onClick={openCreateGuideModal}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 shadow-lg transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add Tour Guide</span>
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                {/* Quick Stats Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/10">
+                  <div className="bg-black/20 rounded-2xl p-3 border border-white/5">
+                    <div className="text-[11px] text-white/60 font-medium">Total Homestays</div>
+                    <div className="text-xl font-black text-white mt-0.5">{homestays.length}</div>
+                    <div className="text-[10px] text-emerald-300 font-semibold mt-0.5">{approvedHomestays} Active · {pendingHomestays} Pending</div>
+                  </div>
+                  <div className="bg-black/20 rounded-2xl p-3 border border-white/5">
+                    <div className="text-[11px] text-white/60 font-medium">Tour Guides</div>
+                    <div className="text-xl font-black text-white mt-0.5">{guides.length}</div>
+                    <div className="text-[10px] text-emerald-300 font-semibold mt-0.5">{approvedGuides} Active · {pendingGuides} Pending</div>
+                  </div>
+                  <div className="bg-black/20 rounded-2xl p-3 border border-white/5">
+                    <div className="text-[11px] text-white/60 font-medium">Action Needed</div>
+                    <div className="text-xl font-black text-amber-300 mt-0.5">{pendingHomestays + pendingGuides}</div>
+                    <div className="text-[10px] text-amber-200/80 font-medium mt-0.5">Awaiting Municipal Endorsement</div>
+                  </div>
+                  <div className="bg-black/20 rounded-2xl p-3 border border-white/5">
+                    <div className="text-[11px] text-white/60 font-medium">Registered Municipality</div>
+                    <div className="text-sm font-black text-[#B88B2A] truncate mt-1">{user?.municipalityName || 'LGU Abra'}</div>
+                    <div className="text-[10px] text-white/60 mt-0.5">Direct LGU Governance</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── SECTION 1: HOMESTAYS ──────────────────────────────────────── */}
+              <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="p-2 rounded-xl bg-emerald-50 text-emerald-800">
+                        <Home className="w-4 h-4" />
+                      </span>
+                      <h3 className="font-serif font-black text-slate-900 text-lg">Local Homestays Directory</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+                        {homestays.length}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Registered local accommodations, guest rooms, and heritage homestay hosts.
+                    </p>
+                  </div>
+                  <button
+                    onClick={openCreateHomestayModal}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#153325] hover:bg-[#1D4433] text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Homestay</span>
+                  </button>
+                </div>
+
+                {/* Search & Filter Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={homestaySearch}
+                      onChange={e => setHomestaySearch(e.target.value)}
+                      placeholder="Search homestays by name, owner, barangay, or email..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                    {['ALL', 'APPROVED', 'ENDORSED', 'PENDING'].map(st => (
+                      <button
+                        key={st}
+                        onClick={() => setHomestayFilterStatus(st)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                          homestayFilterStatus === st
+                            ? 'bg-[#153325] text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {st === 'ALL' ? 'All Status' : st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Homestays Table */}
+                {filteredHomestays.length === 0 ? (
+                  <div className="text-center py-12 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                      <Home className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-slate-700">No homestays found</p>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                        {homestaySearch || homestayFilterStatus !== 'ALL'
+                          ? 'No homestays match the current search or status filter.'
+                          : 'No homestays have been registered in this municipality yet.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={openCreateHomestayModal}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#153325] text-white rounded-xl text-xs font-bold shadow-sm hover:bg-[#1D4433] transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Register First Homestay</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-bold">
+                          <th className="py-3 px-4">Homestay Property</th>
+                          <th className="py-3 px-4">Host / Owner</th>
+                          <th className="py-3 px-4">Capacity</th>
+                          <th className="py-3 px-4">Accreditation</th>
+                          <th className="py-3 px-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredHomestays.map((hs) => (
+                          <tr key={hs.id} className="hover:bg-slate-50/70 text-xs text-slate-600 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div
+                                onClick={() => handleOpenStakeholderActivity(hs, 'homestay')}
+                                className="flex items-center gap-3 cursor-pointer group"
+                                title="Click to view availability schedule, bookings, and activity status"
+                              >
+                                {hs.featured_image ? (
+                                  <img
+                                    src={hs.featured_image}
+                                    alt={hs.name}
+                                    className="w-10 h-10 rounded-xl object-cover border border-slate-200 flex-shrink-0 group-hover:ring-2 group-hover:ring-[#153325]/30 transition-all"
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center flex-shrink-0 font-bold group-hover:bg-emerald-100 transition-all">
+                                    <Home className="w-5 h-5" />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 group-hover:text-[#153325] flex items-center gap-1.5 truncate transition-colors">
+                                    <span>{hs.name}</span>
+                                    <span className="p-0.5 rounded-md bg-emerald-50 text-emerald-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Eye className="w-3 h-3" />
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
+                                    <MapPin className="w-3 h-3 text-slate-400" />
+                                    <span>{hs.barangay ? `${hs.barangay}, ` : ''}{hs.address || 'Abra'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStakeholderActivity(hs, 'homestay')}
+                                className="text-left cursor-pointer group"
+                                title="Click to check homeowner activity and status"
+                              >
+                                <div className="font-semibold text-slate-800 group-hover:text-[#153325] transition-colors">{hs.owner_name || 'Host'}</div>
+                                <div className="text-[11px] text-slate-400 truncate">{hs.email || 'No email'}</div>
+                                {hs.phone_number && (
+                                  <div className="text-[11px] text-slate-500 font-mono">{hs.phone_number}</div>
+                                )}
+                              </button>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-medium text-slate-700">
+                                {hs.total_rooms || 1} Room{hs.total_rooms > 1 ? 's' : ''}
+                              </div>
+                              <div className="text-[11px] text-slate-400">
+                                Up to {hs.max_capacity || 2} guests
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${
+                                hs.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                hs.status === 'ENDORSED' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                                hs.status === 'REJECTED' ? 'bg-red-100 text-red-800 border border-red-200' :
+                                'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}>
+                                {hs.status}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenStakeholderActivity(hs, 'homestay')}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#153325] border border-emerald-200/90 rounded-lg font-bold text-[10px] transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+                                  title="Check homeowner availability dates, bookings & activity modal"
+                                >
+                                  <Calendar className="w-3.5 h-3.5 text-emerald-800" />
+                                  <span>Activity & Status</span>
+                                </button>
+                                {hs.status === 'PENDING' && (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleReviewStakeholder(hs.id, 'HOMESTAY', 'APPROVED')}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#153325] hover:bg-[#1D4433] text-white rounded-lg font-bold text-[10px] shadow-xs cursor-pointer transition-all"
+                                      title="Directly approve and activate this homestay"
+                                    >
+                                      <CheckCircle className="w-3 h-3 text-emerald-300" />
+                                      <span>Approve</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleReviewStakeholder(hs.id, 'HOMESTAY', 'REJECTED')}
+                                      className="inline-flex items-center gap-1 px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg font-bold text-[10px] cursor-pointer transition-all"
+                                      title="Reject homestay registration"
+                                    >
+                                      <X className="w-3 h-3 text-red-600" />
+                                      <span>Reject</span>
+                                    </button>
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => openEditHomestayModal(hs)}
+                                  className="p-1.5 text-slate-600 hover:text-[#153325] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                  title="Edit homestay details"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteHomestay(hs)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete homestay"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* ─── SECTION 2: TOUR GUIDES ────────────────────────────────────── */}
+              <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="p-2 rounded-xl bg-amber-50 text-amber-800">
+                        <Compass className="w-4 h-4" />
+                      </span>
+                      <h3 className="font-serif font-black text-slate-900 text-lg">Accredited Local Tour Guides</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+                        {guides.length}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Licensed mountain trek guides, heritage storytellers, and community eco-guides.
+                    </p>
+                  </div>
+                  <button
+                    onClick={openCreateGuideModal}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#153325] hover:bg-[#1D4433] text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Tour Guide</span>
+                  </button>
+                </div>
+
+                {/* Search & Filter Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={guideSearch}
+                      onChange={e => setGuideSearch(e.target.value)}
+                      placeholder="Search tour guides by name, license number, or specialization..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                    {['ALL', 'APPROVED', 'ENDORSED', 'PENDING'].map(st => (
+                      <button
+                        key={st}
+                        onClick={() => setGuideFilterStatus(st)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                          guideFilterStatus === st
+                            ? 'bg-[#153325] text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {st === 'ALL' ? 'All Status' : st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tour Guides Table */}
+                {filteredGuides.length === 0 ? (
+                  <div className="text-center py-12 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                      <Compass className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-slate-700">No tour guides found</p>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                        {guideSearch || guideFilterStatus !== 'ALL'
+                          ? 'No tour guides match the current search or status filter.'
+                          : 'No tour guides have been registered in this municipality yet.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={openCreateGuideModal}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#153325] text-white rounded-xl text-xs font-bold shadow-sm hover:bg-[#1D4433] transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Register First Tour Guide</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-bold">
+                          <th className="py-3 px-4">Tour Guide Profile</th>
+                          <th className="py-3 px-4">Contact & License</th>
+                          <th className="py-3 px-4">Specialization & Rates</th>
+                          <th className="py-3 px-4">Accreditation</th>
+                          <th className="py-3 px-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredGuides.map((g) => (
+                          <tr key={g.id} className="hover:bg-slate-50/70 text-xs text-slate-600 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div
+                                onClick={() => handleOpenStakeholderActivity(g, 'guide')}
+                                className="flex items-center gap-3 cursor-pointer group"
+                                title="Click to view guide availability schedule, bookings, and activity status"
+                              >
+                                {g.profile_picture_url ? (
+                                  <img
+                                    src={g.profile_picture_url}
+                                    alt={g.guide_name}
+                                    className="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0 group-hover:ring-2 group-hover:ring-amber-500/50 transition-all"
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-800 flex items-center justify-center flex-shrink-0 font-bold group-hover:bg-amber-100 transition-all">
+                                    <User className="w-5 h-5" />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 group-hover:text-amber-900 flex items-center gap-1.5 truncate transition-colors">
+                                    <span>{g.guide_name}</span>
+                                    <span className="p-0.5 rounded-md bg-amber-50 text-amber-800 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Eye className="w-3 h-3" />
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500">
+                                    {g.years_of_experience ? `${g.years_of_experience} yrs exp` : 'Licensed Guide'}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStakeholderActivity(g, 'guide')}
+                                className="text-left cursor-pointer group"
+                                title="Click to check guide activity and status"
+                              >
+                                <div className="font-mono text-xs font-semibold text-slate-800 group-hover:text-amber-900 transition-colors">
+                                  {g.license_number || 'DOT-TG-PENDING'}
+                                </div>
+                                <div className="text-[11px] text-slate-400 truncate">{g.email || 'No email'}</div>
+                                {g.phone_number && (
+                                  <div className="text-[11px] text-slate-500 font-mono">{g.phone_number}</div>
+                                )}
+                              </button>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-medium text-slate-800 truncate max-w-[200px]">
+                                {g.specializations || 'Cultural & Eco-Tours'}
+                              </div>
+                              <div className="text-[11px] text-emerald-700 font-bold font-mono">
+                                {g.price_rate > 0 ? `₱${Number(g.price_rate).toLocaleString()} / day` : 'Rates by inquiry'}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase ${
+                                g.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                g.status === 'ENDORSED' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                                g.status === 'REJECTED' ? 'bg-red-100 text-red-800 border border-red-200' :
+                                'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}>
+                                {g.status}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenStakeholderActivity(g, 'guide')}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/90 rounded-lg font-bold text-[10px] transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+                                  title="Check tour guide availability dates, bookings & activity modal"
+                                >
+                                  <Calendar className="w-3.5 h-3.5 text-amber-800" />
+                                  <span>Activity & Status</span>
+                                </button>
+                                {g.status === 'PENDING' && (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleReviewStakeholder(g.id, 'GUIDE', 'APPROVED')}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#153325] hover:bg-[#1D4433] text-white rounded-lg font-bold text-[10px] shadow-xs cursor-pointer transition-all"
+                                      title="Directly approve and activate this tour guide"
+                                    >
+                                      <CheckCircle className="w-3 h-3 text-emerald-300" />
+                                      <span>Approve</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleReviewStakeholder(g.id, 'GUIDE', 'REJECTED')}
+                                      className="inline-flex items-center gap-1 px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg font-bold text-[10px] cursor-pointer transition-all"
+                                      title="Reject tour guide registration"
+                                    >
+                                      <X className="w-3 h-3 text-red-600" />
+                                      <span>Reject</span>
+                                    </button>
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => openEditGuideModal(g)}
+                                  className="p-1.5 text-slate-600 hover:text-[#153325] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                  title="Edit tour guide details"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteGuide(g)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete tour guide"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
@@ -5620,6 +6421,1151 @@ const MunicipalDashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: ADD / EDIT HOMESTAY ─────────────────────────────────── */}
+      {showHomestayModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
+            {/* Header */}
+            <div className="bg-[#153325] text-white p-5 sm:p-6 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-[#B88B2A]">
+                  <Home className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-serif font-black tracking-tight text-white">
+                    {homestayModalMode === 'create' ? 'Register New Local Homestay' : 'Edit Homestay Listing'}
+                  </h3>
+                  <p className="text-xs text-white/70">
+                    {homestayModalMode === 'create'
+                      ? `Onboard an accommodation provider for Municipality of ${user?.municipalityName || 'Abra'}`
+                      : 'Update property info, capacity, and host contact details'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHomestayModal(false)}
+                className="text-white/60 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveHomestay} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-5 sm:p-6 space-y-6 overflow-y-auto flex-1">
+                {/* Section 1: Host Account Details */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-150">
+                    <User className="w-4 h-4 text-[#B88B2A]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      1. Host / Owner Account Credentials
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Host Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={homestayForm.fullName}
+                        onChange={e => setHomestayForm(f => ({ ...f, fullName: e.target.value }))}
+                        placeholder="e.g. Maria Dolores Santos"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Login Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={homestayForm.email}
+                        onChange={e => setHomestayForm(f => ({ ...f, email: e.target.value }))}
+                        placeholder="e.g. host@example.com"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Contact Phone Number
+                      </label>
+                      <input
+                        type="text"
+                        value={homestayForm.phoneNumber}
+                        onChange={e => setHomestayForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                        placeholder="e.g. 0917-123-4567"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        {homestayModalMode === 'create' ? (
+                          <>Account Password <span className="text-red-500">*</span></>
+                        ) : (
+                          <>Reset Password <span className="text-slate-400 font-normal">(Leave blank to keep)</span></>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showHomestayPassword ? 'text' : 'password'}
+                          required={homestayModalMode === 'create'}
+                          value={homestayForm.password}
+                          onChange={e => setHomestayForm(f => ({ ...f, password: e.target.value }))}
+                          placeholder={homestayModalMode === 'create' ? 'Min. 8 characters' : 'Enter new password'}
+                          className="w-full pl-3 pr-9 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowHomestayPassword(p => !p)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showHomestayPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Property & Accommodation Details */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-150">
+                    <Building2 className="w-4 h-4 text-[#B88B2A]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      2. Homestay Property Information
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Homestay / Business Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={homestayForm.name}
+                      onChange={e => setHomestayForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder={`e.g. ${user?.municipalityName || 'Pine View'} Mountain Homestay`}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Street Address / Landmark <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={homestayForm.address}
+                        onChange={e => setHomestayForm(f => ({ ...f, address: e.target.value }))}
+                        placeholder="e.g. Purok 2, Near Municipal Hall"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Barangay
+                      </label>
+                      <input
+                        type="text"
+                        value={homestayForm.barangay}
+                        onChange={e => setHomestayForm(f => ({ ...f, barangay: e.target.value }))}
+                        placeholder="e.g. Poblacion"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Total Guest Rooms
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={homestayForm.totalRooms}
+                        onChange={e => setHomestayForm(f => ({ ...f, totalRooms: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Maximum Guest Capacity
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={homestayForm.maxCapacity}
+                        onChange={e => setHomestayForm(f => ({ ...f, maxCapacity: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Property Description
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={homestayForm.description}
+                      onChange={e => setHomestayForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="Describe the homestay, amenities (WiFi, hot shower, breakfast), surroundings, and atmosphere..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                    />
+                  </div>
+                </div>
+
+                {/* Section 3: Status & Featured Cover Photo */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-150">
+                    <ShieldCheck className="w-4 h-4 text-[#B88B2A]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      3. Accreditation & Cover Photo
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Accreditation Status
+                      </label>
+                      <select
+                        value={homestayForm.status}
+                        onChange={e => setHomestayForm(f => ({ ...f, status: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                      >
+                        <option value="APPROVED">APPROVED (Active Immediately)</option>
+                        <option value="ENDORSED">ENDORSED (Forward to Province)</option>
+                        <option value="PENDING">PENDING (Review Later)</option>
+                      </select>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Municipal direct additions are typically set to Approved immediately.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Featured Cover Photo
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setHomestayImageFile(file);
+                            setHomestayImagePreview(URL.createObjectURL(file));
+                          }
+                        }}
+                        className="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#153325] file:text-white hover:file:bg-[#1D4433] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {homestayImagePreview && (
+                    <div className="relative w-28 h-20 rounded-2xl overflow-hidden border border-slate-200 shadow-xs">
+                      <img src={homestayImagePreview} alt="Cover preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => { setHomestayImageFile(null); setHomestayImagePreview(''); }}
+                        className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black text-white rounded-full cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {homestayMsg.text && (
+                  <div className={`p-3 rounded-xl text-xs font-semibold ${
+                    homestayMsg.type === 'error'
+                      ? 'bg-red-50 text-red-600 border border-red-200'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}>
+                    {homestayMsg.text}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowHomestayModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={homestayFormLoading}
+                  className="px-6 py-2 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {homestayFormLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  <span>{homestayModalMode === 'create' ? 'Register Homestay' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: ADD / EDIT TOUR GUIDE ────────────────────────────────── */}
+      {showGuideModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
+            {/* Header */}
+            <div className="bg-[#153325] text-white p-5 sm:p-6 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-[#B88B2A]">
+                  <Compass className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-serif font-black tracking-tight text-white">
+                    {guideModalMode === 'create' ? 'Register New Local Tour Guide' : 'Edit Tour Guide Profile'}
+                  </h3>
+                  <p className="text-xs text-white/70">
+                    {guideModalMode === 'create'
+                      ? `Onboard a licensed guide for Municipality of ${user?.municipalityName || 'Abra'}`
+                      : 'Update guide licenses, specializations, daily rates, and contact info'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowGuideModal(false)}
+                className="text-white/60 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveGuide} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-5 sm:p-6 space-y-6 overflow-y-auto flex-1">
+                {/* Section 1: Guide Account Credentials */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-150">
+                    <User className="w-4 h-4 text-[#B88B2A]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      1. Tour Guide Account Credentials
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Guide Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={guideForm.fullName}
+                        onChange={e => setGuideForm(f => ({ ...f, fullName: e.target.value }))}
+                        placeholder="e.g. Juan De La Cruz"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Login Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={guideForm.email}
+                        onChange={e => setGuideForm(f => ({ ...f, email: e.target.value }))}
+                        placeholder="e.g. guide@example.com"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Mobile Phone Number
+                      </label>
+                      <input
+                        type="text"
+                        value={guideForm.phoneNumber}
+                        onChange={e => setGuideForm(f => ({ ...f, phoneNumber: e.target.value }))}
+                        placeholder="e.g. 0917-987-6543"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        {guideModalMode === 'create' ? (
+                          <>Account Password <span className="text-red-500">*</span></>
+                        ) : (
+                          <>Reset Password <span className="text-slate-400 font-normal">(Leave blank to keep)</span></>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showGuidePassword ? 'text' : 'password'}
+                          required={guideModalMode === 'create'}
+                          value={guideForm.password}
+                          onChange={e => setGuideForm(f => ({ ...f, password: e.target.value }))}
+                          placeholder={guideModalMode === 'create' ? 'Min. 8 characters' : 'Enter new password'}
+                          className="w-full pl-3 pr-9 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowGuidePassword(p => !p)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showGuidePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Guide Professional Credentials & Specializations */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-150">
+                    <Award className="w-4 h-4 text-[#B88B2A]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      2. Accreditation Credentials & Guiding Profile
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        License Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={guideForm.licenseNumber}
+                        onChange={e => setGuideForm(f => ({ ...f, licenseNumber: e.target.value }))}
+                        placeholder="e.g. DOT-CAR-TG-2026-001"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Years of Experience
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={guideForm.yearsOfExperience}
+                        onChange={e => setGuideForm(f => ({ ...f, yearsOfExperience: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Daily Guiding Rate (₱)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={guideForm.priceRate}
+                        onChange={e => setGuideForm(f => ({ ...f, priceRate: e.target.value }))}
+                        placeholder="500"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Languages Spoken
+                      </label>
+                      <input
+                        type="text"
+                        value={guideForm.languagesSpoken}
+                        onChange={e => setGuideForm(f => ({ ...f, languagesSpoken: e.target.value }))}
+                        placeholder="English, Tagalog, Ilokano, Tingguian"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Areas & Trails Covered
+                      </label>
+                      <input
+                        type="text"
+                        value={guideForm.areasCovered}
+                        onChange={e => setGuideForm(f => ({ ...f, areasCovered: e.target.value }))}
+                        placeholder={`e.g. ${user?.municipalityName || 'Abra'} River Trails, Waterfalls, Forest Reserves`}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Specializations
+                      </label>
+                      <input
+                        type="text"
+                        value={guideForm.specializations}
+                        onChange={e => setGuideForm(f => ({ ...f, specializations: e.target.value }))}
+                        placeholder="Cultural Immersion, Mountain Trekking, Bird Watching"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Services Offered
+                      </label>
+                      <input
+                        type="text"
+                        value={guideForm.servicesOffered}
+                        onChange={e => setGuideForm(f => ({ ...f, servicesOffered: e.target.value }))}
+                        placeholder="Day Hikes, Heritage Walks, Camp Logistics"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Guide Bio & Background
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={guideForm.bio}
+                      onChange={e => setGuideForm(f => ({ ...f, bio: e.target.value }))}
+                      placeholder="Brief background of the guide, local heritage expertise, safety certifications, and highlights..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#153325]"
+                    />
+                  </div>
+                </div>
+
+                {/* Section 3: Status & Profile Photo */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-150">
+                    <ShieldCheck className="w-4 h-4 text-[#B88B2A]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      3. Accreditation & Profile Picture
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Accreditation Status
+                      </label>
+                      <select
+                        value={guideForm.status}
+                        onChange={e => setGuideForm(f => ({ ...f, status: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-[#153325]"
+                      >
+                        <option value="APPROVED">APPROVED (Active Immediately)</option>
+                        <option value="ENDORSED">ENDORSED (Forward to Province)</option>
+                        <option value="PENDING">PENDING (Review Later)</option>
+                      </select>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Municipal direct additions are typically set to Approved immediately.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Guide Profile Picture
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setGuidePhotoFile(file);
+                            setGuidePhotoPreview(URL.createObjectURL(file));
+                          }
+                        }}
+                        className="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#153325] file:text-white hover:file:bg-[#1D4433] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {guidePhotoPreview && (
+                    <div className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-[#B88B2A] shadow-xs">
+                      <img src={guidePhotoPreview} alt="Guide preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => { setGuidePhotoFile(null); setGuidePhotoPreview(''); }}
+                        className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black text-white rounded-full cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {guideMsg.text && (
+                  <div className={`p-3 rounded-xl text-xs font-semibold ${
+                    guideMsg.type === 'error'
+                      ? 'bg-red-50 text-red-600 border border-red-200'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}>
+                    {guideMsg.text}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowGuideModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={guideFormLoading}
+                  className="px-6 py-2 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {guideFormLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  <span>{guideModalMode === 'create' ? 'Register Tour Guide' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ─── STAKEHOLDER ACTIVITY, STATUS & AVAILABILITY MODAL ──────────────── */}
+      {activityModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fadeIn">
+          <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+            
+            {/* Modal Header */}
+            <div className={`p-5 sm:p-6 text-white relative overflow-hidden flex-shrink-0 ${
+              activityStakeholderType === 'homestay'
+                ? 'bg-gradient-to-r from-[#153325] via-[#1E4935] to-[#153325]'
+                : 'bg-gradient-to-r from-[#3D2C0D] via-[#5C4214] to-[#3D2C0D]'
+            }`}>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none -mr-16 -mt-16" />
+              <div className="relative z-10 flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/15 border border-white/20 text-white">
+                      {activityStakeholderType === 'homestay' ? (
+                        <>
+                          <Home className="w-3.5 h-3.5 text-emerald-300" />
+                          <span>Homestay Host Activity</span>
+                        </>
+                      ) : (
+                        <>
+                          <Compass className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Tour Guide Activity</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-white/10 text-white/90">
+                      <MapPin className="w-3 h-3 text-[#B88B2A]" />
+                      <span>{user?.municipalityName || 'LGU Municipality'}</span>
+                    </span>
+                    {activityData?.stakeholder?.status && (
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                        activityData.stakeholder.status === 'APPROVED'
+                          ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40'
+                          : activityData.stakeholder.status === 'ENDORSED'
+                          ? 'bg-blue-500/20 text-blue-200 border-blue-400/40'
+                          : 'bg-amber-500/20 text-amber-200 border-amber-400/40'
+                      }`}>
+                        Accreditation: {activityData.stakeholder.status}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-xl sm:text-2xl font-serif font-black text-white">
+                    {activityStakeholderType === 'homestay'
+                      ? activityData?.stakeholder?.name || 'Homestay Property'
+                      : activityData?.stakeholder?.guide_name || 'Tour Guide Profile'}
+                  </h3>
+
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-white/80">
+                    {activityStakeholderType === 'homestay' ? (
+                      <>
+                        <span className="font-semibold text-white">
+                          Host: {activityData?.stakeholder?.owner_name || 'Local Host'}
+                        </span>
+                        <span>•</span>
+                        <span>{activityData?.stakeholder?.barangay ? `${activityData.stakeholder.barangay}, ` : ''}{activityData?.stakeholder?.address || 'Abra'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-white">
+                          License: {activityData?.stakeholder?.license_number || 'DOT-TG-PENDING'}
+                        </span>
+                        <span>•</span>
+                        <span>{activityData?.stakeholder?.specializations || 'Eco & Heritage Tours'}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivityModalOpen(false);
+                    setActivityData(null);
+                  }}
+                  className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-2xl transition-all cursor-pointer flex-shrink-0"
+                  title="Close Activity Modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Real-time Availability Status Banner */}
+              {activityData?.stats && (
+                <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/70 font-medium">Current Live Status:</span>
+                    {activityData.stats.isBookedToday ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/25 text-red-200 border border-red-400/40">
+                        <span className="w-2 h-2 rounded-full bg-red-400 animate-ping" />
+                        <span>Occupied / Booked Today</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/25 text-emerald-200 border border-emerald-400/40">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        <span>Available for Bookings Today</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-white/70">
+                    {activityData.upcomingBookedRanges?.length > 0 ? (
+                      <span>
+                        <strong className="text-white">{activityData.upcomingBookedRanges.length}</strong> upcoming reserved schedule slot{activityData.upcomingBookedRanges.length > 1 ? 's' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-200">No scheduled conflict dates ahead</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+              {activityLoading && (
+                <div className="py-20 text-center space-y-3">
+                  <div className="w-10 h-10 border-3 border-[#153325] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs font-bold text-slate-600">Loading stakeholder activity and availability records...</p>
+                </div>
+              )}
+
+              {activityError && (
+                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold">Failed to load activity details</p>
+                    <p className="text-red-600">{activityError}</p>
+                  </div>
+                </div>
+              )}
+
+              {!activityLoading && !activityError && activityData && (
+                <>
+                  {/* Summary Metric Counters */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Inquiries</div>
+                      <div className="text-2xl font-black text-slate-800 mt-1">
+                        {activityData.stats?.totalInquiries ?? 0}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">All tourist interactions</div>
+                    </div>
+
+                    <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Confirmed</div>
+                      <div className="text-2xl font-black text-emerald-800 mt-1">
+                        {activityData.stats?.confirmedCount ?? 0}
+                      </div>
+                      <div className="text-[10px] text-emerald-600 mt-0.5">Active / reserved dates</div>
+                    </div>
+
+                    <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Pending Review</div>
+                      <div className="text-2xl font-black text-amber-800 mt-1">
+                        {activityData.stats?.pendingCount ?? 0}
+                      </div>
+                      <div className="text-[10px] text-amber-600 mt-0.5">Awaiting host response</div>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Completed / Closed</div>
+                      <div className="text-2xl font-black text-slate-700 mt-1">
+                        {(activityData.stats?.completedCount ?? 0) + (activityData.stats?.cancelledCount ?? 0)}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{activityData.stats?.completedCount ?? 0} done · {activityData.stats?.cancelledCount ?? 0} cancelled</div>
+                    </div>
+                  </div>
+
+                  {/* Contact & Capacity Overview */}
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2 mb-3">
+                      <User className="w-4 h-4 text-[#153325]" />
+                      <span>Stakeholder Contact & Profile Details</span>
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Primary Contact Person:</span>
+                        <span className="font-bold text-slate-800">
+                          {activityStakeholderType === 'homestay'
+                            ? activityData.stakeholder?.owner_name || 'Host'
+                            : activityData.stakeholder?.guide_name || 'Tour Guide'}
+                        </span>
+                        <div className="text-slate-500 text-[11px] truncate mt-0.5">{activityData.stakeholder?.email || 'No email registered'}</div>
+                        {activityData.stakeholder?.phone_number && (
+                          <div className="text-slate-600 font-mono text-[11px]">{activityData.stakeholder?.phone_number}</div>
+                        )}
+                      </div>
+
+                      {activityStakeholderType === 'homestay' ? (
+                        <>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Capacity & Rooms:</span>
+                            <span className="font-bold text-slate-800">
+                              {activityData.stakeholder?.total_rooms || 1} Room{activityData.stakeholder?.total_rooms > 1 ? 's' : ''}
+                            </span>
+                            <div className="text-slate-500 text-[11px] mt-0.5">
+                              Accommodates up to {activityData.stakeholder?.max_capacity || 2} guests
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Location & Barangay:</span>
+                            <span className="font-bold text-slate-800">
+                              {activityData.stakeholder?.barangay || 'Abra Municipality'}
+                            </span>
+                            <div className="text-slate-500 text-[11px] truncate mt-0.5">{activityData.stakeholder?.address || 'Abra, Philippines'}</div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Experience & Rates:</span>
+                            <span className="font-bold text-emerald-800 font-mono">
+                              {activityData.stakeholder?.price_rate > 0 ? `₱${Number(activityData.stakeholder?.price_rate).toLocaleString()} / day` : 'Rates by inquiry'}
+                            </span>
+                            <div className="text-slate-500 text-[11px] mt-0.5">
+                              {activityData.stakeholder?.years_of_experience || 1} years guiding experience
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">License & Area:</span>
+                            <span className="font-bold text-slate-800 font-mono">
+                              {activityData.stakeholder?.license_number || 'DOT-TG-PENDING'}
+                            </span>
+                            <div className="text-slate-500 text-[11px] truncate mt-0.5">{activityData.stakeholder?.specializations || 'Eco & Heritage Tours'}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ─── AVAILABILITY SCHEDULE & BOOKED DATES ─── */}
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-emerald-700" />
+                          <span>Availability Calendar & Confirmed Booked Dates</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Dates below are already booked and blocked to prevent overlaps. All other dates remain open for tourist bookings.
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/70 w-fit">
+                        {activityData.upcomingBookedRanges?.length || 0} Scheduled Block{activityData.upcomingBookedRanges?.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+
+                    {(!activityData.upcomingBookedRanges || activityData.upcomingBookedRanges.length === 0) ? (
+                      <div className="py-6 px-4 bg-emerald-50/50 rounded-xl border border-dashed border-emerald-200 text-center space-y-1">
+                        <CheckCircle className="w-6 h-6 text-emerald-600 mx-auto" />
+                        <p className="text-xs font-bold text-emerald-900">100% Available on Upcoming Dates</p>
+                        <p className="text-[11px] text-emerald-700/80 max-w-md mx-auto">
+                          There are currently no confirmed booking conflicts on future dates. Tourists can freely book this {activityStakeholderType === 'homestay' ? 'homestay' : 'tour guide'}.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        {activityData.upcomingBookedRanges.map((slot, idx) => (
+                          <div
+                            key={slot.id || idx}
+                            className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3 text-xs hover:border-[#153325]/30 transition-all"
+                          >
+                            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 flex-shrink-0 mt-0.5">
+                              <Calendar className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-bold text-slate-900">
+                                  {new Date(slot.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  {slot.endDate && slot.endDate !== slot.startDate ? (
+                                    <> &rarr; {new Date(slot.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
+                                  ) : ''}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  CONFIRMED
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-600 mt-1 flex items-center gap-2">
+                                <span>Guest: <strong>{slot.touristName || 'Tourist'}</strong></span>
+                                {slot.numberOfGuests && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{slot.numberOfGuests} guest{slot.numberOfGuests > 1 ? 's' : ''}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ─── INQUIRIES & BOOKINGS ACTIVITY FEED ─── */}
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-[#153325]" />
+                          <span>Inquiries & Booking Activity Feed</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Complete history of booking inquiries, requests, and stakeholder responses.
+                        </p>
+                      </div>
+
+                      {/* Filter Pills */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                        {['ALL', 'CONFIRMED', 'PENDING', 'CANCELLED'].map((st) => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setActivitySelectedFilter(st)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                              activitySelectedFilter === st
+                                ? 'bg-[#153325] text-white shadow-2xs'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {st}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Bookings List */}
+                    {(() => {
+                      const allBookings = activityData.bookings || [];
+                      const filtered = allBookings.filter((b) => {
+                        if (activitySelectedFilter === 'ALL') return true;
+                        if (activitySelectedFilter === 'CONFIRMED') return (b.status || '').toUpperCase() === 'CONFIRMED';
+                        if (activitySelectedFilter === 'PENDING') return (b.status || '').toUpperCase() === 'PENDING';
+                        if (activitySelectedFilter === 'CANCELLED') {
+                          const s = (b.status || '').toUpperCase();
+                          return s === 'CANCELLED' || s === 'REJECTED';
+                        }
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-1">
+                            <MessageSquare className="w-8 h-8 text-slate-300 mx-auto" />
+                            <p className="text-xs font-bold text-slate-600">No activity records match this filter</p>
+                            <p className="text-[11px] text-slate-400">
+                              {activitySelectedFilter === 'ALL'
+                                ? 'This stakeholder has not received any booking inquiries yet.'
+                                : `No inquiries found with status "${activitySelectedFilter}".`}
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-3">
+                          {filtered.map((inq) => {
+                            const status = (inq.status || 'PENDING').toUpperCase();
+                            return (
+                              <div
+                                key={inq.id}
+                                className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-[#153325]/40 transition-all space-y-3 shadow-2xs"
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                      <User className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <div className="font-bold text-slate-900 text-xs">
+                                        {inq.tourist_name || 'Tourist Guest'}
+                                      </div>
+                                      <div className="text-[11px] text-slate-400 truncate">
+                                        {inq.tourist_email || 'No email'} {inq.tourist_phone ? `• ${inq.tourist_phone}` : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                                      status === 'CONFIRMED'
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                        : status === 'PENDING'
+                                        ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                        : status === 'CANCELLED' || status === 'REJECTED'
+                                        ? 'bg-red-100 text-red-800 border-red-200'
+                                        : 'bg-blue-100 text-blue-800 border-blue-200'
+                                    }`}>
+                                      {status}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">
+                                      {inq.created_at ? new Date(inq.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Booking Parameters */}
+                                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+                                  {inq.start_date && (
+                                    <div className="flex items-center gap-1.5">
+                                      <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                                      <span className="font-semibold">
+                                        {new Date(inq.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        {inq.end_date && inq.end_date !== inq.start_date ? (
+                                          <> &rarr; {new Date(inq.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
+                                        ) : ''}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {inq.number_of_guests && (
+                                    <div className="flex items-center gap-1 text-slate-600">
+                                      <span>•</span>
+                                      <span>{inq.number_of_guests} guest{inq.number_of_guests > 1 ? 's' : ''}</span>
+                                    </div>
+                                  )}
+                                  {inq.payment_proof_url && (
+                                    <a
+                                      href={inq.payment_proof_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-900 underline ml-auto cursor-pointer"
+                                    >
+                                      <FileCheck className="w-3.5 h-3.5" />
+                                      <span>View Payment Proof</span>
+                                    </a>
+                                  )}
+                                </div>
+
+                                {/* Message */}
+                                {inq.message && (
+                                  <div className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-150">
+                                    <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider mb-0.5">Tourist Inquiry:</span>
+                                    <p className="italic leading-relaxed">"{inq.message}"</p>
+                                  </div>
+                                )}
+
+                                {/* Host/Guide Reply */}
+                                {inq.reply_message && (
+                                  <div className="text-xs text-slate-700 bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200/80">
+                                    <span className="font-bold text-emerald-800 block text-[10px] uppercase tracking-wider mb-0.5">
+                                      {activityStakeholderType === 'homestay' ? 'Host Reply' : 'Guide Reply'}:
+                                    </span>
+                                    <p className="leading-relaxed">{inq.reply_message}</p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  if (activityData?.stakeholder) {
+                    handleOpenStakeholderActivity(activityData.stakeholder, activityStakeholderType);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Refresh Activity</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                {activityData?.stakeholder?.status === 'PENDING' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleReviewStakeholder(activityData.stakeholder.id, activityStakeholderType === 'homestay' ? 'HOMESTAY' : 'GUIDE', 'REJECTED')}
+                      className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReviewStakeholder(activityData.stakeholder.id, activityStakeholderType === 'homestay' ? 'HOMESTAY' : 'GUIDE', 'APPROVED')}
+                      className="px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>Approve & Activate</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivityModalOpen(false);
+                    setActivityData(null);
+                  }}
+                  className="px-5 py-2 bg-[#153325] hover:bg-[#1D4433] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  Close Modal
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

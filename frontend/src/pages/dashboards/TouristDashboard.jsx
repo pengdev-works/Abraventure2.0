@@ -11,7 +11,7 @@ import {
   Eye, RefreshCw, Home, ShieldCheck, Sparkles, Navigation
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import DarkModeToggle from '../../components/common/DarkModeToggle';
+
 import SafeImage from '../../components/common/SafeImage';
 
 const TouristDashboard = () => {
@@ -378,7 +378,6 @@ const TouristDashboard = () => {
           </div>
 
           <div className="flex gap-2.5 flex-wrap items-center">
-            <DarkModeToggle />
             <Link 
               to="/itinerary" 
               className="btn-editorial-gold px-4 py-2.5 text-xs tracking-wider flex items-center gap-2 shadow-sm font-bold"
@@ -855,16 +854,16 @@ const TouristDashboard = () => {
                         </div>
 
                         <h3 className="font-serif font-bold text-base text-[var(--text-primary)] line-clamp-1">{b.package_title}</h3>
-                        <p className="text-xs text-[var(--text-secondary)] mt-0.5 flex items-center gap-1">
+                        <p className="text-xs text-[var(--text-secondary)] dark:text-[var(--text-primary)] mt-0.5 flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-[var(--color-gold)]" />
                           <span>{b.municipality || b.municipality_name}, Abra</span>
                         </p>
 
-                        <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-[var(--border-subtle)] text-xs text-[var(--text-secondary)]">
-                          <div>📅 Date: <strong>{b.travel_date?.split('T')[0] || b.travel_date}</strong></div>
-                          <div>👥 Tourists: <strong>{b.number_of_tourists} Pax</strong></div>
-                          <div>🚌 Transport: <strong>{b.transport_choice}</strong></div>
-                          {b.homestay_name && <div>🏠 Stay: <strong>{b.homestay_name}</strong></div>}
+                        <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] dark:text-[var(--text-primary)]">
+                          <div className="text-[var(--text-secondary)] dark:text-[var(--text-primary)]">📅 Date: <strong className="text-[var(--text-primary)]">{b.travel_date?.split('T')[0] || b.travel_date}</strong></div>
+                          <div className="text-[var(--text-secondary)] dark:text-[var(--text-primary)]">👥 Tourists: <strong className="text-[var(--text-primary)]">{b.number_of_tourists} Pax</strong></div>
+                          <div className="text-[var(--text-secondary)] dark:text-[var(--text-primary)]">🚌 Transport: <strong className="text-[var(--text-primary)]">{b.transport_choice}</strong></div>
+                          {b.homestay_name && <div className="text-[var(--text-secondary)] dark:text-[var(--text-primary)]">🏠 Stay: <strong className="text-[var(--text-primary)]">{b.homestay_name}</strong></div>}
                         </div>
 
                         <div className="mt-2 text-xs font-bold text-[var(--color-primary)]">

@@ -327,6 +327,9 @@ export const createTourPackage = async (req, res) => {
     return res.status(400).json({ message: 'Title and municipality are required.' });
   }
 
+  const publishImmediately = req.body.isPublished === true || req.body.isPublished === 'true' || req.body.status === 'PUBLISHED' || req.body.publishNow === true || req.body.publishNow === 'true';
+  const initialStatus = publishImmediately ? 'PUBLISHED' : 'DRAFT';
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -334,8 +337,8 @@ export const createTourPackage = async (req, res) => {
     const pkgRes = await client.query(
       `INSERT INTO packages
          (municipality_id, created_by, title, description, price, duration_days, image_url, inclusions,
-          status, package_type, max_capacity, transport_option, homestay_included, is_published)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'DRAFT',$9,$10,$11,$12,false)
+          status, package_type, max_capacity, transport_option, homestay_included, is_published, published_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING *`,
       [
         targetMunicipalityId,
@@ -346,10 +349,13 @@ export const createTourPackage = async (req, res) => {
         durationVal ? parseInt(durationVal) : 1,
         coverImageUrl,
         inclusions || '',
+        initialStatus,
         resolvedPackageType,
         capacityVal ? parseInt(capacityVal) : 30,
         transportOption || req.body.transport_mode || 'BOTH',
         homestayIncluded === 'true' || homestayIncluded === true,
+        publishImmediately,
+        publishImmediately ? new Date() : null,
       ]
     );
 
@@ -665,33 +671,41 @@ export const reviewPackage = async (req, res) => {
   }
 };
 
-// PUT /api/tour-packages/:id/publish — Provincial DOT publishes approved package
+// PUT /api/tour-packages/:id/publish — Municipal DOT directly publishes local package, or Provincial DOT publishes provincial circuit
 export const publishPackage = async (req, res) => {
   const { id } = req.params;
   const { unpublish } = req.body;
+  const { role, municipality_id } = req.user;
 
   try {
     const checkRes = await pool.query('SELECT * FROM packages WHERE id = $1', [id]);
     if (checkRes.rows.length === 0) return res.status(404).json({ message: 'Package not found.' });
     const pkg = checkRes.rows[0];
 
-    if (unpublish) {
-      await pool.query(
-        `UPDATE packages SET status = 'APPROVED', is_published = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-        [id]
-      );
-      return res.status(200).json({ message: 'Package unpublished.' });
+    // Municipal DOT can only publish their own municipality's packages
+    if (role === 'MUNICIPAL_DOT' && pkg.municipality_id !== municipality_id) {
+      return res.status(403).json({ message: 'Unauthorized. You can only manage packages for your own municipality.' });
     }
 
-    if (pkg.status !== 'APPROVED') {
-      return res.status(409).json({ message: 'Only approved packages can be published.' });
+    if (unpublish) {
+      await pool.query(
+        `UPDATE packages SET status = 'DRAFT', is_published = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [id]
+      );
+      emitToRole('MUNICIPAL_DOT', 'package:updated', { id, status: 'DRAFT', is_published: false });
+      emitToRole('PROVINCIAL_DOT', 'package:updated', { id, status: 'DRAFT', is_published: false });
+      return res.status(200).json({ message: 'Tour package unpublished and set to draft.' });
     }
 
     await pool.query(
       `UPDATE packages SET status = 'PUBLISHED', is_published = true, published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [id]
     );
-    return res.status(200).json({ message: 'Package published and now visible to tourists.' });
+
+    emitToRole('MUNICIPAL_DOT', 'package:updated', { id, status: 'PUBLISHED', is_published: true });
+    emitToRole('PROVINCIAL_DOT', 'package:updated', { id, status: 'PUBLISHED', is_published: true });
+
+    return res.status(200).json({ message: 'Tour package published and is now live for tourists!' });
   } catch (err) {
     console.error('[TOUR PKG] publishPackage error:', err.message);
     return res.status(500).json({ message: 'Failed to publish package.' });

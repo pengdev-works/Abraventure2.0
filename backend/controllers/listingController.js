@@ -384,16 +384,17 @@ export const getApplications = async (req, res) => {
     let params = [];
 
     if (role === 'MUNICIPAL_DOT') {
-      // Municipal Admin sees only accounts in their municipality that are PENDING
+      // Municipal Admin sees accounts in their municipality
       homestaysQuery = `
-        SELECT h.*, u.full_name as owner_name, u.email
+        SELECT h.*, u.full_name as owner_name, u.email, u.phone_number, u.status as user_status,
+               (SELECT image_url FROM homestay_images hi WHERE hi.homestay_id = h.id ORDER BY hi.is_featured DESC, hi.uploaded_at DESC LIMIT 1) AS featured_image
         FROM homestay_profiles h
         JOIN user_accounts u ON h.owner_id = u.id
         WHERE u.municipality_id = $1
         ORDER BY h.created_at DESC`;
 
       guidesQuery = `
-        SELECT g.*, u.full_name as guide_name, u.email
+        SELECT g.*, u.full_name as guide_name, u.email, u.phone_number, u.status as user_status
         FROM tour_guide_profiles g
         JOIN user_accounts u ON g.guide_id = u.id
         WHERE u.municipality_id = $1
@@ -402,14 +403,15 @@ export const getApplications = async (req, res) => {
     } else if (role === 'PROVINCIAL_DOT') {
       // Provincial Admin sees all accounts, especially those endorsed or pending
       homestaysQuery = `
-        SELECT h.*, u.full_name as owner_name, u.email, m.name as municipality_name
+        SELECT h.*, u.full_name as owner_name, u.email, u.phone_number, u.status as user_status, m.name as municipality_name,
+               (SELECT image_url FROM homestay_images hi WHERE hi.homestay_id = h.id ORDER BY hi.is_featured DESC, hi.uploaded_at DESC LIMIT 1) AS featured_image
         FROM homestay_profiles h
         JOIN user_accounts u ON h.owner_id = u.id
         JOIN municipalities m ON u.municipality_id = m.id
         ORDER BY h.created_at DESC`;
 
       guidesQuery = `
-        SELECT g.*, u.full_name as guide_name, u.email, m.name as municipality_name
+        SELECT g.*, u.full_name as guide_name, u.email, u.phone_number, u.status as user_status, m.name as municipality_name
         FROM tour_guide_profiles g
         JOIN user_accounts u ON g.guide_id = u.id
         JOIN municipalities m ON u.municipality_id = m.id
@@ -481,12 +483,13 @@ export const getApplications = async (req, res) => {
   }
 };
 
-// Endorse Stakeholder (Municipal DOT Admin review)
+// Direct Approve or Reject Stakeholder (Municipal DOT direct local approval)
 export const endorseStakeholder = async (req, res) => {
   const { id } = req.params; // Profile ID
-  const { type, remarks } = req.body; // type: 'HOMESTAY' or 'GUIDE', remarks
+  const { type, status = 'APPROVED', remarks } = req.body; // type: 'HOMESTAY' or 'GUIDE', status: 'APPROVED' | 'REJECTED', remarks
   const reviewerId = req.user.id;
   const reviewerMun = req.user.municipality_id;
+  const targetStatus = ['APPROVED', 'REJECTED'].includes(status) ? status : 'APPROVED';
 
   try {
     if (!['HOMESTAY', 'GUIDE'].includes(type)) {
@@ -494,8 +497,8 @@ export const endorseStakeholder = async (req, res) => {
     }
 
     let applicantId;
-    let table = type === 'HOMESTAY' ? 'homestay_profiles' : 'tour_guide_profiles';
-    let idColumn = type === 'HOMESTAY' ? 'owner_id' : 'guide_id';
+    const table = type === 'HOMESTAY' ? 'homestay_profiles' : 'tour_guide_profiles';
+    const idColumn = type === 'HOMESTAY' ? 'owner_id' : 'guide_id';
 
     // Verify ownership/municipality
     const profileRes = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [id]);
@@ -505,29 +508,57 @@ export const endorseStakeholder = async (req, res) => {
 
     applicantId = profileRes.rows[0][idColumn];
 
-    const applicantRes = await pool.query('SELECT municipality_id FROM user_accounts WHERE id = $1', [applicantId]);
-    if (applicantRes.rows[0].municipality_id !== reviewerMun) {
+    const applicantRes = await pool.query('SELECT municipality_id, full_name, email FROM user_accounts WHERE id = $1', [applicantId]);
+    if (applicantRes.rows.length === 0) {
+      return res.status(404).json({ message: 'User account not found.' });
+    }
+    if (applicantRes.rows[0].municipality_id !== reviewerMun && req.user.role !== 'PROVINCIAL_DOT') {
       return res.status(403).json({ message: 'Forbidden. Stakeholder is registered under another municipality.' });
     }
 
-    // Log endorsement
-    await pool.query(
-      `INSERT INTO approval_logs (target_user_id, action_by, previous_status, new_status, remarks)
-       VALUES ($1, $2, 'PENDING', 'ENDORSED', $3)`,
-      [applicantId, reviewerId, `ENDORSED BY MUNICIPAL: ${remarks}`]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Update profile status to ENDORSED (awaiting Provincial DOT approval)
-    await pool.query(`UPDATE ${table} SET status = 'ENDORSED', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
+      // Update profile status directly to APPROVED or REJECTED
+      await client.query(
+        `UPDATE ${table} SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [targetStatus, id]
+      );
 
-    // ── Real-time: notify applicant and provincial dashboard ──
-    emitToUser(applicantId, 'account:status_changed', { status: 'ENDORSED', type, remarks });
-    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type, status: 'ENDORSED', targetUserId: applicantId });
+      // Update user account status
+      await client.query(
+        `UPDATE user_accounts SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [targetStatus, applicantId]
+      );
 
-    return res.status(200).json({ message: 'Stakeholder endorsed successfully to Provincial DOT.' });
+      // Log decision
+      await client.query(
+        `INSERT INTO approval_logs (target_user_id, action_by, previous_status, new_status, remarks)
+         VALUES ($1, $2, 'PENDING', $3, $4)`,
+        [applicantId, reviewerId, targetStatus, `MUNICIPAL REVIEW: ${remarks || (targetStatus === 'APPROVED' ? 'Approved by Municipal Tourism Office' : 'Rejected by Municipal Tourism Office')}`]
+      );
+
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      throw dbErr;
+    } finally {
+      client.release();
+    }
+
+    // ── Real-time: notify applicant and dashboards ──
+    emitToUser(applicantId, 'account:status_changed', { status: targetStatus, type, remarks });
+    emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type, status: targetStatus, targetUserId: applicantId, id });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type, status: targetStatus, targetUserId: applicantId, id });
+
+    return res.status(200).json({
+      message: `${type === 'HOMESTAY' ? 'Homestay' : 'Tour Guide'} ${targetStatus.toLowerCase()} successfully by Municipal Tourism.`,
+      status: targetStatus
+    });
   } catch (err) {
-    console.error('Error endorsing stakeholder:', err);
-    return res.status(500).json({ message: 'Internal server error endorsing stakeholder.' });
+    console.error('Error approving stakeholder:', err);
+    return res.status(500).json({ message: 'Internal server error approving stakeholder.' });
   }
 };
 
@@ -988,4 +1019,682 @@ export const deleteDotUser = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error deleting DOT user.' });
   }
 };
+
+// ─── MUNICIPALITY HOMESTAY & TOUR GUIDE DIRECT MANAGEMENT ─────────────────────
+
+/**
+ * POST /api/listings/municipality/homestays
+ * Allows Municipal DOT (or Provincial DOT) to directly add a verified local homestay.
+ */
+export const createMunicipalityHomestay = async (req, res) => {
+  const { role, municipality_id: userMunId } = req.user;
+  const {
+    fullName,
+    email,
+    password,
+    phoneNumber,
+    municipalityId: customMunId,
+    name,
+    description,
+    address,
+    barangay,
+    totalRooms,
+    maxCapacity,
+    contactEmail,
+    contactPhone,
+    latitude,
+    longitude,
+    status = 'APPROVED',
+  } = req.body;
+
+  const targetMunId = role === 'PROVINCIAL_DOT'
+    ? (customMunId ? parseInt(customMunId, 10) : userMunId)
+    : userMunId;
+
+  if (!targetMunId) {
+    return res.status(400).json({ message: 'Municipality is required.' });
+  }
+
+  if (!fullName || !email || !password || !name || !address) {
+    return res.status(400).json({
+      message: 'Host full name, email, password, homestay property name, and address are required.'
+    });
+  }
+
+  if (password.length < 8) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanFullName = fullName.trim();
+  const cleanPhone = phoneNumber ? phoneNumber.trim() : null;
+  const homestayName = name.trim();
+  const homestayAddr = address.trim();
+  const latVal = parseCoord(latitude);
+  const lngVal = parseCoord(longitude);
+  const rooms = parseInt(totalRooms, 10) || 1;
+  const capacity = parseInt(maxCapacity, 10) || 2;
+  const validStatus = ['APPROVED', 'ENDORSED', 'PENDING'].includes(status) ? status : 'APPROVED';
+
+  const year = new Date().getFullYear();
+  const randomDigits = Math.floor(1000 + Math.random() * 9000);
+  const referenceNumber = `ABRA-HS-${year}-${randomDigits}`;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const emailCheck = await client.query('SELECT id FROM user_accounts WHERE LOWER(email) = $1', [cleanEmail]);
+    if (emailCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Email is already registered to another account.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password.trim(), salt);
+
+    const userRes = await client.query(
+      `INSERT INTO user_accounts (email, password_hash, role, full_name, phone_number, municipality_id, status, reference_number)
+       VALUES ($1, $2, 'HOMESTAY_OWNER', $3, $4, $5, $6, $7)
+       RETURNING id, email, role, full_name, phone_number, municipality_id, status, reference_number`,
+      [cleanEmail, passwordHash, cleanFullName, cleanPhone, targetMunId, validStatus, referenceNumber]
+    );
+    const newUser = userRes.rows[0];
+
+    const hsRes = await client.query(
+      `INSERT INTO homestay_profiles (
+        owner_id, name, description, address, barangay, total_rooms, max_capacity,
+        contact_email, contact_phone, status, reference_number, latitude, longitude
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *`,
+      [
+        newUser.id,
+        homestayName,
+        description ? description.trim() : 'Homestay accommodation in Abra.',
+        homestayAddr,
+        barangay ? barangay.trim() : null,
+        rooms,
+        capacity,
+        contactEmail ? contactEmail.trim().toLowerCase() : cleanEmail,
+        contactPhone ? contactPhone.trim() : (cleanPhone || null),
+        validStatus,
+        referenceNumber,
+        latVal,
+        lngVal
+      ]
+    );
+    const newProfile = hsRes.rows[0];
+
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = req.file.path;
+      await client.query(
+        `INSERT INTO homestay_images (homestay_id, image_url, is_featured)
+         VALUES ($1, $2, true)`,
+        [newProfile.id, imageUrl]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type: 'HOMESTAY', status: validStatus, targetUserId: newUser.id });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'HOMESTAY', status: validStatus, targetUserId: newUser.id });
+
+    return res.status(201).json({
+      message: 'Homestay registered successfully by municipality.',
+      homestay: {
+        ...newProfile,
+        owner_name: newUser.full_name,
+        email: newUser.email,
+        phone_number: newUser.phone_number,
+        featured_image: imageUrl
+      }
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error creating municipality homestay:', err);
+    return res.status(500).json({ message: 'Internal server error creating homestay: ' + (err.message || '') });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * PUT /api/listings/municipality/homestays/:id
+ * Allows Municipal DOT (or Provincial DOT) to update an existing homestay.
+ */
+export const updateMunicipalityHomestay = async (req, res) => {
+  const { id } = req.params;
+  const { role, municipality_id: userMunId } = req.user;
+  const {
+    fullName,
+    phoneNumber,
+    name,
+    description,
+    address,
+    barangay,
+    totalRooms,
+    maxCapacity,
+    contactEmail,
+    contactPhone,
+    latitude,
+    longitude,
+    status,
+    password
+  } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const hsCheck = await client.query(
+      `SELECT h.*, u.id as user_id, u.municipality_id
+       FROM homestay_profiles h
+       JOIN user_accounts u ON h.owner_id = u.id
+       WHERE h.id = $1`,
+      [id]
+    );
+    if (hsCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Homestay not found.' });
+    }
+
+    const current = hsCheck.rows[0];
+    if (role === 'MUNICIPAL_DOT' && current.municipality_id !== userMunId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Forbidden. Homestay belongs to another municipality.' });
+    }
+
+    let passwordHash = null;
+    if (password && typeof password === 'string' && password.trim().length >= 8) {
+      const salt = await bcrypt.genSalt(10);
+      passwordHash = await bcrypt.hash(password.trim(), salt);
+    }
+
+    await client.query(
+      `UPDATE user_accounts
+       SET full_name = COALESCE($1, full_name),
+           phone_number = COALESCE($2, phone_number),
+           password_hash = COALESCE($3, password_hash),
+           status = COALESCE($4, status),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5`,
+      [fullName ? fullName.trim() : null, phoneNumber ? phoneNumber.trim() : null, passwordHash, status || null, current.user_id]
+    );
+
+    const latVal = latitude !== undefined && latitude !== '' ? parseCoord(latitude) : current.latitude;
+    const lngVal = longitude !== undefined && longitude !== '' ? parseCoord(longitude) : current.longitude;
+    const rooms = totalRooms !== undefined && totalRooms !== '' ? (parseInt(totalRooms, 10) || current.total_rooms) : current.total_rooms;
+    const cap = maxCapacity !== undefined && maxCapacity !== '' ? (parseInt(maxCapacity, 10) || current.max_capacity) : current.max_capacity;
+
+    await client.query(
+      `UPDATE homestay_profiles
+       SET name = COALESCE($1, name),
+           description = COALESCE($2, description),
+           address = COALESCE($3, address),
+           barangay = COALESCE($4, barangay),
+           total_rooms = $5,
+           max_capacity = $6,
+           contact_email = COALESCE($7, contact_email),
+           contact_phone = COALESCE($8, contact_phone),
+           latitude = $9,
+           longitude = $10,
+           status = COALESCE($11, status),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $12`,
+      [
+        name ? name.trim() : null,
+        description !== undefined ? description : null,
+        address ? address.trim() : null,
+        barangay !== undefined ? barangay : null,
+        rooms,
+        cap,
+        contactEmail ? contactEmail.trim().toLowerCase() : null,
+        contactPhone ? contactPhone.trim() : null,
+        latVal,
+        lngVal,
+        status || null,
+        id
+      ]
+    );
+
+    if (req.file) {
+      await client.query(
+        `INSERT INTO homestay_images (homestay_id, image_url, is_featured)
+         VALUES ($1, $2, true)`,
+        [id, req.file.path]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type: 'HOMESTAY', action: 'UPDATE', id });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'HOMESTAY', action: 'UPDATE', id });
+
+    return res.status(200).json({ message: 'Homestay updated successfully.' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error updating homestay:', err);
+    return res.status(500).json({ message: 'Internal server error updating homestay.' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * POST /api/listings/municipality/guides
+ * Allows Municipal DOT (or Provincial DOT) to directly add an accredited local tour guide.
+ */
+export const createMunicipalityGuide = async (req, res) => {
+  const { role, municipality_id: userMunId } = req.user;
+  const {
+    fullName,
+    email,
+    password,
+    phoneNumber,
+    municipalityId: customMunId,
+    licenseNumber,
+    yearsOfExperience,
+    languagesSpoken,
+    areasCovered,
+    specializations,
+    bio,
+    servicesOffered,
+    priceRate,
+    status = 'APPROVED',
+  } = req.body;
+
+  const targetMunId = role === 'PROVINCIAL_DOT'
+    ? (customMunId ? parseInt(customMunId, 10) : userMunId)
+    : userMunId;
+
+  if (!targetMunId) {
+    return res.status(400).json({ message: 'Municipality is required.' });
+  }
+
+  if (!fullName || !email || !password || !licenseNumber) {
+    return res.status(400).json({
+      message: 'Guide full name, email, password, and guide license number are required.'
+    });
+  }
+
+  if (password.length < 8) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanFullName = fullName.trim();
+  const cleanPhone = phoneNumber ? phoneNumber.trim() : null;
+  const licNum = licenseNumber.trim();
+  const exp = parseInt(yearsOfExperience, 10) || 0;
+  const rate = parseFloat(priceRate) || 0.00;
+  const validStatus = ['APPROVED', 'ENDORSED', 'PENDING'].includes(status) ? status : 'APPROVED';
+
+  const year = new Date().getFullYear();
+  const randomDigits = Math.floor(1000 + Math.random() * 9000);
+  const referenceNumber = `ABRA-TG-${year}-${randomDigits}`;
+  const profilePictureUrl = req.file ? req.file.path : null;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const emailCheck = await client.query('SELECT id FROM user_accounts WHERE LOWER(email) = $1', [cleanEmail]);
+    if (emailCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Email is already registered to another account.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password.trim(), salt);
+
+    const userRes = await client.query(
+      `INSERT INTO user_accounts (email, password_hash, role, full_name, phone_number, municipality_id, status, reference_number)
+       VALUES ($1, $2, 'TOUR_GUIDE', $3, $4, $5, $6, $7)
+       RETURNING id, email, role, full_name, phone_number, municipality_id, status, reference_number`,
+      [cleanEmail, passwordHash, cleanFullName, cleanPhone, targetMunId, validStatus, referenceNumber]
+    );
+    const newUser = userRes.rows[0];
+
+    const tgRes = await client.query(
+      `INSERT INTO tour_guide_profiles (
+        guide_id, license_number, years_of_experience, languages_spoken,
+        areas_covered, specializations, bio, services_offered, price_rate,
+        status, reference_number, profile_picture_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *`,
+      [
+        newUser.id,
+        licNum,
+        exp,
+        languagesSpoken ? languagesSpoken.trim() : 'English, Tagalog, Ilokano',
+        areasCovered ? areasCovered.trim() : 'Abra Province',
+        specializations ? specializations.trim() : 'Cultural & Eco Tours',
+        bio ? bio.trim() : 'Licensed Tour Guide in Abra.',
+        servicesOffered ? servicesOffered.trim() : null,
+        rate,
+        validStatus,
+        referenceNumber,
+        profilePictureUrl
+      ]
+    );
+    const newProfile = tgRes.rows[0];
+
+    await client.query('COMMIT');
+
+    emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type: 'TOUR_GUIDE', status: validStatus, targetUserId: newUser.id });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'TOUR_GUIDE', status: validStatus, targetUserId: newUser.id });
+
+    return res.status(201).json({
+      message: 'Tour Guide registered successfully by municipality.',
+      guide: {
+        ...newProfile,
+        guide_name: newUser.full_name,
+        email: newUser.email,
+        phone_number: newUser.phone_number
+      }
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error creating municipality tour guide:', err);
+    return res.status(500).json({ message: 'Internal server error creating tour guide: ' + (err.message || '') });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * PUT /api/listings/municipality/guides/:id
+ * Allows Municipal DOT (or Provincial DOT) to update an existing tour guide.
+ */
+export const updateMunicipalityGuide = async (req, res) => {
+  const { id } = req.params;
+  const { role, municipality_id: userMunId } = req.user;
+  const {
+    fullName,
+    phoneNumber,
+    licenseNumber,
+    yearsOfExperience,
+    languagesSpoken,
+    areasCovered,
+    specializations,
+    bio,
+    servicesOffered,
+    priceRate,
+    status,
+    password
+  } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const tgCheck = await client.query(
+      `SELECT g.*, u.id as user_id, u.municipality_id
+       FROM tour_guide_profiles g
+       JOIN user_accounts u ON g.guide_id = u.id
+       WHERE g.id = $1`,
+      [id]
+    );
+    if (tgCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Tour guide not found.' });
+    }
+
+    const current = tgCheck.rows[0];
+    if (role === 'MUNICIPAL_DOT' && current.municipality_id !== userMunId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Forbidden. Tour guide belongs to another municipality.' });
+    }
+
+    let passwordHash = null;
+    if (password && typeof password === 'string' && password.trim().length >= 8) {
+      const salt = await bcrypt.genSalt(10);
+      passwordHash = await bcrypt.hash(password.trim(), salt);
+    }
+
+    await client.query(
+      `UPDATE user_accounts
+       SET full_name = COALESCE($1, full_name),
+           phone_number = COALESCE($2, phone_number),
+           password_hash = COALESCE($3, password_hash),
+           status = COALESCE($4, status),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5`,
+      [fullName ? fullName.trim() : null, phoneNumber ? phoneNumber.trim() : null, passwordHash, status || null, current.user_id]
+    );
+
+    const exp = yearsOfExperience !== undefined && yearsOfExperience !== '' ? (parseInt(yearsOfExperience, 10) || 0) : current.years_of_experience;
+    const rate = priceRate !== undefined && priceRate !== '' ? (parseFloat(priceRate) || 0.00) : current.price_rate;
+    const profilePic = req.file ? req.file.path : undefined;
+
+    await client.query(
+      `UPDATE tour_guide_profiles
+       SET license_number = COALESCE($1, license_number),
+           years_of_experience = $2,
+           languages_spoken = COALESCE($3, languages_spoken),
+           areas_covered = COALESCE($4, areas_covered),
+           specializations = COALESCE($5, specializations),
+           bio = COALESCE($6, bio),
+           services_offered = COALESCE($7, services_offered),
+           price_rate = $8,
+           status = COALESCE($9, status),
+           profile_picture_url = COALESCE($10, profile_picture_url),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $11`,
+      [
+        licenseNumber ? licenseNumber.trim() : null,
+        exp,
+        languagesSpoken !== undefined ? languagesSpoken : null,
+        areasCovered !== undefined ? areasCovered : null,
+        specializations !== undefined ? specializations : null,
+        bio !== undefined ? bio : null,
+        servicesOffered !== undefined ? servicesOffered : null,
+        rate,
+        status || null,
+        profilePic,
+        id
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type: 'TOUR_GUIDE', action: 'UPDATE', id });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: 'TOUR_GUIDE', action: 'UPDATE', id });
+
+    return res.status(200).json({ message: 'Tour guide updated successfully.' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error updating tour guide:', err);
+    return res.status(500).json({ message: 'Internal server error updating tour guide.' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * DELETE /api/listings/municipality/stakeholders/:type/:id
+ * Allows Municipal DOT (or Provincial DOT) to delete a homestay or tour guide.
+ */
+export const deleteMunicipalityStakeholder = async (req, res) => {
+  const { type, id } = req.params;
+  const { role, municipality_id: userMunId } = req.user;
+
+  if (!['homestay', 'guide'].includes(type)) {
+    return res.status(400).json({ message: 'Invalid stakeholder type.' });
+  }
+
+  const table = type === 'homestay' ? 'homestay_profiles' : 'tour_guide_profiles';
+  const idCol = type === 'homestay' ? 'owner_id' : 'guide_id';
+
+  try {
+    const check = await pool.query(
+      `SELECT p.id, p.${idCol} as user_id, u.full_name, u.municipality_id
+       FROM ${table} p
+       JOIN user_accounts u ON p.${idCol} = u.id
+       WHERE p.id = $1`,
+      [id]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: `${type === 'homestay' ? 'Homestay' : 'Tour Guide'} not found.` });
+    }
+
+    const row = check.rows[0];
+    if (role === 'MUNICIPAL_DOT' && row.municipality_id !== userMunId) {
+      return res.status(403).json({ message: 'Forbidden. Stakeholder belongs to another municipality.' });
+    }
+
+    await pool.query('DELETE FROM user_accounts WHERE id = $1', [row.user_id]);
+
+    emitToRole('MUNICIPAL_DOT', 'dashboard:accounts_updated', { type: type.toUpperCase(), action: 'DELETE', id });
+    emitToRole('PROVINCIAL_DOT', 'dashboard:accounts_updated', { type: type.toUpperCase(), action: 'DELETE', id });
+    emitToUser(row.user_id, 'account:status_changed', { status: 'DELETED' });
+
+    return res.status(200).json({ message: `${type === 'homestay' ? 'Homestay' : 'Tour Guide'} "${row.full_name}" deleted successfully.` });
+  } catch (err) {
+    console.error('Error deleting stakeholder:', err);
+    return res.status(500).json({ message: 'Internal server error deleting stakeholder.' });
+  }
+};
+
+/**
+ * GET /api/listings/municipality/stakeholder-activity/:type/:id
+ * Fetches comprehensive activity, availability schedule, and bookings/inquiries for a homestay or tour guide.
+ */
+export const getStakeholderActivity = async (req, res) => {
+  const { type, id } = req.params;
+  const { role, municipality_id: userMunId } = req.user;
+
+  if (!['homestay', 'guide'].includes(type)) {
+    return res.status(400).json({ message: 'Invalid stakeholder type. Must be homestay or guide.' });
+  }
+
+  try {
+    let stakeholderInfo = null;
+    let bookingsQuery = '';
+    const bookingsParams = [id];
+
+    if (type === 'homestay') {
+      const hsRes = await pool.query(
+        `SELECT h.*, u.full_name as owner_name, u.email, u.phone_number, u.status as user_status, u.municipality_id,
+                m.name as municipality_name,
+                (SELECT image_url FROM homestay_images hi WHERE hi.homestay_id = h.id ORDER BY hi.is_featured DESC, hi.uploaded_at DESC LIMIT 1) AS featured_image
+         FROM homestay_profiles h
+         JOIN user_accounts u ON h.owner_id = u.id
+         LEFT JOIN municipalities m ON u.municipality_id = m.id
+         WHERE h.id = $1`,
+        [id]
+      );
+
+      if (hsRes.rows.length === 0) {
+        return res.status(404).json({ message: 'Homestay not found.' });
+      }
+      stakeholderInfo = hsRes.rows[0];
+
+      if (role === 'MUNICIPAL_DOT' && stakeholderInfo.municipality_id !== userMunId) {
+        return res.status(403).json({ message: 'Forbidden. Stakeholder belongs to another municipality.' });
+      }
+
+      bookingsQuery = `
+        SELECT b.*, 
+               u.full_name as tourist_name, u.email as tourist_email, u.phone_number as tourist_phone
+        FROM bookings_inquiries b
+        LEFT JOIN user_accounts u ON b.tourist_id = u.id
+        WHERE b.homestay_id = $1
+        ORDER BY b.created_at DESC`;
+    } else {
+      const gRes = await pool.query(
+        `SELECT g.*, u.full_name as guide_name, u.email, u.phone_number, u.status as user_status, u.municipality_id,
+                m.name as municipality_name
+         FROM tour_guide_profiles g
+         JOIN user_accounts u ON g.guide_id = u.id
+         LEFT JOIN municipalities m ON u.municipality_id = m.id
+         WHERE g.id = $1`,
+        [id]
+      );
+
+      if (gRes.rows.length === 0) {
+        return res.status(404).json({ message: 'Tour guide not found.' });
+      }
+      stakeholderInfo = gRes.rows[0];
+
+      if (role === 'MUNICIPAL_DOT' && stakeholderInfo.municipality_id !== userMunId) {
+        return res.status(403).json({ message: 'Forbidden. Stakeholder belongs to another municipality.' });
+      }
+
+      bookingsQuery = `
+        SELECT b.*, 
+               u.full_name as tourist_name, u.email as tourist_email, u.phone_number as tourist_phone
+        FROM bookings_inquiries b
+        LEFT JOIN user_accounts u ON b.tourist_id = u.id
+        WHERE b.guide_id = $1
+        ORDER BY b.created_at DESC`;
+    }
+
+    const bookingsRes = await pool.query(bookingsQuery, bookingsParams);
+    const bookings = bookingsRes.rows;
+
+    // Calculate metrics & availability
+    const today = new Date().toISOString().split('T')[0];
+    let isBookedToday = false;
+    const upcomingBookedRanges = [];
+    let pendingCount = 0;
+    let confirmedCount = 0;
+    let completedCount = 0;
+    let cancelledCount = 0;
+
+    bookings.forEach((b) => {
+      const status = (b.status || '').toUpperCase();
+      if (status === 'PENDING') pendingCount++;
+      else if (status === 'CONFIRMED') confirmedCount++;
+      else if (status === 'COMPLETED') completedCount++;
+      else if (status === 'CANCELLED' || status === 'REJECTED') cancelledCount++;
+
+      if (status === 'CONFIRMED' && b.start_date) {
+        const startStr = typeof b.start_date === 'string' ? b.start_date.split('T')[0] : new Date(b.start_date).toISOString().split('T')[0];
+        const endStr = b.end_date
+          ? (typeof b.end_date === 'string' ? b.end_date.split('T')[0] : new Date(b.end_date).toISOString().split('T')[0])
+          : startStr;
+
+        if (startStr <= today && endStr >= today) {
+          isBookedToday = true;
+        }
+
+        if (endStr >= today) {
+          upcomingBookedRanges.push({
+            id: b.id,
+            startDate: startStr,
+            endDate: endStr,
+            touristName: b.tourist_name,
+            numberOfGuests: b.number_of_guests,
+            status: b.status
+          });
+        }
+      }
+    });
+
+    upcomingBookedRanges.sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+    return res.status(200).json({
+      stakeholder: stakeholderInfo,
+      stats: {
+        totalInquiries: bookings.length,
+        confirmedCount,
+        pendingCount,
+        completedCount,
+        cancelledCount,
+        isBookedToday,
+        currentAvailabilityStatus: isBookedToday ? 'OCCUPIED' : 'AVAILABLE',
+      },
+      upcomingBookedRanges,
+      bookings
+    });
+  } catch (err) {
+    console.error('Error fetching stakeholder activity:', err);
+    return res.status(500).json({ message: 'Internal server error fetching stakeholder activity.' });
+  }
+};
+
+
 

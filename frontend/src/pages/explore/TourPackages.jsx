@@ -74,7 +74,7 @@ const TourPackages = () => {
     });
 
   return (
-    <div className="min-h-screen bg-[var(--bg-app,#FAF7F2)] pb-24 text-[#2E3330] transition-colors">
+    <div className="min-h-screen bg-[var(--bg-app,#FAF7F2)] pb-24 text-[var(--text-primary)] transition-colors">
       {/* Hero Header */}
       <div className="relative bg-gradient-to-r from-[#153325] via-[#1E4D37] to-[#2D6A4F] text-white py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">

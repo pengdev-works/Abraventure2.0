@@ -17,6 +17,12 @@ import {
   createDotUser,
   updateDotUser,
   deleteDotUser,
+  createMunicipalityHomestay,
+  updateMunicipalityHomestay,
+  createMunicipalityGuide,
+  updateMunicipalityGuide,
+  deleteMunicipalityStakeholder,
+  getStakeholderActivity,
 } from '../controllers/listingController.js';
 import { verifyToken, requireRoles } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
@@ -40,9 +46,52 @@ router.put('/guide', verifyToken, requireRoles(['TOUR_GUIDE']), upload.single('p
 // Municipal DOT routes
 router.put('/municipal-dot', verifyToken, requireRoles(['MUNICIPAL_DOT']), upload.single('profilePicture'), updateMunicipalDotProfile);
 
-// Admin review workflows
+// Municipality Homestay & Tour Guide direct addition & management
+router.post(
+  '/municipality/homestays',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  upload.single('image'),
+  createMunicipalityHomestay
+);
+router.put(
+  '/municipality/homestays/:id',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  upload.single('image'),
+  updateMunicipalityHomestay
+);
+router.post(
+  '/municipality/guides',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  upload.single('profilePicture'),
+  createMunicipalityGuide
+);
+router.put(
+  '/municipality/guides/:id',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  upload.single('profilePicture'),
+  updateMunicipalityGuide
+);
+router.delete(
+  '/municipality/stakeholders/:type/:id',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  deleteMunicipalityStakeholder
+);
+router.get(
+  '/municipality/stakeholder-activity/:type/:id',
+  verifyToken,
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
+  getStakeholderActivity
+);
+
+// Admin review workflows (Municipal DOT directly approves/rejects; Provincial DOT approves Municipal DOT accounts)
 router.get('/applications', verifyToken, requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']), getApplications);
-router.put('/endorse/:id', verifyToken, requireRoles(['MUNICIPAL_DOT']), endorseStakeholder);
+router.put('/endorse/:id', verifyToken, requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']), endorseStakeholder);
+router.put('/municipality/stakeholders/:type/:id/review', verifyToken, requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']), endorseStakeholder);
 router.put('/approve/:id', verifyToken, requireRoles(['PROVINCIAL_DOT']), approveAccount);
 
 // DOT User Account CRUD (Provincial DOT only)

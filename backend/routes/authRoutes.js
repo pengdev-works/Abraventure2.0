@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, applyProvider, login, loginTourist, loginPortal, getMe, setupTwoFactor, verifyTwoFactor } from '../controllers/authController.js';
+import { register, applyProvider, login, loginTourist, loginPortal, loginGoogleTourist, getMe, setupTwoFactor, verifyTwoFactor } from '../controllers/authController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { authRateLimiter } from '../middleware/rateLimiter.js';
 import upload from '../middleware/uploadMiddleware.js';
@@ -20,6 +20,8 @@ router.post(
 );
 router.post('/login', authRateLimiter({ maxAttempts: 5, windowMs: 15 * 60 * 1000 }), login);
 router.post('/tourist/login', authRateLimiter({ maxAttempts: 5, windowMs: 15 * 60 * 1000 }), loginTourist);
+router.post('/tourist/google', authRateLimiter({ maxAttempts: 15, windowMs: 15 * 60 * 1000 }), loginGoogleTourist);
+router.post('/google', authRateLimiter({ maxAttempts: 15, windowMs: 15 * 60 * 1000 }), loginGoogleTourist);
 router.post('/portal/login', authRateLimiter({ maxAttempts: 5, windowMs: 15 * 60 * 1000 }), loginPortal);
 
 // 2FA Routes

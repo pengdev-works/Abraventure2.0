@@ -61,6 +61,25 @@ export const AuthProvider = ({ children }) => {
   const loginTourist = (email, password) => login(email, password, 'tourist');
   const loginPortal  = (email, password) => login(email, password, 'portal');
 
+  const loginWithGoogle = async (googlePayload) => {
+    const payload = typeof googlePayload === 'string' ? { credential: googlePayload } : googlePayload;
+    const response = await fetch('/api/auth/tourist/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Google Sign-In failed.');
+    }
+
+    localStorage.setItem('token', data.token);
+    setToken(data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
   const register = async (fullName, email, password, role, phoneNumber, municipalityId) => {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
@@ -119,7 +138,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginTourist, loginPortal, register, applyProvider, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginTourist, loginPortal, loginWithGoogle, register, applyProvider, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

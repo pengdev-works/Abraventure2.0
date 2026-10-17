@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Configure dark: variant to use [data-theme="dark"] attribute (Tailwind v4) */
+@variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+
 /* =================================================================
    ABRAVENTURE — Official Design System v2.1
    Provincial Tourism Office · Province of Abra, Philippines

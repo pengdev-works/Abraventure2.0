@@ -1,10 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, Mail, AlertCircle, Shield, User, ArrowRight, Eye, EyeOff, CheckCircle2, HelpCircle, X } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Shield, User, ArrowRight, Eye, EyeOff, CheckCircle2, HelpCircle, X, Sparkles, Check } from 'lucide-react';
+
+const GoogleIcon = () => (
+  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      fill="#4285F4"
+      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.27 21.43 7.35 24 12 24z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.27 2.57 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+    />
+  </svg>
+);
 
 const Login = () => {
-  const { loginTourist } = useAuth();
+  const { loginTourist, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -13,10 +34,154 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
   // Email format inline feedback
   const isEmailValid = email.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  // Initialize official Google Identity Services if client ID is set in environment
+  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+  useEffect(() => {
+    if (GOOGLE_CLIENT_ID && typeof window !== 'undefined') {
+      const initGsi = () => {
+        if (window.google?.accounts?.id) {
+          try {
+            window.google.accounts.id.initialize({
+              client_id: GOOGLE_CLIENT_ID,
+              callback: handleGoogleCredentialResponse,
+              auto_select: false,
+            });
+            // Also render official Google button if target container exists
+            const btnEl = document.getElementById('google-official-btn-container');
+            if (btnEl) {
+              window.google.accounts.id.renderButton(btnEl, {
+                theme: 'outline',
+                size: 'large',
+                width: '100%',
+                text: 'continue_with',
+                shape: 'pill',
+              });
+            }
+          } catch (err) {
+            console.warn('GSI init notice:', err);
+          }
+        }
+      };
+
+      if (window.google?.accounts?.id) {
+        initGsi();
+      } else {
+        const interval = setInterval(() => {
+          if (window.google?.accounts?.id) {
+            clearInterval(interval);
+            initGsi();
+          }
+        }, 300);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [GOOGLE_CLIENT_ID]);
+
+  const handleGoogleCredentialResponse = async (response) => {
+    if (!response?.credential) return;
+    setGoogleLoading(true);
+    setError('');
+    try {
+      const user = await loginWithGoogle({ credential: response.credential });
+      if (user.role === 'TOURIST') {
+        navigate('/tourist-dashboard');
+      } else {
+        navigate('/');
+      }
+    } catch (err) {
+      console.error('Google login error:', err);
+      setError(err.message || 'Google authentication failed.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  // Triggers real Google OAuth 2.0 Account Chooser (accounts.google.com/v3/signin/accountchooser)
+  const handleGoogleButtonClick = () => {
+    setError('');
+
+    if (!GOOGLE_CLIENT_ID) {
+      setError(
+        'Google OAuth Client ID is not configured yet. Please set VITE_GOOGLE_CLIENT_ID in your frontend/.env file to connect with real Google accounts.'
+      );
+      return;
+    }
+
+    if (!window.google?.accounts?.oauth2) {
+      // Fallback to GSI prompt if oauth2 is not ready yet
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.prompt();
+        return;
+      }
+      setError('Google Identity Services is loading. Please try again in a few moments.');
+      return;
+    }
+
+    setGoogleLoading(true);
+
+    try {
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'email profile openid',
+        prompt: 'select_account',
+        callback: async (tokenResponse) => {
+          if (tokenResponse.error) {
+            setGoogleLoading(false);
+            if (tokenResponse.error !== 'access_denied') {
+              setError(`Google Sign-In: ${tokenResponse.error_description || tokenResponse.error}`);
+            }
+            return;
+          }
+
+          try {
+            // Retrieve verified profile details directly from Google's UserInfo API
+            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+            });
+
+            if (!res.ok) {
+              throw new Error('Failed to retrieve user profile from Google.');
+            }
+
+            const googleUser = await res.json();
+
+            // Authorize and create/login tourist in AbraVenture backend
+            const user = await loginWithGoogle({
+              email: googleUser.email,
+              fullName: googleUser.name,
+              avatarUrl: googleUser.picture,
+              googleId: googleUser.sub,
+            });
+
+            if (user.role === 'TOURIST') {
+              navigate('/tourist-dashboard');
+            } else {
+              navigate('/');
+            }
+          } catch (authErr) {
+            console.error('Google profile fetch/login error:', authErr);
+            setError(authErr.message || 'Failed to authenticate tourist account with Google.');
+          } finally {
+            setGoogleLoading(false);
+          }
+        },
+      });
+
+      // Opens real Google Account Chooser popup: accounts.google.com/v3/signin/accountchooser
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
+    } catch (err) {
+      setGoogleLoading(false);
+      console.error('Failed to trigger Google OAuth popup:', err);
+      setError(err.message || 'Failed to open Google account chooser.');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -207,7 +372,7 @@ const Login = () => {
               {/* Primary Submit Button with Loading State */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full py-2.5 mt-2 btn-editorial-primary text-xs tracking-wider flex justify-center items-center gap-2 cursor-pointer disabled:opacity-60 shadow-sm"
               >
                 {loading ? (
@@ -217,6 +382,37 @@ const Login = () => {
                   </>
                 ) : (
                   <span>Sign In to Discover Abra</span>
+                )}
+              </button>
+
+              {/* Divider */}
+              <div className="relative my-4 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-[var(--border-subtle)]" />
+                </div>
+                <span className="relative bg-[var(--bg-card)] px-3 text-[10px] sm:text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+                  or continue with
+                </span>
+              </div>
+
+              {/* Google Sign In Button */}
+              <button
+                type="button"
+                onClick={handleGoogleButtonClick}
+                disabled={googleLoading || loading}
+                className="w-full py-2.5 px-4 rounded-xl border border-[var(--border-app)] bg-[var(--bg-card-subtle)] hover:bg-[var(--bg-card)] text-[var(--text-primary)] font-semibold text-xs flex items-center justify-center gap-2.5 transition-all duration-150 cursor-pointer disabled:opacity-60 shadow-xs hover:border-[var(--color-gold)]/50 hover:shadow-sm group"
+                id="tourist-google-signin-btn"
+              >
+                {googleLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin" />
+                    <span>Connecting with Google...</span>
+                  </>
+                ) : (
+                  <>
+                    <GoogleIcon />
+                    <span className="group-hover:text-[var(--color-gold)] transition-colors">Continue with Google</span>
+                  </>
                 )}
               </button>
             </form>

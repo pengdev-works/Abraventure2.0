@@ -597,3 +597,144 @@ export const verifyTwoFactor = async (req, res) => {
     verified: true
   });
 };
+
+// ─── 4. Tourist Google Authentication ──────────────────────────────────────────
+export const loginGoogleTourist = async (req, res) => {
+  try {
+    const { credential, email: providedEmail, fullName: providedName, googleId, avatarUrl } = req.body;
+
+    let email = providedEmail;
+    let fullName = providedName;
+
+    // If a Google ID token / credential is provided, decode it
+    if (credential && typeof credential === 'string') {
+      try {
+        const decoded = jwt.decode(credential);
+        if (decoded && decoded.email) {
+          email = decoded.email;
+          if (decoded.name && !fullName) {
+            fullName = decoded.name;
+          }
+        }
+      } catch (decodeErr) {
+        console.warn('Failed to parse Google credential token:', decodeErr);
+      }
+    }
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ message: 'A valid Google email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const finalFullName = (fullName && fullName.trim()) ? fullName.trim() : cleanEmail.split('@')[0];
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Check if user already exists
+      const userCheck = await client.query(
+        `SELECT u.*, m.name as municipality_name, m.featured_image_url as municipality_featured_image
+         FROM user_accounts u
+         LEFT JOIN municipalities m ON u.municipality_id = m.id
+         WHERE LOWER(u.email) = $1`,
+        [cleanEmail]
+      );
+
+      let user;
+
+      if (userCheck.rows.length > 0) {
+        user = userCheck.rows[0];
+
+        // Role Enforcement: Only TOURIST accounts can sign in via Tourist Google Sign In
+        if (user.role !== 'TOURIST') {
+          await client.query('ROLLBACK');
+          return res.status(403).json({
+            message: `This Google account is registered as an official/stakeholder (${user.role}). Please use the Official & Stakeholder Portal to sign in.`
+          });
+        }
+
+        // Status check
+        if (user.status === 'SUSPENDED' || user.status === 'INACTIVE') {
+          await client.query('ROLLBACK');
+          return res.status(403).json({
+            message: 'Your tourist account is currently suspended. Please contact the Provincial Tourism Office.'
+          });
+        }
+      } else {
+        // Auto-register new tourist with Google
+        const salt = await bcrypt.genSalt(10);
+        // Random secure password hash since this is OAuth
+        const dummyPassword = Math.random().toString(36).slice(-12) + 'Abra@2026!';
+        const passwordHash = await bcrypt.hash(dummyPassword, salt);
+
+        const newUserResult = await client.query(
+          `INSERT INTO user_accounts (email, password_hash, role, full_name, status)
+           VALUES ($1, $2, 'TOURIST', $3, 'APPROVED')
+           RETURNING id, email, role, full_name, phone_number, municipality_id, status`,
+          [cleanEmail, passwordHash, finalFullName]
+        );
+
+        user = newUserResult.rows[0];
+
+        // Send welcome notification
+        await sendNotification(
+          client,
+          user.id,
+          'Welcome to AbraVenture via Google!',
+          'Your tourist account has been connected with Google. Explore Abra, discover homestays, and build your itineraries.',
+          'INFO'
+        );
+      }
+
+      // Log activity
+      await client.query(
+        `INSERT INTO activity_logs (user_id, action, target_type, ip_address) VALUES ($1, $2, 'AUTH', $3)`,
+        [user.id, 'USER_LOGIN_GOOGLE_TOURIST', req.ip || 'unknown']
+      ).catch(() => {});
+
+      await client.query('COMMIT');
+
+      // Generate JWT token
+      const token = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          municipality_id: user.municipality_id,
+          municipality_name: user.municipality_name || null,
+          full_name: user.full_name,
+          status: user.status,
+        },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      return res.status(200).json({
+        message: 'Google Sign-In successful.',
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          fullName: user.full_name,
+          phoneNumber: user.phone_number,
+          municipalityId: user.municipality_id,
+          municipalityName: user.municipality_name,
+          municipalityFeaturedImage: user.municipality_featured_image,
+          status: user.status,
+        },
+      });
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      console.error('Google tourist auth DB error:', dbErr);
+      return res.status(500).json({ message: 'Internal server error during Google authentication.' });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Google tourist auth error:', err);
+    return res.status(500).json({ message: 'Internal server error during Google authentication.' });
+  }
+};
+

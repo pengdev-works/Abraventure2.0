@@ -259,7 +259,7 @@ const TourPackageDetail = () => {
   const coverImageSrc = pkg.image_url || pkg.cover_image_url || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80';
 
   return (
-    <div className="min-h-screen bg-[var(--bg-app,#FAF7F2)] text-[#2E3330] pb-24 transition-colors">
+    <div className="min-h-screen bg-[var(--bg-app,#FAF7F2)] text-[var(--text-primary)] pb-24 transition-colors">
       {/* Top Breadcrumb & Return Bar */}
       <div className="bg-white dark:bg-[#162218] border-b border-[var(--border-app,#E8DFC8)] dark:border-[#223529] py-3.5 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">

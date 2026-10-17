@@ -287,6 +287,37 @@ const TourPackagesTab = () => {
     } catch { Swal.fire('Error', 'Server error submitting package.', 'error'); }
   };
 
+  const handleTogglePublish = async (pkg) => {
+    const willPublish = !pkg.is_published && pkg.status !== 'PUBLISHED';
+    const result = await Swal.fire({
+      title: willPublish ? 'Publish Tour Package?' : 'Unpublish Package?',
+      text: willPublish
+        ? `"${pkg.title}" will be published live and become bookable for tourists.`
+        : `"${pkg.title}" will be unpublished and saved as draft.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: willPublish ? '#174638' : '#7A5A14',
+      confirmButtonText: willPublish ? 'Yes, Publish Live' : 'Unpublish to Draft',
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await fetch(`/api/tour-packages/${pkg.id}/publish`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unpublish: !willPublish })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire(willPublish ? 'Published!' : 'Unpublished!', data.message, 'success');
+        await fetchPackages();
+      } else {
+        Swal.fire('Error', data.message, 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Server error publishing package.', 'error');
+    }
+  };
+
   // ── Schedule Handlers ──────────────────────────────────────────────────
   const handleSaveSchedule = async (e) => {
     e.preventDefault();
@@ -691,11 +722,15 @@ const TourPackagesTab = () => {
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    {['DRAFT', 'REVISION_REQUESTED', 'REJECTED'].includes(pkg.status) && (
-                      <button style={btnSecondary} onClick={() => openEdit(pkg)}><Edit size={12} /> Edit</button>
-                    )}
-                    {['DRAFT', 'REVISION_REQUESTED'].includes(pkg.status) && (
-                      <button style={btnGold} onClick={() => handleSubmitForApproval(pkg)}><Send size={12} /> Submit</button>
+                    <button style={btnSecondary} onClick={() => openEdit(pkg)}><Edit size={12} /> Edit</button>
+                    {pkg.is_published || pkg.status === 'PUBLISHED' ? (
+                      <button style={btnSecondary} onClick={() => handleTogglePublish(pkg)}>
+                        <Clock size={12} /> Unpublish
+                      </button>
+                    ) : (
+                      <button style={btnPrimary} onClick={() => handleTogglePublish(pkg)}>
+                        <CheckCircle size={12} /> Publish Live
+                      </button>
                     )}
                     <button style={btnSecondary} onClick={() => { setSelectedPkg(pkg); setSubTab('schedules'); }}>
                       <Calendar size={12} /> Schedules
@@ -703,9 +738,7 @@ const TourPackagesTab = () => {
                     <button style={btnSecondary} onClick={() => { setSelectedPkg(pkg); setSubTab('transport'); }}>
                       <Truck size={12} /> Transport
                     </button>
-                    {['DRAFT', 'REJECTED', 'REVISION_REQUESTED'].includes(pkg.status) && (
-                      <button style={btnDanger} onClick={() => handleDeletePackage(pkg)}><Trash2 size={12} /></button>
-                    )}
+                    <button style={btnDanger} onClick={() => handleDeletePackage(pkg)}><Trash2 size={12} /></button>
                   </div>
                 </div>
               ))}

@@ -186,7 +186,7 @@ router.put(
 router.put(
   '/:id/publish',
   verifyToken,
-  requireRoles(['PROVINCIAL_DOT']),
+  requireRoles(['MUNICIPAL_DOT', 'PROVINCIAL_DOT']),
   publishPackage
 );
 
