@@ -942,15 +942,32 @@ export const createPackageBooking = async (req, res) => {
     }
 
     // 2. Check package schedule capacity
-    const schedRes = await client.query(
+    let schedRes = await client.query(
       `SELECT * FROM package_schedules WHERE package_id = $1 AND travel_date = $2 FOR UPDATE`,
       [packageId, travelDate]
     );
+    let sched = null;
     if (schedRes.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ message: 'No schedule slot available for the selected date.' });
+      // Auto-initialize schedule slot for this date if package is published and date is today or future
+      const targetDate = new Date(travelDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (isNaN(targetDate.getTime()) || targetDate < today) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Travel date must be today or a future date.' });
+      }
+
+      const defaultCap = parseInt(pkg.max_capacity) || 30;
+      const newSchedRes = await client.query(
+        `INSERT INTO package_schedules (package_id, travel_date, max_capacity, reserved_count, is_available)
+         VALUES ($1, $2, $3, 0, true)
+         RETURNING *`,
+        [packageId, travelDate, defaultCap]
+      );
+      sched = newSchedRes.rows[0];
+    } else {
+      sched = schedRes.rows[0];
     }
-    const sched = schedRes.rows[0];
     if (!sched.is_available) {
       await client.query('ROLLBACK');
       return res.status(409).json({ message: 'The selected date is not available for booking.' });

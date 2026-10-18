@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Swal from 'sweetalert2';
 import { 
-  MapPin, Calendar, HelpCircle, Phone, Mail, Award, CheckCircle, Info, 
+  MapPin, Calendar, HelpCircle, Phone, Mail, Award, CheckCircle, CheckCircle2, Info, 
   Landmark, Star, MessageSquare, Upload, Image, Home, BedDouble, Users, 
   Package, Sparkles, Send, Clock, ChevronDown, ChevronUp, Film, Video, 
   Play, ExternalLink, Compass, Navigation, Plus, Search, X, ShieldCheck, 
@@ -104,9 +104,14 @@ const MunicipalityDetails = () => {
   // Booking/Inquiry Modal State
   const [showInquiryModal, setShowInquiryModal] = useState(false);
   const [inquiryTarget, setInquiryTarget] = useState(null);
+  const [inquirySelectedRoom, setInquirySelectedRoom] = useState(null);
   const [inquiryDateStart, setInquiryDateStart] = useState('');
   const [inquiryDateEnd, setInquiryDateEnd] = useState('');
   const [inquiryGuests, setInquiryGuests] = useState('1');
+  const [inquiryPhone, setInquiryPhone] = useState('');
+  const [inquiryProofFile, setInquiryProofFile] = useState(null);
+  const [inquiryProofPreview, setInquiryProofPreview] = useState('');
+  const [inquiryConfirmedData, setInquiryConfirmedData] = useState(null);
   const [inquiryMessage, setInquiryMessage] = useState('');
   const [inquirySuccess, setInquirySuccess] = useState('');
   const [inquiryError, setInquiryError] = useState('');
@@ -422,10 +427,31 @@ const MunicipalityDetails = () => {
     setInquirySuccess('');
     setInquiryError('');
     setInquiryMessage('');
-    setInquiryDateStart('');
-    setInquiryDateEnd('');
+    setInquiryProofFile(null);
+    setInquiryProofPreview('');
+    setInquiryConfirmedData(null);
+    setInquiryPhone(user?.phone_number || '');
+
+    // Default dates: tomorrow check-in, day after check-out (1 night)
+    const tmrw = new Date();
+    tmrw.setDate(tmrw.getDate() + 1);
+    const dayAfter = new Date(tmrw);
+    dayAfter.setDate(dayAfter.getDate() + 1);
+    setInquiryDateStart(tmrw.toISOString().split('T')[0]);
+    setInquiryDateEnd(dayAfter.toISOString().split('T')[0]);
+
+    if (type === 'HOMESTAY') {
+      const roomsList = item.rooms || item.sleeping_arrangements || [];
+      item.rooms = roomsList;
+      const firstRoom = (roomsList.length > 0) ? roomsList[0] : null;
+      setInquirySelectedRoom(firstRoom);
+      setInquiryGuests('1');
+    } else {
+      setInquirySelectedRoom(null);
+      setInquiryGuests('1');
+    }
+
     setBookedDates([]);
-    // Fetch booked dates for this homestay/guide
     const param = type === 'HOMESTAY' ? `homestayId=${item.id}` : `guideId=${item.id}`;
     fetch(`/api/inquiries/booked-dates?${param}`)
       .then(r => r.ok ? r.json() : [])
@@ -433,20 +459,62 @@ const MunicipalityDetails = () => {
       .catch(console.error);
   };
 
+  const calculateStayNights = () => {
+    if (!inquiryDateStart || !inquiryDateEnd) return 1;
+    const s = new Date(inquiryDateStart);
+    const e = new Date(inquiryDateEnd);
+    const diff = Math.round((e - s) / (1000 * 60 * 60 * 24));
+    return Math.max(1, diff);
+  };
+
+  const calculateStayTotal = () => {
+    const nights = calculateStayNights();
+    if (inquiryTarget?.type === 'HOMESTAY') {
+      const roomsList = inquiryTarget?.item?.rooms || inquiryTarget?.item?.sleeping_arrangements || [];
+      const roomPrice = parseFloat(
+        inquirySelectedRoom?.price_per_night || 
+        (roomsList.length > 0 ? roomsList[0].price_per_night : 0) || 
+        inquiryTarget?.item?.price_per_night || 
+        inquiryTarget?.item?.minPrice || 
+        1000
+      );
+      return (roomPrice || 1000) * nights;
+    }
+    if (inquiryTarget?.type === 'GUIDE') {
+      const dailyRate = parseFloat(inquiryTarget?.item?.price_rate || 1000);
+      return dailyRate * nights;
+    }
+    return 0;
+  };
+
   const handleInquirySubmit = async (e) => {
     e.preventDefault();
     setInquiryLoading(true);
     setInquiryError('');
     setInquirySuccess('');
-    if (!token) { setInquiryError('You must be signed in to send booking inquiries.'); setInquiryLoading(false); return; }
+    if (!token) {
+      setInquiryError('You must be signed in as a tourist to make a reservation.');
+      setInquiryLoading(false);
+      return;
+    }
     try {
+      const totalEstimated = calculateStayTotal();
+      const nights = calculateStayNights();
+      const roomDetail = inquirySelectedRoom ? `Room Selected: ${inquirySelectedRoom.room_type} (₱${inquirySelectedRoom.price_per_night}/night)` : '';
+      const phoneDetail = inquiryPhone ? `Tourist Phone: ${inquiryPhone}` : '';
+      const enrichedMsg = [inquiryMessage, roomDetail, phoneDetail].filter(Boolean).join('\n');
+
       const formData = new FormData();
       formData.append('homestayId', inquiryTarget.type === 'HOMESTAY' ? inquiryTarget.item.id : '');
       formData.append('guideId', inquiryTarget.type === 'GUIDE' ? inquiryTarget.item.id : '');
       formData.append('startDate', inquiryDateStart || '');
       formData.append('endDate', inquiryDateEnd || '');
       formData.append('numberOfGuests', inquiryGuests);
-      formData.append('message', inquiryMessage);
+      formData.append('message', enrichedMsg || 'Booking reservation request');
+      formData.append('totalAmount', totalEstimated);
+      if (inquiryProofFile) {
+        formData.append('paymentProof', inquiryProofFile);
+      }
 
       const response = await fetch('/api/inquiries', {
         method: 'POST',
@@ -455,14 +523,25 @@ const MunicipalityDetails = () => {
       });
       const resJson = await response.json();
       if (response.ok) {
-        setInquirySuccess('Inquiry sent successfully! The stakeholder will reply on your dashboard.');
-        setTimeout(() => setShowInquiryModal(false), 3000);
+        setInquirySuccess('Reservation request submitted successfully!');
+        setInquiryConfirmedData({
+          inquiry: resJson,
+          nights,
+          totalEstimated,
+          startDate: inquiryDateStart,
+          endDate: inquiryDateEnd,
+          guests: inquiryGuests,
+          roomType: inquirySelectedRoom?.room_type || null,
+          targetName: inquiryTarget.type === 'HOMESTAY' ? inquiryTarget.item.name : inquiryTarget.item.guide_name,
+          targetType: inquiryTarget.type,
+          hasProof: !!inquiryProofFile
+        });
       } else {
-        setInquiryError(resJson.message || 'Failed to send inquiry.');
+        setInquiryError(resJson.message || 'Failed to submit reservation.');
       }
     } catch (err) {
       console.error(err);
-      setInquiryError('Server error sending inquiry.');
+      setInquiryError('Server error submitting reservation.');
     } finally {
       setInquiryLoading(false);
     }
@@ -902,13 +981,13 @@ const MunicipalityDetails = () => {
 
                             {/* Card Action Buttons */}
                             <div className="p-4 sm:p-5 border-t border-[var(--border-app,#E8DFC8)] bg-slate-50/50 flex flex-col sm:flex-row gap-2.5">
-                              {/* Direct Inquiry / Booking */}
+                              {/* Direct Booking */}
                               <button
                                 type="button"
-                                onClick={() => openInquiry('PACKAGE', { id: pkg.id, name: pkg.title, price: pkg.price })}
+                                onClick={() => navigate(`/tour-packages/${pkg.id}`)}
                                 className="flex-1 py-2.5 px-3.5 bg-emerald-900 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                               >
-                                <Send className="w-3.5 h-3.5 text-[#B88B2A]" />
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#B88B2A]" />
                                 <span>Book Package</span>
                               </button>
 
@@ -1266,9 +1345,15 @@ const MunicipalityDetails = () => {
                       const revList = reviews.homestays[h.id] || [];
                       const avg = avgRating(revList);
                       const photos = h.images || [];
-                      const arrangements = h.sleeping_arrangements || [];
+                      const arrangements = h.sleeping_arrangements || h.rooms || [];
+                      const roomPrices = arrangements
+                        .map(rm => parseFloat(rm.price_per_night))
+                        .filter(p => !isNaN(p) && p > 0);
+                      const minPrice = roomPrices.length > 0 ? Math.min(...roomPrices) : (parseFloat(h.price_per_night || h.price || 0) || 1000);
+                      const maxPrice = roomPrices.length > 0 ? Math.max(...roomPrices) : minPrice;
+
                       return (
-                        <div key={h.id} className="bg-white rounded-2xl border border-[#E8DFC8] overflow-hidden flex flex-col shadow-sm hover:shadow-xl transition-shadow duration-300">
+                        <div key={h.id} className="bg-white dark:bg-[#162218] rounded-2xl border border-[#E8DFC8] dark:border-[#223529] overflow-hidden flex flex-col shadow-sm hover:shadow-xl transition-shadow duration-300">
                           <div>
                             {/* Hero Photo with overlay */}
                             <div className="aspect-[16/9] bg-[#153325] relative overflow-hidden">
@@ -1280,15 +1365,18 @@ const MunicipalityDetails = () => {
                               />
                               {/* Dark gradient at bottom for text legibility */}
                               <div className="absolute inset-0 bg-gradient-to-t from-[#153325]/80 via-[#153325]/10 to-transparent" />
-                              {/* Badges */}
-                              <div className="absolute top-3 left-3">
+                              {/* Top Badges */}
+                              <div className="absolute top-3 left-3 flex items-center gap-2">
                                 <span className="bg-[#B88B2A] text-white font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md">
                                   ✓ DOT Accredited
                                 </span>
                               </div>
-                              {photos.length > 1 && (
-                                <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  <Image className="w-3 h-3" /> {photos.length}
+                              {/* Price Pill Top Right */}
+                              {minPrice > 0 && (
+                                <div className="absolute top-3 right-3 bg-[#153325]/90 backdrop-blur-md text-white px-3 py-1 rounded-full border border-[#f0d078]/40 shadow-lg flex items-center gap-1.5">
+                                  <span className="text-[10px] text-white/80 uppercase tracking-wider font-semibold">Starts at</span>
+                                  <span className="font-serif font-black text-xs text-[#f0d078]">₱{minPrice.toLocaleString()}</span>
+                                  <span className="text-[9px] text-white/70">/ night</span>
                                 </div>
                               )}
                               {/* Name & address on photo */}
@@ -1304,10 +1392,39 @@ const MunicipalityDetails = () => {
                               {/* Star rating */}
                               <div className="flex items-center gap-1.5 mb-3">
                                 <div className="flex gap-0.5">{[1,2,3,4,5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(avg) ? 'fill-[#B88B2A] text-[#B88B2A]' : 'text-slate-200'}`} />)}</div>
-                                <span className="text-xs text-[#5A534E]">{avg > 0 ? avg.toFixed(1) : 'New listing'} &middot; {revList.length} review{revList.length !== 1 ? 's' : ''}</span>
+                                <span className="text-xs text-[#5A534E] dark:text-stone-400">{avg > 0 ? avg.toFixed(1) : 'New listing'} &middot; {revList.length} review{revList.length !== 1 ? 's' : ''}</span>
                               </div>
 
-                              <p className="text-[#5A534E] text-xs leading-relaxed mb-5">{h.description}</p>
+                              <p className="text-[#5A534E] dark:text-stone-300 text-xs leading-relaxed mb-4">{h.description}</p>
+
+                              {/* Prominent Pricing & Room Availability Header */}
+                              <div className="bg-[#FAF7F2] dark:bg-[#1E2E24] p-3.5 rounded-2xl border border-[var(--border-app,#E8DFC8)] dark:border-[#2E4A39] mb-5 flex items-center justify-between">
+                                <div>
+                                  <span className="text-[10px] text-[#5A534E] dark:text-stone-400 font-bold uppercase tracking-wider block">
+                                    Official Room Rate
+                                  </span>
+                                  <div className="flex items-baseline gap-1 mt-0.5">
+                                    <span className="font-serif text-xl sm:text-2xl font-black text-[#153325] dark:text-[#A3F3CA]">
+                                      ₱{minPrice.toLocaleString()}
+                                    </span>
+                                    <span className="text-xs text-[#5A534E] dark:text-stone-400">
+                                      {maxPrice && maxPrice !== minPrice ? `– ₱${maxPrice.toLocaleString()} / night` : ' / night'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full">
+                                    <Home className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                    {arrangements.length} Room{arrangements.length !== 1 ? 's' : ''} Listed
+                                  </span>
+                                  {h.max_capacity && (
+                                    <span className="text-[10px] text-[#5A534E] dark:text-stone-400">
+                                      Max {h.max_capacity} guests
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
 
                               {/* Sleeping arrangements — themed photo display & lightbox */}
                               {arrangements.length > 0 && (
@@ -1417,21 +1534,26 @@ const MunicipalityDetails = () => {
                                           )}
 
                                           {/* Room Info Row */}
-                                          <div className="px-4 py-3 flex items-center justify-between gap-3 bg-[var(--bg-card,#FFFFFF)] border-t border-[var(--border-app,#E8DFC8)]">
+                                          <div className="px-4 py-3 flex items-center justify-between gap-3 bg-[var(--bg-card,#FFFFFF)] dark:bg-[#1A261D] border-t border-[var(--border-app,#E8DFC8)] dark:border-[#2E4A39]">
                                             <div className="min-w-0 flex-1">
-                                              <div className="flex items-center gap-2">
-                                                <span className="font-serif font-bold text-sm text-[#153325]">{rm.room_type}</span>
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="font-serif font-bold text-sm text-[#153325] dark:text-[#E8DFC8]">{rm.room_type}</span>
+                                                {rm.price_per_night && parseFloat(rm.price_per_night) > 0 && (
+                                                  <span className="text-xs font-bold text-[#153325] dark:text-[#A3F3CA] bg-amber-50 dark:bg-emerald-950/60 border border-amber-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">
+                                                    ₱{parseFloat(rm.price_per_night).toLocaleString()} <span className="font-normal text-[10px] text-stone-500 dark:text-stone-400">/ night</span>
+                                                  </span>
+                                                )}
                                               </div>
                                               {rm.description && (
                                                 <ExpandableText
                                                   text={rm.description}
                                                   clampLines={2}
                                                   className="mt-0.5"
-                                                  textClass="text-xs text-[#5A534E] leading-relaxed"
+                                                  textClass="text-xs text-[#5A534E] dark:text-stone-400 leading-relaxed"
                                                 />
                                               )}
                                             </div>
-                                            <div className="flex-shrink-0 flex items-center gap-1.5 bg-[#153325] text-white px-3 py-1.5 rounded-xl shadow-xs">
+                                            <div className="flex-shrink-0 flex items-center gap-1.5 bg-[#153325] dark:bg-[#122B1E] text-white px-3 py-1.5 rounded-xl shadow-xs border border-[#223529]">
                                               <Users className="w-3.5 h-3.5 text-[#B88B2A]" />
                                               <span className="text-xs font-bold whitespace-nowrap">Up to {rm.capacity}</span>
                                             </div>
@@ -1447,10 +1569,11 @@ const MunicipalityDetails = () => {
 
                           <div className="px-5 pb-5 pt-1 flex flex-col gap-2">
                             <button
-                              onClick={() => openInquiry('HOMESTAY', h)}
-                              className="btn-editorial-primary w-full !py-3 text-sm font-bold"
+                              onClick={() => openInquiry('HOMESTAY', { ...h, rooms: arrangements, sleeping_arrangements: arrangements, minPrice })}
+                              className="btn-editorial-primary w-full !py-3.5 text-sm font-bold flex items-center justify-center gap-2 shadow-sm cursor-pointer hover:shadow-md transition-all"
                             >
-                              Send Booking Inquiry
+                              <Home className="w-4 h-4 text-[#B88B2A]" />
+                              <span>Book Homestay • from ₱{minPrice ? minPrice.toLocaleString() : '1,000'}/night</span>
                             </button>
                             {user?.role === 'TOURIST' && (
                               <button
@@ -1880,164 +2003,364 @@ const MunicipalityDetails = () => {
         </div>
       )}
 
-      {/* Inquiry Modal — Premium Redesign */}
+      {/* Reservation & Booking Modal — Complete Tourist Flow */}
       {showInquiryModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg overflow-hidden border border-slate-100 relative animate-scaleUp max-h-[92vh] flex flex-col">
-            {/* Gradient top bar */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#153325] via-[#B88B2A] to-[#153325] rounded-t-3xl" />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4">
+          <div className="bg-white dark:bg-[#162218] rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-xl overflow-hidden border border-[var(--border-app,#E8DFC8)] dark:border-[#223529] relative animate-scaleUp max-h-[92vh] flex flex-col text-left">
+            {/* Gradient Top Line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#153325] via-[#B88B2A] to-[#153325] rounded-t-3xl" />
 
-            {/* Header */}
-            <div className="pt-6 px-6 pb-4 border-b border-slate-100 flex items-start justify-between gap-4 flex-shrink-0">
+            {/* Modal Header */}
+            <div className="pt-6 px-6 pb-4 border-b border-slate-100 dark:border-stone-800 flex items-start justify-between gap-4 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[#153325] flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+                <div className="w-11 h-11 rounded-2xl bg-[#153325] flex items-center justify-center flex-shrink-0 text-white shadow-sm">
+                  {inquiryTarget?.type === 'HOMESTAY' ? <Home className="w-5 h-5 text-[#f0d078]" /> : <Compass className="w-5 h-5 text-[#f0d078]" />}
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#153325] text-lg leading-tight">Send Booking Inquiry</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {inquiryTarget?.type === 'HOMESTAY' ? '🏠 ' : '🧭 '}
-                    <span className="font-semibold text-[#153325]">
+                  <h3 className="font-bold text-[#153325] dark:text-[#E2EDE5] text-lg leading-tight font-serif">
+                    {inquiryTarget?.type === 'HOMESTAY' ? 'Reserve Homestay Stay' : 'Book Accredited Tour Guide'}
+                  </h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 flex items-center gap-1">
+                    <span className="font-semibold text-[#153325] dark:text-[#f0d078]">
                       {inquiryTarget?.type === 'HOMESTAY' ? inquiryTarget.item.name : inquiryTarget?.item.guide_name}
                     </span>
+                    <span>• {data?.municipality?.name || 'Abra'}</span>
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowInquiryModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer flex-shrink-0"
+                className="p-2 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-slate-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer flex-shrink-0"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Scrollable body */}
-            <div className="overflow-y-auto flex-1">
-              <form onSubmit={handleInquirySubmit} className="p-6 space-y-5">
-
-                {/* Alert banners */}
-                {inquiryError && (
-                  <div className="flex items-start gap-2.5 bg-red-50 text-red-700 px-4 py-3 rounded-2xl text-xs border border-red-200">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>{inquiryError}</span>
+            {/* Modal Content */}
+            <div className="overflow-y-auto flex-1 p-6">
+              {inquiryConfirmedData ? (
+                /* Success Receipt Screen */
+                <div className="space-y-5 text-center py-4">
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+                    <CheckCircle className="w-8 h-8" />
                   </div>
-                )}
-                {inquirySuccess && (
-                  <div className="flex items-start gap-2.5 bg-emerald-50 text-emerald-800 px-4 py-3 rounded-2xl text-xs border border-emerald-200">
-                    <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>{inquirySuccess}</span>
-                  </div>
-                )}
 
-                {/* Booked Dates Availability Notice */}
-                {bookedDates.length > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-                    <p className="text-xs font-bold text-amber-800 flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Dates Already Booked — Please Choose Others
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                      Reservation Request Submitted
+                    </span>
+                    <h4 className="font-serif text-xl font-bold text-[#153325] dark:text-white mt-2">
+                      Booking Registered!
+                    </h4>
+                    <p className="text-xs text-stone-600 dark:text-stone-300 mt-1 max-w-sm mx-auto">
+                      Your reservation request has been dispatched to {inquiryConfirmedData.targetName}. You can track the status in your Tourist Dashboard.
                     </p>
-                    <div className="space-y-1">
-                      {bookedDates.map((range, i) => {
-                        const start = new Date(range.start_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-                        const end = range.end_date ? new Date(range.end_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : start;
-                        return (
-                          <div key={i} className="flex items-center gap-2 text-[11px] text-amber-700 font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-                            {start === end ? start : `${start} — ${end}`}
-                          </div>
-                        );
-                      })}
+                  </div>
+
+                  {/* Summary Box */}
+                  <div className="bg-[#FAF7F2] dark:bg-[#1E2E24] p-4 rounded-2xl border border-[var(--border-app,#E8DFC8)] dark:border-[#2E4A39] text-xs text-stone-700 dark:text-stone-200 text-left space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Destination / Property:</span>
+                      <strong className="text-[#153325] dark:text-[#A3F3CA]">{inquiryConfirmedData.targetName}</strong>
+                    </div>
+                    {inquiryConfirmedData.roomType && (
+                      <div className="flex justify-between">
+                        <span className="text-stone-500">Room Selected:</span>
+                        <strong>{inquiryConfirmedData.roomType}</strong>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Dates:</span>
+                      <strong>
+                        {new Date(inquiryConfirmedData.startDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} – {new Date(inquiryConfirmedData.endDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })} ({inquiryConfirmedData.nights} Night{inquiryConfirmedData.nights > 1 ? 's' : ''})
+                      </strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Party Size:</span>
+                      <strong>{inquiryConfirmedData.guests} Guest(s)</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Deposit Attached:</span>
+                      <strong className={inquiryConfirmedData.hasProof ? 'text-emerald-600' : 'text-amber-600'}>
+                        {inquiryConfirmedData.hasProof ? 'Receipt Submitted ✓' : 'Pay at Property / Upon Arrival'}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 font-bold text-sm">
+                      <span>Total Estimated Payable:</span>
+                      <span className="text-[#153325] dark:text-[#f0d078] font-serif text-base">
+                        ₱{inquiryConfirmedData.totalEstimated.toLocaleString()}
+                      </span>
                     </div>
                   </div>
-                )}
 
-                {/* Dates */}
-                <div>
-                  <label className="block text-xs font-bold text-[#153325] mb-2">Stay Dates</label>
+                  {/* Action Buttons */}
+                  <div className="space-y-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInquiryModal(false);
+                        navigate('/tourist-dashboard?tab=stays');
+                      }}
+                      className="w-full py-3 bg-[#153325] hover:bg-[#1E4D37] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Home className="w-4 h-4 text-[#f0d078]" />
+                      <span>View in Tourist Dashboard (My Stays)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowInquiryModal(false)}
+                      className="w-full py-2.5 border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-semibold text-xs rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all cursor-pointer"
+                    >
+                      Close Window
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Main Reservation Form */
+                <form onSubmit={handleInquirySubmit} className="space-y-4">
+                  
+                  {/* Alert messages */}
+                  {inquiryError && (
+                    <div className="flex items-start gap-2.5 bg-red-50 text-red-700 p-3.5 rounded-xl text-xs border border-red-200">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{inquiryError}</span>
+                    </div>
+                  )}
+
+                  {/* Booked Dates Notice */}
+                  {bookedDates.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5 text-xs text-amber-800">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5" /> Already Booked Dates:
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                        {bookedDates.map((r, i) => (
+                          <span key={i} className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono">
+                            {new Date(r.start_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })} – {new Date(r.end_date || r.start_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Room Selection (for Homestays) */}
+                  {(() => {
+                    const roomsList = inquiryTarget?.item?.rooms || inquiryTarget?.item?.sleeping_arrangements || [];
+                    if (inquiryTarget?.type !== 'HOMESTAY' || roomsList.length === 0) return null;
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                            Select Accommodation Room *
+                          </label>
+                          {inquirySelectedRoom && (
+                            <span className="text-[11px] font-bold text-[#153325] dark:text-[#f0d078]">
+                              ₱{parseFloat(inquirySelectedRoom.price_per_night || 0).toLocaleString()} / night
+                            </span>
+                          )}
+                        </div>
+                        <select
+                          value={inquirySelectedRoom?.id || ''}
+                          onChange={e => {
+                            const rm = roomsList.find(r => String(r.id) === String(e.target.value));
+                            setInquirySelectedRoom(rm || null);
+                          }}
+                          className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl px-3 py-2.5 text-xs font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325]"
+                        >
+                          {roomsList.map(rm => (
+                            <option key={rm.id} value={rm.id}>
+                              {rm.room_type} — ₱{parseFloat(rm.price_per_night || 0).toLocaleString()} / night (Up to {rm.capacity || 2} guests)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Stay Dates (Check-In & Check-Out) */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                        {inquiryTarget?.type === 'HOMESTAY' ? 'Stay Dates *' : 'Service Dates *'}
+                      </label>
+                      <span className="text-[11px] font-bold text-[#153325] dark:text-[#f0d078] bg-[#FAF7F2] dark:bg-[#1E2E24] px-2 py-0.5 rounded-md border border-[var(--border-app,#E8DFC8)] dark:border-[#2E4A39]">
+                        {calculateStayNights()} Night{calculateStayNights() > 1 ? 's' : ''} / {calculateStayNights()} Day{calculateStayNights() > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">Check-In</label>
+                        <input
+                          type="date"
+                          required
+                          min={new Date().toISOString().split('T')[0]}
+                          value={inquiryDateStart}
+                          onChange={e => {
+                            setInquiryDateStart(e.target.value);
+                            if (new Date(e.target.value) >= new Date(inquiryDateEnd)) {
+                              const nextDay = new Date(e.target.value);
+                              nextDay.setDate(nextDay.getDate() + 1);
+                              setInquiryDateEnd(nextDay.toISOString().split('T')[0]);
+                            }
+                          }}
+                          className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl px-3 py-2 text-xs font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">Check-Out</label>
+                        <input
+                          type="date"
+                          required
+                          min={inquiryDateStart || new Date().toISOString().split('T')[0]}
+                          value={inquiryDateEnd}
+                          onChange={e => setInquiryDateEnd(e.target.value)}
+                          className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl px-3 py-2 text-xs font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Guests and Tourist Phone */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Check-In</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                          Number of Guests *
+                        </label>
+                        {inquirySelectedRoom?.capacity && (
+                          <span className="text-[10px] text-stone-500">
+                            Room fits: {inquirySelectedRoom.capacity}
+                          </span>
+                        )}
+                      </div>
                       <input
-                        type="date"
+                        type="number"
+                        min="1"
+                        max="99"
                         required
-                        value={inquiryDateStart}
-                        onChange={e => setInquiryDateStart(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
+                        value={inquiryGuests}
+                        onChange={e => setInquiryGuests(e.target.value)}
+                        className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl px-3 py-2 text-xs font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325]"
                       />
+                      {inquirySelectedRoom?.capacity && parseInt(inquiryGuests) > inquirySelectedRoom.capacity && (
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-1 leading-tight">
+                          Note: Selected room fits {inquirySelectedRoom.capacity} guest(s). Extra guests are subject to host approval.
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Check-Out</label>
+                      <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                        Contact Phone Number
+                      </label>
                       <input
-                        type="date"
-                        value={inquiryDateEnd}
-                        onChange={e => setInquiryDateEnd(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
+                        type="tel"
+                        placeholder="0912-345-6789"
+                        value={inquiryPhone}
+                        onChange={e => setInquiryPhone(e.target.value)}
+                        className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl px-3 py-2 text-xs font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325]"
                       />
                     </div>
                   </div>
-                </div>
 
-                {/* Guests */}
-                <div>
-                  <label className="block text-xs font-bold text-[#153325] mb-1">Number of Guests</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={inquiryGuests}
-                    onChange={e => setInquiryGuests(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
-                  />
-                </div>
-
-                {/* Message */}
-                <div>
-                  <label className="block text-xs font-bold text-[#153325] mb-1">Your Message</label>
-                  <textarea
-                    required
-                    rows="4"
-                    value={inquiryMessage}
-                    onChange={e => setInquiryMessage(e.target.value)}
-                    placeholder="Introduce yourself, ask about availability, meals, special arrangements..."
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs resize-none focus:outline-none focus:ring-2 focus:ring-[#153325]/20 focus:border-[#153325]"
-                  />
-                </div>
-
-                {/* Info note */}
-                <div className="flex gap-2.5 bg-[#F3ECE0] border border-[#E8DFC8] rounded-2xl px-4 py-3">
-                  <svg className="w-4 h-4 text-[#B88B2A] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <p className="text-[11px] text-[#5A534E] leading-relaxed">
-                    After sending, the host will reply with payment details (e.g. GCash). You can then upload proof of payment from your <strong className="text-[#153325]">Dashboard → My Bookings</strong>.
-                  </p>
-                </div>
-
-                {/* Not logged in notice */}
-                {!token && (
-                  <div className="text-center py-3 px-4 border border-[#E8DFC8] rounded-2xl bg-[#F3ECE0]">
-                    <p className="text-xs text-[#5A534E]">
-                      <Link to="/login" className="font-bold text-[#153325] hover:underline">Sign in</Link> to send a booking inquiry.
-                    </p>
+                  {/* Live Price Breakdown Box */}
+                  <div className="bg-[#FAF7F2] dark:bg-[#1E2E24] p-3.5 rounded-2xl border border-[var(--border-app,#E8DFC8)] dark:border-[#2E4A39] space-y-1.5 text-xs text-stone-700 dark:text-stone-200">
+                    <div className="flex justify-between text-stone-500">
+                      <span>Rate Per Night / Day:</span>
+                      <span>
+                        ₱{inquiryTarget?.type === 'HOMESTAY'
+                          ? (parseFloat(inquirySelectedRoom?.price_per_night || inquiryTarget?.item?.price_per_night || 0)).toLocaleString()
+                          : (parseFloat(inquiryTarget?.item?.price_rate || 1000)).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-stone-500">
+                      <span>Duration:</span>
+                      <span>{calculateStayNights()} night{calculateStayNights() > 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-sm text-stone-900 dark:text-white pt-2 border-t border-stone-200 dark:border-stone-700">
+                      <span>Total Estimated Cost:</span>
+                      <span className="text-[#153325] dark:text-[#f0d078] font-serif text-base">
+                        ₱{calculateStayTotal().toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                )}
 
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={inquiryLoading || !token}
-                  className="w-full py-3.5 bg-[#153325] hover:bg-[#1E4A36] active:bg-[#0F2418] text-white font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#153325]/20"
-                >
-                  {inquiryLoading ? (
-                    <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sending…</>
+                  {/* Fast-Track Deposit Upload (Optional) */}
+                  <div className="border border-dashed border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] p-3.5 rounded-2xl bg-white/50 dark:bg-black/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                        <Upload size={14} className="text-[#B88B2A]" />
+                        <span>Optional: Advance Payment Receipt</span>
+                      </label>
+                      <span className="text-[10px] text-stone-400">GCash / Bank Transfer</span>
+                    </div>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-tight">
+                      You may attach an advance deposit screenshot now to guarantee your slot, or choose to settle in cash upon check-in.
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          setInquiryProofFile(file);
+                          setInquiryProofPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                      className="w-full text-xs text-stone-600 dark:text-stone-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#153325] file:text-white hover:file:bg-[#1E4D37] cursor-pointer"
+                    />
+                    {inquiryProofPreview && (
+                      <div className="h-28 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 mt-2">
+                        <img src={inquiryProofPreview} alt="Deposit preview" className="w-full h-full object-contain" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Message / Special Requests */}
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 mb-1">
+                      Message & Special Requests
+                    </label>
+                    <textarea
+                      rows="2"
+                      value={inquiryMessage}
+                      onChange={e => setInquiryMessage(e.target.value)}
+                      placeholder="Special arrival requests, meal preferences, dietary needs..."
+                      className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl p-2.5 text-xs text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325] resize-none"
+                    />
+                  </div>
+
+                  {/* Sign-in prompt if not logged in */}
+                  {!token ? (
+                    <div className="text-center py-3 px-4 border border-amber-200 bg-amber-50 rounded-2xl space-y-2">
+                      <p className="text-xs text-amber-900 font-medium">
+                        You need a Tourist account to submit reservations.
+                      </p>
+                      <Link
+                        to="/login"
+                        className="inline-flex items-center gap-1.5 py-2 px-4 bg-[#153325] hover:bg-[#1E4D37] text-white text-xs font-bold rounded-xl shadow-xs transition"
+                      >
+                        Sign In as Tourist
+                      </Link>
+                    </div>
                   ) : (
-                    <>Send Booking Inquiry</>
+                    <button
+                      type="submit"
+                      disabled={inquiryLoading}
+                      className="w-full py-3.5 bg-[#153325] hover:bg-[#1E4D37] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {inquiryLoading ? (
+                        <span>Submitting Reservation...</span>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={16} />
+                          <span>Reserve Now • ₱{calculateStayTotal().toLocaleString()}</span>
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
-              </form>
+                </form>
+              )}
             </div>
           </div>
         </div>
@@ -2556,17 +2879,14 @@ const MunicipalityDetails = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    const pkgId = selectedPackageModal.id;
                     closePackageModal();
-                    openInquiry('PACKAGE', {
-                      id: selectedPackageModal.id,
-                      name: selectedPackageModal.title,
-                      price: selectedPackageModal.price
-                    });
+                    navigate(`/tour-packages/${pkgId}`);
                   }}
                   className="px-5 py-2.5 bg-emerald-900 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Send className="w-3.5 h-3.5 text-[#B88B2A]" />
-                  <span>Book / Send Inquiry</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#B88B2A]" />
+                  <span>Book Package Now</span>
                 </button>
 
                 <button

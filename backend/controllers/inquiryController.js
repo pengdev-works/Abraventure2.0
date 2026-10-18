@@ -5,8 +5,9 @@ import { sendNotification } from '../utils/notify.js';
 // Send booking inquiry (Tourist only)
 export const createInquiry = async (req, res) => {
   const touristId = req.user.id;
-  const { homestayId, guideId, startDate, endDate, numberOfGuests, message } = req.body;
+  const { homestayId, guideId, startDate, endDate, numberOfGuests, message, totalAmount, total_amount } = req.body;
   const paymentProofUrl = req.file ? (req.file.secure_url || req.file.path) : null;
+  const parsedTotal = totalAmount || total_amount ? parseFloat(totalAmount || total_amount) : null;
 
   if (!message) {
     return res.status(400).json({ message: 'Message is required.' });
@@ -55,8 +56,8 @@ export const createInquiry = async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO bookings_inquiries (tourist_id, homestay_id, guide_id, start_date, end_date, number_of_guests, message, status, payment_proof_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8)
+      `INSERT INTO bookings_inquiries (tourist_id, homestay_id, guide_id, start_date, end_date, number_of_guests, message, status, payment_proof_url, total_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8, $9)
        RETURNING *`,
       [
         touristId,
@@ -66,7 +67,8 @@ export const createInquiry = async (req, res) => {
         endDate || null,
         numberOfGuests ? parseInt(numberOfGuests) : null,
         message,
-        paymentProofUrl
+        paymentProofUrl,
+        parsedTotal
       ]
     );
 

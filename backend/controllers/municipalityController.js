@@ -136,6 +136,7 @@ export const getMunicipalityDetails = async (req, res) => {
          ORDER BY r.created_at ASC`,
         [homestay.id]
       );
+      homestay.rooms = roomRes.rows;
       homestay.sleeping_arrangements = roomRes.rows;
     }
 

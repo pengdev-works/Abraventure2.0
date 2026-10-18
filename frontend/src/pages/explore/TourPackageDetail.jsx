@@ -73,6 +73,10 @@ const TourPackageDetail = () => {
         if (schedList.length > 0) {
           const firstDate = schedList[0].travel_date?.split('T')[0] || schedList[0].travel_date;
           setSelectedDate(firstDate);
+        } else {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          setSelectedDate(tomorrow.toISOString().split('T')[0]);
         }
 
         if (data.package.homestay_options && data.package.homestay_options.length > 0) {
@@ -647,14 +651,19 @@ const TourPackageDetail = () => {
                           })}
                         </select>
                       ) : (
-                        <input
-                          required
-                          type="date"
-                          min={new Date().toISOString().split('T')[0]}
-                          value={selectedDate}
-                          onChange={e => setSelectedDate(e.target.value)}
-                          className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl px-3 py-2.5 text-xs font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325]"
-                        />
+                        <div>
+                          <input
+                            required
+                            type="date"
+                            min={new Date().toISOString().split('T')[0]}
+                            value={selectedDate}
+                            onChange={e => setSelectedDate(e.target.value)}
+                            className="w-full bg-[#FAF7F2] dark:bg-[#1E2E24] border border-[var(--border-app,#C7D7C9)] dark:border-[#2E4A39] rounded-xl px-3 py-2.5 text-xs font-medium text-stone-800 dark:text-stone-100 focus:outline-none focus:border-[#153325]"
+                          />
+                          <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-1 font-medium flex items-center gap-1">
+                            <CheckCircle2 size={12} /> Daily departure open for your selected date (up to {pkg?.max_capacity || 30} slots)
+                          </p>
+                        </div>
                       )}
                     </div>
 
@@ -833,10 +842,10 @@ const TourPackageDetail = () => {
                     </a>
 
                     <Link
-                      to="/dashboard/tourist"
+                      to="/tourist-dashboard?tab=tour-packages"
                       className="block text-center text-xs text-[#153325] dark:text-[#A3F3CA] font-semibold hover:underline pt-1"
                     >
-                      Go to Tourist Dashboard →
+                      Go to Tourist Dashboard (My Passes) →
                     </Link>
                   </div>
                 </div>

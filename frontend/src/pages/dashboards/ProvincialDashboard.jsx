@@ -10,7 +10,7 @@ import {
   Download, Plus, Trash2, Edit, Bell, Image, UserPlus, X, Key, Building2,
   Settings, Menu, Globe, ArrowUpRight, Lock, Sliders, Shield,
   Video, Film, Play, Eye, EyeOff, Sparkles, ExternalLink, RefreshCw, Package,
-  Search, Compass, MessageSquare, Clock, User
+  Search, Compass, MessageSquare, Clock, User, MapPin
 } from 'lucide-react';
 import ProvincialPackagesTab from './ProvincialPackagesTab';
 import { jsPDF } from 'jspdf';
@@ -125,11 +125,18 @@ const ProvincialDashboard = () => {
   });
   const [data, setData] = useState({ homestays: [], guides: [], municipalAdmins: [] });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'accounts');
+  const [activeTab, setActiveTab] = useState(() => {
+    const raw = searchParams.get('tab') || 'accounts';
+    const TAB_ALIASES = { 'tour-packages': 'packages', 'tour_packages': 'packages', 'stakeholders': 'listings' };
+    return TAB_ALIASES[raw] ?? raw;
+  });
 
   useEffect(() => {
-    const t = searchParams.get('tab');
-    if (t && t !== activeTab) {
+    const raw = searchParams.get('tab');
+    if (!raw) return;
+    const TAB_ALIASES = { 'tour-packages': 'packages', 'tour_packages': 'packages', 'stakeholders': 'listings' };
+    const t = TAB_ALIASES[raw] ?? raw;
+    if (t !== activeTab) {
       setActiveTab(t);
     }
   }, [searchParams]);
